@@ -30,64 +30,78 @@ final class AppService {
         guard !state.isScanning else { return }
         state.isScanning = true
         defer { state.isScanning = false }
-        guard let result = try? Scanner().scan(
-            recipes: RecipeRegistry.builtIn(),
-            homeDirectory: NSHomeDirectory()
-        ) else { return }
-        let snapshot = Snapshot(volume: result.volume, items: result.items)
-        let previous = try? snapshotStore.snapshots().last
-        try? snapshotStore.append(snapshot)
+        let paths = self.paths
+        let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, Snapshot?, [Snapshot])? in
+            guard let result = try? Scanner().scan(
+                recipes: RecipeRegistry.builtIn(),
+                homeDirectory: NSHomeDirectory()
+            ) else { return nil }
+            let snapshot = Snapshot(volume: result.volume, items: result.items)
+            let store = SnapshotStore(paths: paths)
+            let previous = try? store.snapshots().last
+            try? store.append(snapshot)
+            let all = (try? store.snapshots()) ?? []
+            return (result, previous, all)
+        }
+        guard let (result, previous, all) = await work.value else { return }
         state.availableBytes = result.volume.availableBytes
         state.totalBytes = result.volume.totalBytes
         state.items = result.items
         state.lastScanAt = Date()
-        let all = (try? snapshotStore.snapshots()) ?? []
         state.predictionDays = FullPrediction().daysUntilFull(
             snapshots: all,
             waterlineBytes: waterlineBytes()
         )
+        let snapshot = Snapshot(volume: result.volume, items: result.items)
         checkGrowth(previous: previous, latest: snapshot)
         checkLowSpace(available: result.volume.availableBytes)
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {
         let config = loadConfig()
-        guard let result = try? Scanner().scan(
-            recipes: RecipeRegistry.builtIn(),
-            homeDirectory: NSHomeDirectory()
-        ) else { return nil }
-        if dryRun {
-            let evaluator = RuleEvaluator(config: config)
-            let suggestions = result.items.compactMap { item -> (ScanItem, EvaluatedAction)? in
-                let action = evaluator.evaluate(item: item) { name in
-                    name.map { PGrepProcessInspector().isRunning($0) } ?? false
+        let paths = self.paths
+        let logStore = self.logStore
+        let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
+            guard let result = try? Scanner().scan(
+                recipes: RecipeRegistry.builtIn(),
+                homeDirectory: NSHomeDirectory()
+            ) else { return nil }
+            if dryRun {
+                let evaluator = RuleEvaluator(config: config)
+                let suggestions = result.items.compactMap { item -> (ScanItem, EvaluatedAction)? in
+                    let action = evaluator.evaluate(item: item) { name in
+                        name.map { PGrepProcessInspector().isRunning($0) } ?? false
+                    }
+                    switch action.action {
+                    case .skip: return nil
+                    default: return (item, action)
+                    }
                 }
-                switch action.action {
-                case .skip: return nil
-                default: return (item, action)
-                }
+                let outcome = CleanOutcome(
+                    entries: suggestions.map { entry in
+                        CleanLogEntry(
+                            id: UUID(),
+                            timestamp: Date(),
+                            itemIDs: [entry.0.id],
+                            freedBytes: entry.0.reclaimableBytes,
+                            disposition: entry.1.action == .trash ? .trash : .deletePermanently
+                        )
+                    },
+                    freedBytes: suggestions.reduce(0) { $0 + $1.0.reclaimableBytes },
+                    actualFreedBytes: 0,
+                    stillBelowWaterline: result.volume.availableBytes < Int64(config.waterlineGB * 1_000_000_000)
+                )
+                return (result, outcome)
             }
-            return CleanOutcome(
-                entries: suggestions.map { entry in
-                    CleanLogEntry(
-                        id: UUID(),
-                        timestamp: Date(),
-                        itemIDs: [entry.0.id],
-                        freedBytes: entry.0.reclaimableBytes,
-                        disposition: entry.1.action == .trash ? .trash : .deletePermanently
-                    )
-                },
-                freedBytes: suggestions.reduce(0) { $0 + $1.0.reclaimableBytes },
-                actualFreedBytes: 0,
-                stillBelowWaterline: result.volume.availableBytes < waterlineBytes()
-            )
+            let outcome = try? Cleaner(
+                evaluator: RuleEvaluator(config: config),
+                deleter: FileManagerFileDeleter(),
+                inspector: PGrepProcessInspector(),
+                logStore: logStore
+            ).run(scan: result, config: config, waterlineBytes: Int64(config.waterlineGB * 1_000_000_000))
+            return (result, outcome)
         }
-        let outcome = try? Cleaner(
-            evaluator: RuleEvaluator(config: config),
-            deleter: FileManagerFileDeleter(),
-            inspector: PGrepProcessInspector(),
-            logStore: logStore
-        ).run(scan: result, config: config, waterlineBytes: waterlineBytes())
+        guard let (_, outcome) = await work.value, let outcome else { return nil }
         if outcome != nil {
             await scanNow()
         }

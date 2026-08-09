@@ -2,9 +2,11 @@ import Foundation
 import AppKit
 
 enum PermissionService {
-    static func hasFullDiskAccess() -> Bool {
-        let containers = NSHomeDirectory() + "/Library/Containers"
-        return (try? FileManager.default.contentsOfDirectory(atPath: containers)) != nil
+    static func hasFullDiskAccess() async -> Bool {
+        await Task.detached(priority: .userInitiated) {
+            let containers = NSHomeDirectory() + "/Library/Containers"
+            return (try? FileManager.default.contentsOfDirectory(atPath: containers)) != nil
+        }.value
     }
 
     static func openSystemSettings() {

@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var expertMode = false
     @State private var launchAtLogin = LaunchAtLoginService.isEnabled
     @State private var newWhitelistPath = ""
+    @State private var hasFullDiskAccess = false
 
     var body: some View {
         Form {
@@ -77,13 +78,16 @@ struct SettingsView: View {
 
             Section("权限") {
                 HStack {
-                    Image(systemName: PermissionService.hasFullDiskAccess() ? "checkmark.shield" : "exclamationmark.shield")
-                    Text(PermissionService.hasFullDiskAccess()
+                    Image(systemName: hasFullDiskAccess ? "checkmark.shield" : "exclamationmark.shield")
+                    Text(hasFullDiskAccess
                          ? "完全磁盘访问已授权"
                          : "需要完全磁盘访问才能扫描受保护目录（如 ~/Library/Containers）")
                     Spacer()
-                    if !PermissionService.hasFullDiskAccess() {
+                    if !hasFullDiskAccess {
                         Button("去设置") { PermissionService.openSystemSettings() }
+                        Button("重新检测") {
+                            Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
+                        }
                     }
                 }
             }
@@ -100,6 +104,9 @@ struct SettingsView: View {
         .onAppear {
             config = service.loadConfig()
             expertMode = UserDefaults.standard.bool(forKey: "expertMode")
+        }
+        .task {
+            hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
         }
         .onChange(of: expertMode) { _, newValue in
             UserDefaults.standard.set(newValue, forKey: "expertMode")
