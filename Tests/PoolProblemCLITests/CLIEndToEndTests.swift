@@ -6,10 +6,8 @@ import Foundation
         .appendingPathComponent("pp-cli-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dataDir) }
-    setenv("POOLPROBLEM_DATA_DIR", dataDir.path, 1)
-    defer { unsetenv("POOLPROBLEM_DATA_DIR") }
 
-    let output = try runCLI(arguments: ["scan", "--json"])
+    let output = try runCLI(arguments: ["scan", "--json"], environment: ["POOLPROBLEM_DATA_DIR": dataDir.path])
     let object = try JSONSerialization.jsonObject(with: output) as? [String: Any]
     #expect(object?["version"] as? Int == 1)
     #expect(object?["volume"] is [String: Any])
@@ -21,19 +19,27 @@ import Foundation
         .appendingPathComponent("pp-cli-status-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dataDir) }
-    setenv("POOLPROBLEM_DATA_DIR", dataDir.path, 1)
-    defer { unsetenv("POOLPROBLEM_DATA_DIR") }
-
-    let output = try runCLI(arguments: ["status", "--json"])
+    let output = try runCLI(arguments: ["status", "--json"], environment: ["POOLPROBLEM_DATA_DIR": dataDir.path])
     let object = try JSONSerialization.jsonObject(with: output) as? [String: Any]
     #expect(object?["version"] as? Int == 1)
     #expect(object?["snapshotCount"] as? Int == 0)
 }
 
-private func runCLI(arguments: [String]) throws -> Data {
+@Test func cliScanSavesSnapshot() throws {
+    let dataDir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-cli-snap-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dataDir) }
+    _ = try runCLI(arguments: ["scan", "--json"], environment: ["POOLPROBLEM_DATA_DIR": dataDir.path])
+    let snapshotsURL = dataDir.appendingPathComponent("snapshots.json")
+    #expect(FileManager.default.fileExists(atPath: snapshotsURL.path))
+}
+
+private func runCLI(arguments: [String], environment: [String: String] = [:]) throws -> Data {
     let process = Process()
     process.executableURL = productsDirectory.appendingPathComponent("poolproblem")
     process.arguments = arguments
+    process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
     let pipe = Pipe()
     process.standardOutput = pipe
     process.standardError = Pipe()
