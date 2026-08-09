@@ -4,11 +4,13 @@ public struct ScanResult: Sendable {
     public let volume: VolumeInfo
     public let items: [ScanItem]
     public let records: [FileRecord]
+    public let volumeURL: URL
 
-    public init(volume: VolumeInfo, items: [ScanItem], records: [FileRecord]) {
+    public init(volume: VolumeInfo, items: [ScanItem], records: [FileRecord], volumeURL: URL) {
         self.volume = volume
         self.items = items
         self.records = records
+        self.volumeURL = volumeURL
     }
 }
 
@@ -51,7 +53,13 @@ public struct Scanner: Sendable {
             }
         }
         let volume = VolumeReader.read(fileURL: URL(fileURLWithPath: homeDirectory))
-        return ScanResult(volume: volume, items: items, records: records)
+        let honestItems = ReclaimableEstimator().apply(to: items, records: records)
+        return ScanResult(
+            volume: volume,
+            items: honestItems,
+            records: records,
+            volumeURL: URL(fileURLWithPath: homeDirectory)
+        )
     }
 
     private func measureDirectory(
