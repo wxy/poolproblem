@@ -8,7 +8,26 @@
 
 - ✅ M1 Core（SwiftPM 库 `DiskReservoirCore`）：配方库、扫描器（含硬链接去重的诚实计量）、快照存储、流量分析（归因/回涨/增长警报）、满盘预测、规则评估、进程检测、文件删除、水线清理引擎（含量规实测 `actualFreedBytes`）
 - ✅ M2 CLI（`poolproblem`）：`scan` / `suggest` / `clean` / `status`，稳定 JSON 输出
-- ⏳ M3 App（SwiftUI 菜单栏）、M4 小组件、M5 打包 —— 后续计划
+- ✅ M3 App（SwiftUI 菜单栏）：水位面板、智能清理、傻瓜/专家设置、通知、完全磁盘访问引导、开机自启
+- ⏳ M4 小组件、M5 打包 —— 后续计划
+
+## App（macOS 菜单栏）
+
+构建并运行（Xcode 工程在 `PoolProblem/PoolProblem.xcodeproj`）：
+
+```bash
+xcodebuild -project PoolProblem/PoolProblem.xcodeproj -scheme PoolProblem -configuration Debug -derivedDataPath .build/xcode-derived build
+open .build/xcode-derived/Build/Products/Debug/PoolProblem.app
+```
+
+菜单栏出现水波纹图标：
+
+- 点击弹出面板：可用水位、满盘预测、可清理项列表（含安全级别徽标）、一键"智能清理"（先预览后确认）；
+- 设置：目标水位（默认 30GB）、傻瓜/专家模式、配方开关与保留天数、白名单、完全磁盘访问状态与引导、开机自启；
+- 通知：空间紧张（<20GB）、异常增长、需要操作（如退出 Simulator）、清理摘要；
+- 每 30 分钟自动扫描并保存快照（`~/Library/Application Support/PoolProblem` 或 App Group 容器）。
+
+首次使用请到 系统设置 → 隐私与安全性 → 完全磁盘访问 授权，才能扫描 `~/Library/Containers` 等受保护目录。
 
 ## 构建与测试
 
@@ -39,7 +58,6 @@ APFS 克隆文件（`cp -c` / Xcode 测试快照）的 inode 与资源标识不�
 
 ## 未来计划
 
-- M3：SwiftUI 菜单栏 App（水位仪表、傻瓜/专家模式、通知、权限引导）
 - M4：macOS 桌面小组件
 - M5：DMG + 公证打包
 - FSEvents 源头治理、MCP server 供 AI Agent 调用
