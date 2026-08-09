@@ -68,7 +68,9 @@ struct MenuBarView: View {
             Button("智能清理") { runSmartClean() }
                 .disabled(state.isScanning)
             Spacer()
-            SettingsLink {
+            Button {
+                openSettings()
+            } label: {
                 Label("设置…", systemImage: "gearshape")
             }
             Button("退出", role: .destructive) {
@@ -94,6 +96,11 @@ struct MenuBarView: View {
             state.pendingClean = await service.smartClean(dryRun: true)
             state.showCleanConfirm = state.pendingClean != nil
         }
+    }
+
+    private func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
     }
 
     private var fraction: Double {
