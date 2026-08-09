@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import DiskReservoirCore
 
 struct MenuBarView: View {
@@ -69,6 +70,9 @@ struct MenuBarView: View {
             Spacer()
             SettingsLink {
                 Label("设置…", systemImage: "gearshape")
+            }
+            Button("退出", role: .destructive) {
+                NSApplication.shared.terminate(nil)
             }
         }
         .alert(
