@@ -13,7 +13,7 @@ import Testing
 
 @Test func xctestdevicesRecipeResolvesToLibraryDeveloper() {
     let recipe = RecipeRegistry.builtIn().first { $0.id == "xctestdevices" }!
-    let paths = StoragePaths(homeDirectory: "/Users/tester")
+    let paths = StoragePaths(baseURL: nil, homeDirectory: "/Users/tester")
     let resolved = recipe.resolvePaths(paths)
     #expect(resolved == ["/Users/tester/Library/Developer/XCTestDevices"])
 }
