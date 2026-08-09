@@ -59,7 +59,6 @@ final class AppService {
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {
         let config = loadConfig()
-        let paths = self.paths
         let logStore = self.logStore
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? Scanner().scan(
@@ -102,9 +101,7 @@ final class AppService {
             return (result, outcome)
         }
         guard let (_, outcome) = await work.value, let outcome else { return nil }
-        if outcome != nil {
-            await scanNow()
-        }
+        await scanNow()
         return outcome
     }
 
