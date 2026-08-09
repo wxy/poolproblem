@@ -2,5 +2,5 @@ import Testing
 @testable import DiskReservoirCore
 
 @Test func schemaVersionIsOne() {
-    #expect(DiskReservoirCore.schemaVersion == 1)
+    #expect(PoolProblemCore.schemaVersion == 1)
 }
