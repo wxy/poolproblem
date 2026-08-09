@@ -15,6 +15,7 @@ import Foundation
     #expect(item.fileCount == 2)
     #expect(item.sizeBytes > 0)
     #expect(item.allocatedBytes > 0)
+    #expect(item.reclaimableBytes == item.allocatedBytes)
     #expect(result.records.count == 2)
 }
 

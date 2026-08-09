@@ -34,9 +34,10 @@ public struct Scanner: Sendable {
             for path in recipe.resolvePaths(paths) {
                 guard FileManager.default.fileExists(atPath: path) else { continue }
                 let url = URL(fileURLWithPath: path, isDirectory: true)
-                let (size, allocated, count, modified, files) = try measureDirectory(url, itemID: recipe.id)
+                let itemID = "\(recipe.id):\(path)"
+                let (size, allocated, count, modified, files) = try measureDirectory(url, itemID: itemID)
                 items.append(ScanItem(
-                    id: "\(recipe.id):\(path)",
+                    id: itemID,
                     recipeID: recipe.id,
                     name: recipe.name,
                     path: path,
