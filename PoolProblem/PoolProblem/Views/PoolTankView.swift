@@ -75,6 +75,8 @@ enum PoolLayers {
 }
 
 struct PoolTankView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let totalBytes: Int64
     let availableBytes: Int64
     let waterlineBytes: Int64
@@ -102,6 +104,7 @@ struct PoolTankView: View {
     }
 
     private func render(context: inout GraphicsContext, size: CGSize, phase: Double) {
+        let dark = colorScheme == .dark
         let tankRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         let tankPath = Path(tankRect)
         let span = Double(max(windowSpanBytes, 1))
@@ -130,8 +133,27 @@ struct PoolTankView: View {
         // 全程只设置一次裁剪
         context.clip(to: tankPath)
 
-        // 1) 不透明池体（水面以上为空气）
-        context.fill(tankPath, with: .color(Color(white: 0.96)))
+        // 1) 天空（空气 = 可用空间）：柔和渐变 + 左上日光
+        context.fill(
+            tankPath,
+            with: .linearGradient(
+                Gradient(colors: dark
+                    ? [Color(red: 0.06, green: 0.10, blue: 0.16), Color(red: 0.13, green: 0.19, blue: 0.25)]
+                    : [Color(red: 0.81, green: 0.90, blue: 0.97), Color(red: 0.94, green: 0.975, blue: 0.96)]),
+                startPoint: CGPoint(x: 0, y: 0),
+                endPoint: CGPoint(x: 0, y: size.height)
+            )
+        )
+        let glowRadius: CGFloat = 260
+        context.fill(
+            Path(ellipseIn: CGRect(x: -120, y: -160, width: glowRadius * 2, height: glowRadius * 2)),
+            with: .radialGradient(
+                Gradient(colors: [Color.white.opacity(dark ? 0.09 : 0.26), .clear]),
+                center: CGPoint(x: -120 + glowRadius, y: -160 + glowRadius),
+                startRadius: 0,
+                endRadius: glowRadius
+            )
+        )
 
         // 2) 红白窄条标尺（左侧，水层之下；红色 = 警戒区在水线之上）
         let stripRect = CGRect(x: 4, y: 6, width: 26, height: size.height - 12)
@@ -355,11 +377,17 @@ struct PoolTankView: View {
             context.fill(
                 Path(waterBody),
                 with: .linearGradient(
-                    Gradient(colors: [
-                        Color(red: 0.02, green: 0.22, blue: 0.18).opacity(0.6),
-                        Color(red: 0.10, green: 0.52, blue: 0.42).opacity(0.4),
-                        Color(red: 0.55, green: 0.84, blue: 0.84).opacity(0.18),
-                    ]),
+                    Gradient(colors: dark
+                        ? [
+                            Color(red: 0.01, green: 0.06, blue: 0.10).opacity(0.66),
+                            Color(red: 0.06, green: 0.18, blue: 0.24).opacity(0.50),
+                            Color(red: 0.32, green: 0.58, blue: 0.64).opacity(0.26),
+                        ]
+                        : [
+                            Color(red: 0.02, green: 0.22, blue: 0.18).opacity(0.6),
+                            Color(red: 0.10, green: 0.52, blue: 0.42).opacity(0.4),
+                            Color(red: 0.55, green: 0.84, blue: 0.84).opacity(0.18),
+                        ]),
                     startPoint: CGPoint(x: 0, y: size.height),
                     endPoint: CGPoint(x: 0, y: surfaceY)
                 )
@@ -376,7 +404,9 @@ struct PoolTankView: View {
             bottomUsed: bottomUsed,
             topUsed: nonCleanableTop,
             yForUsed: yForUsed,
-            color: PoolLayers.nonCleanableColor.opacity(0.9)
+            color: dark
+                ? Color(red: 0.16, green: 0.24, blue: 0.52).opacity(0.9)
+                : PoolLayers.nonCleanableColor.opacity(0.9)
         )
         bottomUsed = nonCleanableTop
         // 废纸篓层（浅蓝，位于不可清理之上、可清理层之下）
@@ -428,8 +458,52 @@ struct PoolTankView: View {
         band.closeSubpath()
         context.fill(band, with: .color(.white.opacity(0.12)))
 
+        // 7) 天空主读数（可用空间）：固定在水池区上方，磁盘快满时浮在水面上
+        drawReadout(context: &context, size: size, surfaceY: surfaceY, dark: dark)
+
         // 水池外框（可见窗口的边界）
-        context.stroke(tankPath, with: .color(.secondary.opacity(0.5)), lineWidth: 1)
+        context.stroke(
+            tankPath,
+            with: .color(dark ? Color.white.opacity(0.16) : Color.secondary.opacity(0.5)),
+            lineWidth: 1
+        )
+    }
+
+    /// 画布内直接绘制文本（可选锚点）
+    private func drawText(
+        context: inout GraphicsContext,
+        text: String,
+        at point: CGPoint,
+        color: Color,
+        size: CGFloat,
+        weight: Font.Weight = .semibold,
+        anchor: UnitPoint = .center
+    ) {
+        let label = Text(text)
+            .font(.system(size: size, weight: weight))
+            .foregroundStyle(color)
+            .monospacedDigit()
+        let resolved = context.resolve(label)
+        context.draw(resolved, at: point, anchor: anchor)
+    }
+
+    /// 天空主读数：可用空间（空气 = 可用空间）；磁盘快满时上浮到水面之上
+    private func drawReadout(context: inout GraphicsContext, size: CGSize, surfaceY: CGFloat, dark: Bool) {
+        let centerX = (size.width - 310) / 2
+        var valueY: CGFloat = 76
+        if surfaceY < valueY + 18 {
+            valueY = max(48, surfaceY - 14)
+        }
+        let shadowColor = dark ? Color.black.opacity(0.5) : Color.white.opacity(0.55)
+        let labelColor = dark ? Color.white.opacity(0.65) : Color(red: 0.25, green: 0.36, blue: 0.44)
+        let valueColor = dark ? Color.white : Color(red: 0.07, green: 0.17, blue: 0.24)
+        let label = Localized.string("pool.available_label")
+        let value = Format.bytes(availableBytes)
+        // 柔和阴影：先画一遍偏移的浅色/深色文本
+        drawText(context: &context, text: label, at: CGPoint(x: centerX, y: valueY - 24 + 1), color: shadowColor, size: 10, weight: .medium)
+        drawText(context: &context, text: label, at: CGPoint(x: centerX, y: valueY - 24), color: labelColor, size: 10, weight: .medium)
+        drawText(context: &context, text: value, at: CGPoint(x: centerX, y: valueY + 1), color: shadowColor, size: 24, weight: .heavy)
+        drawText(context: &context, text: value, at: CGPoint(x: centerX, y: valueY), color: valueColor, size: 24, weight: .heavy)
     }
 
     private func fillLayer(

@@ -3,6 +3,8 @@ import AppKit
 import DiskReservoirCore
 
 struct MenuBarView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     @ObservedObject var state: AppState
     let service: AppService
     @State private var showSettings = false
@@ -32,16 +34,25 @@ struct MenuBarView: View {
                 rightPanel
                     .frame(width: 310)
                     .frame(maxHeight: .infinity, alignment: .top)
-                    .background(.regularMaterial, in: Rectangle())
+                    .background(
+                        Rectangle().fill(Color(nsColor: .windowBackgroundColor).opacity(0.94))
+                    )
             }
 
-            // 水池右缘边线（明确水池边界，出水管接点更清晰）
-            Rectangle()
-                .fill(Color.black.opacity(0.7))
-                .frame(width: 2)
-                .frame(maxHeight: .infinity)
-                .position(x: 391, y: 280)
-                .allowsHitTesting(false)
+            // 水池右缘池壁：内侧受光高光 + 深色壁体（出水管左端盖对齐壁体右缘 x=392）
+            ZStack {
+                Rectangle()
+                    .fill(Color.white.opacity(colorScheme == .dark ? 0.16 : 0.45))
+                    .frame(width: 1)
+                    .frame(maxHeight: .infinity)
+                    .position(x: 389.2, y: 280)
+                Rectangle()
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.85 : 0.70))
+                    .frame(width: 2)
+                    .frame(maxHeight: .infinity)
+                    .position(x: 391, y: 280)
+            }
+            .allowsHitTesting(false)
 
             // 出水管：跨在水池右缘、画在面板之上（从池里往外流水），点击触发智能清理
             OutletPipeView(weeklyCleanedBytes: state.weeklyCleanedBytes)
@@ -78,7 +89,7 @@ struct MenuBarView: View {
                     SettingsView(state: state, service: service)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .background(.regularMaterial)
+                .background(Color(nsColor: .windowBackgroundColor).opacity(0.97))
                 .zIndex(10)
             }
 
@@ -530,7 +541,7 @@ struct MenuBarView: View {
         }
         .padding(16)
         .frame(width: 380)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.97), in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -566,7 +577,7 @@ struct MenuBarView: View {
         }
         .padding(16)
         .frame(width: 380)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.97), in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
