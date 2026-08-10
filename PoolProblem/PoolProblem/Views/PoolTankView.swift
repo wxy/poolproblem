@@ -85,38 +85,50 @@ struct PoolTankView: View {
 
             context.clip(to: tankPath)
 
-            // 1) 池内背景 = 红白水位标尺（水位线以上红、以下白）
-            let whiteRect = CGRect(
-                x: tankRect.minX, y: waterlineY,
-                width: tankRect.width, height: tankRect.maxY - waterlineY
-            )
-            context.fill(Path(whiteRect), with: .color(.white))
-            let redRect = CGRect(
-                x: tankRect.minX, y: tankRect.minY,
-                width: tankRect.width, height: waterlineY - tankRect.minY
-            )
-            context.fill(Path(redRect), with: .color(.red))
+            // 1) 池体底色
+            context.fill(tankPath, with: .color(Color.secondary.opacity(0.06)))
 
-            // 2) 刻度线 + GB 数字
+            // 2) 窄条标尺（贴着水池左侧）
+            let stripRect = CGRect(
+                x: tankRect.minX + 4,
+                y: tankRect.minY + 6,
+                width: 14,
+                height: tankRect.height - 12
+            )
+            let stripPath = Path(roundedRect: stripRect, cornerRadius: 4)
+            context.clip(to: stripPath)
+            let stripWhite = CGRect(
+                x: stripRect.minX, y: waterlineY,
+                width: stripRect.width, height: stripRect.maxY - waterlineY
+            )
+            context.fill(Path(stripWhite), with: .color(.white))
+            let stripRed = CGRect(
+                x: stripRect.minX, y: stripRect.minY,
+                width: stripRect.width, height: waterlineY - stripRect.minY
+            )
+            context.fill(Path(stripRed), with: .color(.red))
+            context.stroke(stripPath, with: .color(.secondary.opacity(0.8)), lineWidth: 1)
+            // 刻度线 + GB 数字
             for fraction in [0.0, 0.25, 0.5, 0.75, 1.0] {
-                let y = tankRect.maxY - tankRect.height * CGFloat(fraction)
+                let y = stripRect.maxY - stripRect.height * CGFloat(fraction)
                 let onRed = y <= waterlineY
                 var tick = Path()
-                tick.move(to: CGPoint(x: tankRect.minX + 2, y: y))
-                tick.addLine(to: CGPoint(x: tankRect.maxX - 2, y: y))
+                tick.move(to: CGPoint(x: stripRect.minX + 1, y: y))
+                tick.addLine(to: CGPoint(x: stripRect.maxX - 1, y: y))
                 context.stroke(
                     tick,
-                    with: .color(onRed ? Color.white : Color.black.opacity(0.55)),
+                    with: .color(onRed ? Color.white : Color.black.opacity(0.6)),
                     lineWidth: 1.2
                 )
                 let gb = Int(Double(totalBytes) * fraction / 1_000_000_000)
                 let label = Text("\(gb)G")
                     .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(onRed ? Color.white : Color.black.opacity(0.65))
-                context.draw(label, at: CGPoint(x: tankRect.minX + 24, y: y), anchor: .leading)
+                    .foregroundStyle(onRed ? Color.white : Color.black.opacity(0.7))
+                context.draw(label, at: CGPoint(x: stripRect.maxX + 6, y: y), anchor: .leading)
             }
 
-            // 3) 分层（半透明，透过可见标尺）
+            // 3) 分层（半透明，透过可见窄条标尺）
+            context.clip(to: tankPath)
             let nonCleanableHeight = waterHeight * CGFloat(Double(nonCleanable) / usedD)
             context.fill(
                 Path(CGRect(
@@ -142,15 +154,15 @@ struct PoolTankView: View {
                 cursor -= h
             }
 
-            // 4) 水位线边界 + 标签
+            // 4) 水位线边界（画在标尺上）+ 标签
             var boundary = Path()
-            boundary.move(to: CGPoint(x: tankRect.minX, y: waterlineY))
-            boundary.addLine(to: CGPoint(x: tankRect.maxX, y: waterlineY))
-            context.stroke(boundary, with: .color(.black.opacity(0.85)), lineWidth: 1.5)
+            boundary.move(to: CGPoint(x: stripRect.minX, y: waterlineY))
+            boundary.addLine(to: CGPoint(x: stripRect.maxX, y: waterlineY))
+            context.stroke(boundary, with: .color(.black.opacity(0.9)), lineWidth: 1.5)
             let tag = Text("水线 \(Format.bytes(waterlineBytes))")
                 .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.black)
-            context.draw(tag, at: CGPoint(x: tankRect.maxX - 6, y: waterlineY + 9), anchor: .trailing)
+                .foregroundStyle(.primary)
+            context.draw(tag, at: CGPoint(x: stripRect.maxX + 6, y: waterlineY + 9), anchor: .leading)
 
             context.stroke(tankPath, with: .color(.secondary.opacity(0.6)), lineWidth: 1.5)
         }
