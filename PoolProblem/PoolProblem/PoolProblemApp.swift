@@ -4,21 +4,21 @@ import SwiftUI
 struct PoolProblemApp: App {
     @StateObject private var state: AppState
     @State private var service: AppService
+    @State private var statusItemController: StatusItemController?
 
     init() {
+        guard InstanceLock.acquire() else {
+            exit(0)
+        }
         let state = AppState()
         _state = StateObject(wrappedValue: state)
-        _service = State(initialValue: AppService(state: state))
+        let service = AppService(state: state)
+        _service = State(initialValue: service)
+        _statusItemController = State(initialValue: StatusItemController(state: state, service: service))
+        service.start()
     }
 
     var body: some Scene {
-        MenuBarExtra {
-            MenuBarView(state: state, service: service)
-        } label: {
-            Image(systemName: "water.waves")
-        }
-        .menuBarExtraStyle(.window)
-
         Settings {
             SettingsView(state: state, service: service)
         }

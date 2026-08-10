@@ -5,17 +5,20 @@ public struct CleanOutcome: Equatable, Sendable {
     public let freedBytes: Int64
     public let actualFreedBytes: Int64
     public let stillBelowWaterline: Bool
+    public let calibrationUpdates: [String: Double]
 
     public init(
         entries: [CleanLogEntry],
         freedBytes: Int64,
         actualFreedBytes: Int64,
-        stillBelowWaterline: Bool
+        stillBelowWaterline: Bool,
+        calibrationUpdates: [String: Double] = [:]
     ) {
         self.entries = entries
         self.freedBytes = freedBytes
         self.actualFreedBytes = actualFreedBytes
         self.stillBelowWaterline = stillBelowWaterline
+        self.calibrationUpdates = calibrationUpdates
     }
 }
 
@@ -45,7 +48,14 @@ public struct Cleaner: Sendable {
         self.now = now
     }
 
-    public func run(scan: ScanResult, config: Config, waterlineBytes: Int64) throws -> CleanOutcome {
+    public func run(
+        scan: ScanResult,
+        config: Config,
+        waterlineBytes: Int64,
+        forceClean: Bool = false,
+        onItemWillDelete: (@Sendable (String) -> Void)? = nil,
+        onItemCleaned: (@Sendable (String) -> Void)? = nil
+    ) throws -> CleanOutcome {
         var deficit = waterlineBytes - scan.volume.availableBytes
         guard deficit > 0 else {
             return CleanOutcome(entries: [], freedBytes: 0, actualFreedBytes: 0, stillBelowWaterline: false)
@@ -58,10 +68,15 @@ public struct Cleaner: Sendable {
         var freedTotal: Int64 = 0
         var below = true
         for item in candidates {
+            guard item.reclaimableBytes > 0 else { continue }
             guard deficit > 0 else { below = false; break }
-            let decision = evaluator.evaluate(item: item) { name in
-                name.map { inspector.isRunning($0) } ?? false
-            }
+            let decision = evaluator.evaluate(
+                item: item,
+                isProcessRunning: { name in
+                    name.map { inspector.isRunning($0) } ?? false
+                },
+                force: forceClean
+            )
             let disposition: CleanDisposition?
             switch decision.action {
             case .delete:
@@ -72,7 +87,9 @@ public struct Cleaner: Sendable {
                 disposition = nil
             }
             guard let disposition else { continue }
+            onItemWillDelete?(item.id)
             let freed = try deleter.delete(url: URL(fileURLWithPath: item.path), disposition: disposition)
+            onItemCleaned?(item.id)
             freedTotal += freed
             deficit -= freed
             entries.append(CleanLogEntry(
@@ -93,11 +110,24 @@ public struct Cleaner: Sendable {
         }
         let availableAfter = availableBytesReader(scan.volumeURL)
         let actualFreed = max(0, availableAfter - availableBefore)
+        var calibrationUpdates: [String: Double] = [:]
+        if freedTotal > 0, actualFreed > 0 {
+            let runRatio = min(1, max(0, Double(actualFreed) / Double(freedTotal)))
+            let cleanedRecipeIDs = Set(
+                entries
+                    .flatMap { $0.itemIDs }
+                    .compactMap { id in scan.items.first { $0.id == id }?.recipeID }
+            )
+            for recipeID in cleanedRecipeIDs {
+                calibrationUpdates[recipeID] = runRatio
+            }
+        }
         return CleanOutcome(
             entries: entries,
             freedBytes: freedTotal,
             actualFreedBytes: actualFreed,
-            stillBelowWaterline: below
+            stillBelowWaterline: below,
+            calibrationUpdates: calibrationUpdates
         )
     }
 }

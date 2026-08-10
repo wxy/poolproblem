@@ -2,11 +2,20 @@ import Foundation
 import AppKit
 
 enum PermissionService {
+    private static var cached: Bool?
+
     static func hasFullDiskAccess() async -> Bool {
-        await Task.detached(priority: .userInitiated) {
+        if let cached { return cached }
+        let result = await Task.detached(priority: .userInitiated) {
             let containers = NSHomeDirectory() + "/Library/Containers"
             return (try? FileManager.default.contentsOfDirectory(atPath: containers)) != nil
         }.value
+        cached = result
+        return result
+    }
+
+    static func resetCache() {
+        cached = nil
     }
 
     static func openSystemSettings() {

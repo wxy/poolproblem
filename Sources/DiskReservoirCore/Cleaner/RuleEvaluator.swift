@@ -26,7 +26,11 @@ public struct RuleEvaluator: Sendable {
         self.now = now
     }
 
-    public func evaluate(item: ScanItem, isProcessRunning: (String?) -> Bool) -> EvaluatedAction {
+    public func evaluate(
+        item: ScanItem,
+        isProcessRunning: (String?) -> Bool,
+        force: Bool = false
+    ) -> EvaluatedAction {
         let rule = config.rules.first { $0.recipeID == item.recipeID }
         if config.whitelistPaths.contains(item.path) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "whitelisted"))
@@ -38,11 +42,18 @@ public struct RuleEvaluator: Sendable {
         case .userConfirm:
             return EvaluatedAction(itemID: item.id, action: .notify(reason: "requires user confirmation"))
         case .requiresQuit:
+            if force {
+                return EvaluatedAction(itemID: item.id, action: .notify(reason: "requires app quit (auto later)"))
+            }
             if let process = itemProcessName(for: item), isProcessRunning(process) {
                 return EvaluatedAction(itemID: item.id, action: .notify(reason: "process running: \(process)"))
             }
         case .safeWhileRunning:
             break
+        }
+        // 手动清理（force）：忽略年龄/最近修改保护，一律进回收站
+        if force {
+            return EvaluatedAction(itemID: item.id, action: .trash)
         }
         guard let modified = item.lastModified else {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "no modification date"))

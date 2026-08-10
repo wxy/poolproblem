@@ -17,13 +17,16 @@ public struct ScanResult: Sendable {
 public struct Scanner: Sendable {
     private let now: @Sendable () -> Date
     private let includeHidden: Bool
+    private let cloneRatios: [String: Double]
 
     public init(
         now: @escaping @Sendable () -> Date = { Date() },
-        includeHidden: Bool = true
+        includeHidden: Bool = true,
+        cloneRatios: [String: Double] = [:]
     ) {
         self.now = now
         self.includeHidden = includeHidden
+        self.cloneRatios = cloneRatios
     }
 
     public func scan(recipes: [Recipe], homeDirectory: String) throws -> ScanResult {
@@ -54,7 +57,28 @@ public struct Scanner: Sendable {
             }
         }
         let volume = VolumeReader.read(fileURL: URL(fileURLWithPath: homeDirectory))
-        let honestItems = ReclaimableEstimator().apply(to: items, records: records)
+        var honestItems = ReclaimableEstimator().apply(to: items, records: records)
+        // 克隆型配方（如 XCTestDevices）按校准比例估算真实可释放量
+        honestItems = honestItems.map { item in
+            guard let recipe = recipes.first(where: { $0.id == item.recipeID }), recipe.cloneProne else {
+                return item
+            }
+            let ratio = cloneRatios[item.recipeID] ?? 0.2
+            return ScanItem(
+                id: item.id,
+                recipeID: item.recipeID,
+                name: item.name,
+                path: item.path,
+                category: item.category,
+                safety: item.safety,
+                disposition: item.disposition,
+                sizeBytes: item.sizeBytes,
+                allocatedBytes: item.allocatedBytes,
+                reclaimableBytes: Int64(Double(item.allocatedBytes) * ratio),
+                fileCount: item.fileCount,
+                lastModified: item.lastModified
+            )
+        }
         return ScanResult(
             volume: volume,
             items: honestItems,

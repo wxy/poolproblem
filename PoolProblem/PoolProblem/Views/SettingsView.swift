@@ -86,7 +86,10 @@ struct SettingsView: View {
                     if !hasFullDiskAccess {
                         Button("去设置") { PermissionService.openSystemSettings() }
                         Button("重新检测") {
-                            Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
+                            Task {
+                                PermissionService.resetCache()
+                                hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
+                            }
                         }
                     }
                 }
@@ -100,13 +103,10 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: expertMode ? 620 : 320)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             config = service.loadConfig()
             expertMode = UserDefaults.standard.bool(forKey: "expertMode")
-        }
-        .task {
-            hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
         }
         .onChange(of: expertMode) { _, newValue in
             UserDefaults.standard.set(newValue, forKey: "expertMode")

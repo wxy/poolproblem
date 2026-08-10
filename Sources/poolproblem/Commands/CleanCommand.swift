@@ -18,7 +18,7 @@ struct CleanCommand: ParsableCommand {
         let paths = StoragePaths()
         let config = try JSONStore().load(Config.self, from: paths.configURL) ?? .default
         let waterlineBytes = Int64(config.waterlineGB * 1_000_000_000)
-        let scanner = DiskReservoirCore.Scanner()
+        let scanner = DiskReservoirCore.Scanner(cloneRatios: config.cloneRatios)
         let result = try scanner.scan(recipes: RecipeRegistry.builtIn(), homeDirectory: NSHomeDirectory())
         let evaluator = RuleEvaluator(config: config)
         let logStore = CleanLogStore(paths: paths)
@@ -62,6 +62,13 @@ struct CleanCommand: ParsableCommand {
             outcome = dry
         } else {
             outcome = try cleaner.run(scan: result, config: config, waterlineBytes: waterlineBytes)
+            if !outcome.calibrationUpdates.isEmpty {
+                var updated = config
+                for (recipeID, ratio) in outcome.calibrationUpdates {
+                    updated.cloneRatios[recipeID] = ratio
+                }
+                try JSONStore().save(updated, to: paths.configURL)
+            }
         }
         if json {
             let data = try JSONOutput.clean(outcome: outcome)

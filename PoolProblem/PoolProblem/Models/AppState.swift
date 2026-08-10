@@ -9,7 +9,19 @@ final class AppState: ObservableObject {
     @Published var items: [ScanItem] = []
     @Published var lastScanAt: Date?
     @Published var predictionDays: Double?
+    @Published var waterlineBytes: Int64 = 30_000_000_000
+    @Published var topInflows: [(name: String, bytes: Int64)] = []
+    @Published var weeklyCleanedBytes: Int64 = 0
+    @Published var growthRates: [String: Double] = [:]
     @Published var isScanning = false
+    @Published var isCleaning = false
+    @Published var cleanedItemIDs: Set<String> = []
+    @Published var deletingItemID: String?
+    @Published var lastCleanSummary: String?
+    @Published var trashExpanded = false
+    @Published var ourTrashNames: [String] = []
+    @Published var ourTrashBytes: Int64 = 0
+    @Published var trashOthersBytes: Int64 = 0
     @Published var pendingClean: CleanOutcome?
     @Published var cleanOutcome: CleanOutcome?
     @Published var showCleanConfirm = false
