@@ -94,30 +94,51 @@ final class AppService {
             guard let recipeID = itemRecipe[itemID], recipeID != "trash" else { continue }
             recipeRates[recipeID, default: 0] += rate
         }
-        if recipeRates.isEmpty {
-            // 回退：按当前可清理量取前两项（排除废纸篓）
-            state.topInflows = state.items
-                .filter { $0.recipeID != "trash" }
+        // 进水管：优先取增速前 2；不足 2 个时用当前可清理量最大的项补齐（都排除废纸篓）
+        var inflows: [(String, Int64)] = recipeRates
+            .sorted { $0.value > $1.value }
+            .prefix(2)
+            .map { (name(for: $0.key), Int64($0.value * 7)) }
+        if inflows.count < 2 {
+            let chosen = Set(recipeRates.keys)
+            let fill = state.items
+                .filter { $0.recipeID != "trash" && !chosen.contains($0.recipeID) }
                 .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
-                .prefix(2)
-                .map { (name(for: $0.recipeID), 0) }
-        } else {
-            state.topInflows = recipeRates
-                .sorted { $0.value > $1.value }
-                .prefix(2)
-                .map { (name(for: $0.key), Int64($0.value * 7)) }
+                .prefix(2 - inflows.count)
+            for item in fill {
+                inflows.append((name(for: item.recipeID), 0))
+            }
         }
+        state.topInflows = inflows
         let cutoff = Date().addingTimeInterval(-7 * 86_400)
         let entries = (try? logStore.entries()) ?? []
         state.weeklyCleanedBytes = entries
             .filter { $0.timestamp >= cutoff }
             .reduce(0) { $0 + $1.freedBytes }
+        // 废纸篓详情：本应用清理的项 vs 其他（手动放入）
+        var names: [String] = []
+        var ourBytes: Int64 = 0
+        for entry in entries {
+            for itemID in entry.itemIDs {
+                names.append(itemName(for: itemID))
+            }
+            ourBytes += entry.freedBytes
+        }
+        state.ourTrashNames = Array(names.prefix(20))
+        state.ourTrashBytes = ourBytes
+        let trashItem = state.items.first { $0.recipeID == "trash" }
+        state.trashOthersBytes = max(0, (trashItem?.reclaimableBytes ?? 0) - ourBytes)
     }
 
     private func name(for recipeID: String) -> String {
         let full = RecipeRegistry.builtIn().first { $0.id == recipeID }?.name ?? recipeID
         let trimmed = full.components(separatedBy: " (").first ?? full
         return String(trimmed.prefix(16))
+    }
+
+    private func itemName(for itemID: String) -> String {
+        let recipeID = itemID.split(separator: ":").first.map(String.init) ?? itemID
+        return name(for: recipeID)
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {

@@ -6,6 +6,7 @@ struct MenuBarView: View {
     @ObservedObject var state: AppState
     let service: AppService
     @State private var showSettings = false
+    @State private var spinning = false
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -97,11 +98,17 @@ struct MenuBarView: View {
 
     private var rightPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("The Pool Problem")
-                .font(.headline)
-            Text(state.lastScanAt.map { "更新于 \($0.formatted(date: .omitted, time: .shortened))" } ?? "尚未扫描")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("The Pool Problem")
+                        .font(.headline)
+                    Text(state.lastScanAt.map { "更新于 \($0.formatted(date: .omitted, time: .shortened))" } ?? "尚未扫描")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                iconButtons
+            }
 
             Divider()
 
@@ -121,9 +128,6 @@ struct MenuBarView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer(minLength: 0)
-
-            buttons
         }
         .padding(14)
     }
@@ -189,19 +193,48 @@ struct MenuBarView: View {
                 Divider()
                 VStack(alignment: .leading, spacing: 5) {
                     if poolLayers.trashBytes > 0 {
-                        HStack(spacing: 5) {
-                            Rectangle()
-                                .fill(PoolLayers.trashColor)
-                                .frame(width: 9, height: 9)
-                            Text("废纸篓")
-                                .font(.caption)
-                            Spacer()
-                            Text(Format.bytes(poolLayers.trashBytes))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("需手动")
-                                .font(.caption2)
-                                .foregroundStyle(.blue)
+                        Button {
+                            withAnimation { state.trashExpanded.toggle() }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Rectangle()
+                                    .fill(PoolLayers.trashColor)
+                                    .frame(width: 9, height: 9)
+                                Text("废纸篓")
+                                    .font(.caption)
+                                Spacer()
+                                Text(Format.bytes(poolLayers.trashBytes))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("需手动")
+                                    .font(.caption2)
+                                    .foregroundStyle(.blue)
+                                Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .focusEffectDisabled()
+                        .onHover { hovering in
+                            hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                        }
+                        if state.trashExpanded {
+                            VStack(alignment: .leading, spacing: 3) {
+                                if !state.ourTrashNames.isEmpty {
+                                    ForEach(state.ourTrashNames, id: \.self) { name in
+                                        Text("· \(name)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                if state.trashOthersBytes > 0 {
+                                    Text("其他（手动放入）：\(Format.bytes(state.trashOthersBytes))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.leading, 14)
                         }
                     }
                     if poolLayers.nonCleanableBytes > 0 {
@@ -243,9 +276,29 @@ struct MenuBarView: View {
         .foregroundStyle(.secondary)
     }
 
-    private var buttons: some View {
+    /// 右上角图标：刷新、设置、退出
+    private var iconButtons: some View {
         HStack {
-            Spacer()
+            Button {
+                Task { await service.scanNow() }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .rotationEffect(.degrees(spinning ? 360 : 0))
+                    .animation(
+                        spinning ? .linear(duration: 1).repeatForever(autoreverses: false) : .default,
+                        value: spinning
+                    )
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .onHover { hovering in
+                hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+            }
+            .help("手动刷新")
+            .disabled(state.isScanning)
+            .onChange(of: state.isScanning) { _, scanning in
+                spinning = scanning
+            }
             Button {
                 showSettings = true
             } label: {
@@ -256,14 +309,17 @@ struct MenuBarView: View {
             .onHover { hovering in
                 hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
             }
-            Button("退出", role: .destructive) {
+            Button {
                 NSApplication.shared.terminate(nil)
+            } label: {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
             }
             .buttonStyle(.plain)
             .focusEffectDisabled()
             .onHover { hovering in
                 hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
             }
+            .help("退出")
         }
     }
 

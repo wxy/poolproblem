@@ -18,6 +18,10 @@ final class AppState: ObservableObject {
     @Published var cleanedItemIDs: Set<String> = []
     @Published var deletingItemID: String?
     @Published var lastCleanSummary: String?
+    @Published var trashExpanded = false
+    @Published var ourTrashNames: [String] = []
+    @Published var ourTrashBytes: Int64 = 0
+    @Published var trashOthersBytes: Int64 = 0
     @Published var pendingClean: CleanOutcome?
     @Published var cleanOutcome: CleanOutcome?
     @Published var showCleanConfirm = false
