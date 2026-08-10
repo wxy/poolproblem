@@ -152,7 +152,7 @@ final class AppService {
     private func name(for recipeID: String) -> String {
         let full = RecipeRegistry.builtIn().first { $0.id == recipeID }?.name ?? recipeID
         let trimmed = full.components(separatedBy: " (").first ?? full
-        return String(trimmed.prefix(16))
+        return Localized.recipeName(recipeID, fallback: String(trimmed.prefix(16)))
     }
 
     private func itemName(for itemID: String) -> String {
@@ -268,7 +268,7 @@ final class AppService {
             writeConfig(updated)
         }
         await scanNow()
-        state.lastCleanSummary = "已清理 \(outcome.entries.count) 项，移入回收站约 \(Format.bytes(outcome.freedBytes))"
+        state.lastCleanSummary = Localized.string("clean.summary", outcome.entries.count, Format.bytes(outcome.freedBytes))
         return outcome
     }
 
@@ -322,8 +322,8 @@ final class AppService {
         if let alert = FlowAnalyzer().growthAlert(snapshots: [previous, latest]) {
             NotificationCenterService.shared.post(
                 .growth,
-                title: "磁盘空间异常增长",
-                body: "\(alert.name) 近期增长 \(Format.bytes(alert.deltaBytes))"
+                title: Localized.string("notify.growth_title"),
+                body: Localized.string("notify.growth_body", alert.name, Format.bytes(alert.deltaBytes))
             )
         }
     }
@@ -334,8 +334,8 @@ final class AppService {
             lowSpaceNotified = true
             NotificationCenterService.shared.post(
                 .lowSpace,
-                title: "可用空间不足",
-                body: "剩余 \(Format.bytes(available))，建议尽快清理"
+                title: Localized.string("notify.low_space_title"),
+                body: Localized.string("notify.low_space_body", Format.bytes(available))
             )
         } else if available >= threshold {
             lowSpaceNotified = false

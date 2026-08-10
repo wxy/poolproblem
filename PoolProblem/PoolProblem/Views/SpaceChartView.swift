@@ -102,13 +102,13 @@ struct SpaceChartView: View {
             .clipped()
         }
         .overlay(alignment: .topLeading) {
-            Text("\(Int(maxValue / 1_000_000_000))GB")
+            Text(verbatim: "\(Int(maxValue / 1_000_000_000))GB")
                 .font(.system(size: 7))
                 .foregroundStyle(.secondary)
                 .padding(.leading, 2)
         }
         .overlay(alignment: .bottomLeading) {
-            Text("0GB")
+            Text(verbatim: "0GB")
                 .font(.system(size: 7))
                 .foregroundStyle(.secondary)
                 .padding(.leading, 2)
