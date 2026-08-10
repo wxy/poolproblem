@@ -134,4 +134,35 @@ public struct FlowAnalyzer: Sendable {
         }
         return result
     }
+
+    /// 按 itemID 估算每个可清理项的增速（字节/天，仅正增速），基于最近 windowDays 的快照线性拟合。
+    public func growthRates(snapshots: [Snapshot], windowDays: Int = 7) -> [String: Double] {
+        let cutoff = Date().addingTimeInterval(-Double(windowDays) * 86_400)
+        let inWindow = snapshots.filter { $0.volume.timestamp >= cutoff }
+        guard inWindow.count >= 2 else { return [:] }
+        var series: [String: [(x: Double, y: Double)]] = [:]
+        for (index, snap) in inWindow.enumerated() {
+            let t = Double(index)
+            for item in snap.items {
+                series[item.id, default: []].append((t, Double(item.sizeBytes)))
+            }
+        }
+        var result: [String: Double] = [:]
+        for (id, points) in series where points.count >= 2 {
+            let x = points.map(\.x)
+            let y = points.map(\.y)
+            let n = Double(x.count)
+            let sumX = x.reduce(0, +)
+            let sumY = y.reduce(0, +)
+            let sumXY = zip(x, y).map(*).reduce(0, +)
+            let sumX2 = x.map { $0 * $0 }.reduce(0, +)
+            let denom = n * sumX2 - sumX * sumX
+            guard abs(denom) > 1e-9 else { continue }
+            let slope = (n * sumXY - sumX * sumY) / denom
+            if slope > 0 {
+                result[id] = slope
+            }
+        }
+        return result
+    }
 }

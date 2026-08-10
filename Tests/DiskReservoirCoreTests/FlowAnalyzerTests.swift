@@ -57,3 +57,22 @@ private func item(_ id: String, recipe: String, name: String, category: DiskRese
     #expect(reports.first?.cleanedBytes == 500)
     #expect(reports.first?.regrownBytes == 300)
 }
+
+@Test func growthRatesEstimatePerItemSlope() {
+    let now = Date()
+    var snapshots: [Snapshot] = []
+    for day in 0..<3 {
+        let size = 100 + Int64(day) * 200
+        snapshots.append(Snapshot(
+            volume: VolumeInfo(
+                totalBytes: 1000,
+                availableBytes: 800,
+                timestamp: now.addingTimeInterval(Double(day) * 86_400)
+            ),
+            items: [item("g1", recipe: "r", name: "N", category: .xcode, size: size)]
+        ))
+    }
+    let rates = FlowAnalyzer().growthRates(snapshots: snapshots)
+    #expect(rates["g1"] != nil)
+    #expect(abs((rates["g1"] ?? 0) - 200) < 1)
+}

@@ -94,6 +94,7 @@ final class AppService {
         state.weeklyCleanedBytes = entries
             .filter { $0.timestamp >= cutoff }
             .reduce(0) { $0 + $1.freedBytes }
+        state.growthRates = FlowAnalyzer().growthRates(snapshots: snapshots)
     }
 
     private func name(for recipeID: String) -> String {

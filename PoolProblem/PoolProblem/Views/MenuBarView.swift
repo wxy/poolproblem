@@ -17,19 +17,20 @@ struct MenuBarView: View {
                 availableBytes: state.availableBytes,
                 waterlineBytes: state.waterlineBytes,
                 cleanableItems: state.items,
-                estimatedRecipeIDs: estimatedRecipeIDs
+                estimatedRecipeIDs: estimatedRecipeIDs,
+                inflowLabels: state.topInflows
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             HStack(alignment: .top, spacing: 0) {
                 Spacer(minLength: 0)
                 rightPanel
-                    .frame(width: 250)
+                    .frame(width: 310)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .background(.regularMaterial, in: Rectangle())
             }
         }
-        .frame(width: 640, height: 560)
+        .frame(width: 700, height: 560)
         .alert(
             "确认清理",
             isPresented: $state.showCleanConfirm,
@@ -54,11 +55,11 @@ struct MenuBarView: View {
 
             Divider()
 
-            summary
+            legend
 
             Divider()
 
-            legend
+            summary
 
             Divider()
 
@@ -111,6 +112,11 @@ struct MenuBarView: View {
                     Text(Format.bytes(layer.bytes))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let rate = state.growthRates[layer.itemID], rate > 0 {
+                        Text("+\(Format.bytes(Int64(rate * 7)))/周")
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                    }
                     safetyMark(layer.safety)
                 }
             }

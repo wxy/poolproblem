@@ -3,6 +3,7 @@ import DiskReservoirCore
 
 struct CleanableLayer: Identifiable {
     let id: Int
+    let itemID: String
     let name: String
     let bytes: Int64
     let color: Color
@@ -49,6 +50,7 @@ enum PoolLayers {
         for (index, item) in cleanable.enumerated() {
             layers.append(CleanableLayer(
                 id: index,
+                itemID: item.id,
                 name: item.name,
                 bytes: item.reclaimableBytes,
                 color: palette[index % palette.count],
@@ -67,6 +69,7 @@ struct PoolTankView: View {
     let waterlineBytes: Int64
     let cleanableItems: [ScanItem]
     let estimatedRecipeIDs: Set<String>
+    let inflowLabels: [(name: String, bytes: Int64)]
 
     /// 可视窗口覆盖的"已用空间"跨度：
     /// 从水面附近（可用 + 可清理）向下再多露出 20GB 不可清理，证明上方都可清理/可用
@@ -172,6 +175,135 @@ struct PoolTankView: View {
             center: CGPoint(x: stripRect.maxX + 30, y: waterlineY + 10)
         )
 
+        // 3.5) 金属拐角水管（参照 xingyu.wang 官网 pipes：管身金属渐变+高光阴影、两端端盖、拐角连接件）
+        let pipeDiameter: CGFloat = 18
+        // 一个大 L、一个小 L（参数指定：大 L 水平 Y=100 垂直 200；小 L 水平 Y=200 垂直 100）
+        let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)] = [
+            (390, 100, 140, 200),
+            (390, 200, 270, 100),
+        ]
+        for (index, pipe) in pipes.enumerated() {
+            let name: String
+            let bytes: Int64
+            if index < inflowLabels.count {
+                name = inflowLabels[index].0
+                bytes = inflowLabels[index].1
+            } else {
+                name = "进水"
+                bytes = 0
+            }
+
+            // 水平管段（右侧 → 左侧）
+            let hRect = CGRect(
+                x: pipe.xElbow,
+                y: pipe.yTop - pipeDiameter / 2,
+                width: pipe.xStart - pipe.xElbow,
+                height: pipeDiameter
+            )
+            fillPipe(context: &context, rect: hRect, vertical: false)
+
+            // 垂直管段：按给定长度，半空结束（不伸入水面）
+            let pipeEndY = pipe.yTop + pipe.verticalLen
+            let vRect = CGRect(
+                x: pipe.xElbow - pipeDiameter / 2,
+                y: pipe.yTop - pipeDiameter / 2,
+                width: pipeDiameter,
+                height: pipeEndY - (pipe.yTop - pipeDiameter / 2)
+            )
+            fillPipe(context: &context, rect: vRect, vertical: true)
+
+            // 右端端盖（图例侧）
+            fillCap(
+                context: &context,
+                rect: CGRect(
+                    x: pipe.xStart - 6,
+                    y: pipe.yTop - (pipeDiameter + 8) / 2,
+                    width: 6,
+                    height: pipeDiameter + 8
+                ),
+                vertical: true
+            )
+
+            // 下端开口端盖（半空出水口）
+            fillCap(
+                context: &context,
+                rect: CGRect(
+                    x: pipe.xElbow - (pipeDiameter + 8) / 2,
+                    y: pipeEndY - 3,
+                    width: pipeDiameter + 8,
+                    height: 6
+                ),
+                vertical: false
+            )
+
+            // 拐角连接件（银质）
+            drawJoint(
+                context: &context,
+                center: CGPoint(x: pipe.xElbow, y: pipe.yTop),
+                size: pipeDiameter + 10
+            )
+
+            // 标签（放在水平管段上方，避开右侧栏遮挡）
+            let labelText = bytes > 0 ? "\(name) +\(Format.bytes(bytes))/周" : "进水"
+            drawBadge(
+                context: &context,
+                text: labelText,
+                center: CGPoint(x: pipe.xStart - 110, y: pipe.yTop - 32)
+            )
+
+            // 实心水流：直带略微收窄（不圆角），从半空管口流出进入水池 + 落水溅波
+            let streamX = pipe.xElbow
+            let streamTop = pipeEndY + 3
+            let streamBottom = surfaceY
+            if streamBottom > streamTop + 4 {
+                var band = Path()
+                band.move(to: CGPoint(x: streamX - 5, y: streamTop))
+                band.addLine(to: CGPoint(x: streamX + 5, y: streamTop))
+                band.addLine(to: CGPoint(x: streamX + 4, y: streamBottom))
+                band.addLine(to: CGPoint(x: streamX - 4, y: streamBottom))
+                band.closeSubpath()
+                context.fill(
+                    band,
+                    with: .linearGradient(
+                        Gradient(colors: [Color.blue.opacity(0.65), Color.blue.opacity(0.35)]),
+                        startPoint: CGPoint(x: 0, y: streamTop),
+                        endPoint: CGPoint(x: 0, y: streamBottom)
+                    )
+                )
+                // 流动亮线（水平细线，向下移动，不做圆角）
+                let flowT = (phase * 0.7).truncatingRemainder(dividingBy: 1)
+                let lineY = streamTop + CGFloat(flowT) * (streamBottom - streamTop)
+                context.fill(
+                    Path(CGRect(x: streamX - 4.5, y: lineY - 1, width: 9, height: 2)),
+                    with: .color(.white.opacity(0.35))
+                )
+
+                for k in 0..<3 {
+                    let t = (phase * 1.1 + Double(k) / 3).truncatingRemainder(dividingBy: 1)
+                    let side: CGFloat = k == 1 ? -1 : 1
+                    let dx = CGFloat(t) * 14 * side * (1 - t)
+                    let dy = -CGFloat(t) * 10 * (1 - t)
+                    context.fill(
+                        Path(ellipseIn: CGRect(x: streamX + dx - 1.5, y: surfaceY + dy - 1.5, width: 3, height: 3)),
+                        with: .color(Color.blue.opacity(0.8 * (1 - t)))
+                    )
+                }
+
+                let rippleT = (phase * 0.8).truncatingRemainder(dividingBy: 1)
+                let rippleRadius = CGFloat(rippleT) * 12
+                context.stroke(
+                    Path(ellipseIn: CGRect(
+                        x: streamX - rippleRadius,
+                        y: surfaceY - rippleRadius * 0.35,
+                        width: rippleRadius * 2,
+                        height: rippleRadius * 0.7
+                    )),
+                    with: .color(Color.blue.opacity(0.7 * (1 - rippleT))),
+                    lineWidth: 1.5
+                )
+            }
+        }
+
         // 4) 水体渐变（从水面到底部；下方更深处被窗口截断）
         let waterBody = CGRect(
             x: 0,
@@ -258,6 +390,111 @@ struct PoolTankView: View {
         let yBottom = yForUsed(bottomUsed)
         let rect = CGRect(x: 0, y: yTop, width: 10_000, height: max(0, yBottom - yTop))
         context.fill(Path(rect), with: .color(color))
+    }
+
+    /// 官网风格金属管身：金属渐变 + 顶部高光/底部阴影（vertical = 管段竖直，渐变沿水平方向）
+    private func fillPipe(context: inout GraphicsContext, rect: CGRect, vertical: Bool) {
+        let metal = Gradient(colors: [
+            Color(white: 0.69), Color(white: 0.78), Color(white: 0.63),
+            Color(white: 0.72), Color(white: 0.56), Color(white: 0.66), Color(white: 0.50),
+        ])
+        let spec = Gradient(stops: [
+            .init(color: .white.opacity(0.18), location: 0),
+            .init(color: .clear, location: 0.30),
+            .init(color: .clear, location: 0.55),
+            .init(color: .black.opacity(0.25), location: 0.66),
+            .init(color: .black.opacity(0.45), location: 1),
+        ])
+        let path = Path(rect)
+        if vertical {
+            context.fill(
+                path,
+                with: .linearGradient(metal, startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0))
+            )
+            context.fill(
+                path,
+                with: .linearGradient(spec, startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0))
+            )
+        } else {
+            context.fill(
+                path,
+                with: .linearGradient(metal, startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY))
+            )
+            context.fill(
+                path,
+                with: .linearGradient(spec, startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY))
+            )
+        }
+    }
+
+    /// 端盖：金属渐变 + 左上径向高光
+    private func fillCap(context: inout GraphicsContext, rect: CGRect, vertical: Bool) {
+        let path = Path(roundedRect: rect, cornerRadius: 1)
+        let stops = Gradient(colors: [
+            Color(white: 0.78), Color(white: 0.63), Color(white: 0.50), Color(white: 0.60),
+        ])
+        if vertical {
+            context.fill(
+                path,
+                with: .linearGradient(stops, startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0))
+            )
+        } else {
+            context.fill(
+                path,
+                with: .linearGradient(stops, startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY))
+            )
+        }
+        context.fill(
+            path,
+            with: .radialGradient(
+                Gradient(colors: [.white.opacity(0.22), .clear]),
+                center: CGPoint(x: rect.minX + rect.width * 0.35, y: rect.minY + rect.height * 0.25),
+                startRadius: 0,
+                endRadius: max(rect.width, rect.height) * 0.7
+            )
+        )
+    }
+
+    /// 拐角连接件：银质圆角块 + 左上径向高光
+    private func drawJoint(context: inout GraphicsContext, center: CGPoint, size: CGFloat) {
+        let rect = CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
+        // 左上角 50% 大圆角，其余角直角
+        let radius = size / 2
+        var path = Path()
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+        path.addArc(
+            center: CGPoint(x: rect.minX + radius, y: rect.minY + radius),
+            radius: radius,
+            startAngle: .degrees(180),
+            endAngle: .degrees(270),
+            clockwise: false
+        )
+        path.closeSubpath()
+        let metal = Gradient(colors: [
+            Color(white: 0.75), Color(white: 0.63), Color(white: 0.53),
+            Color(white: 0.66), Color(white: 0.50), Color(white: 0.60),
+        ])
+        context.fill(
+            path,
+            with: .linearGradient(
+                metal,
+                startPoint: CGPoint(x: rect.minX, y: rect.minY),
+                endPoint: CGPoint(x: rect.maxX, y: rect.maxY)
+            )
+        )
+        context.fill(
+            path,
+            with: .radialGradient(
+                Gradient(colors: [.white.opacity(0.25), .clear]),
+                center: CGPoint(x: rect.minX + rect.width * 0.35, y: rect.minY + rect.height * 0.25),
+                startRadius: 0,
+                endRadius: size * 0.8
+            )
+        )
+        context.stroke(path, with: .color(.black.opacity(0.35)), lineWidth: 1)
     }
 
     private func drawBadge(context: inout GraphicsContext, text: String, center: CGPoint) {
