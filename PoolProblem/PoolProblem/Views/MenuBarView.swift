@@ -79,6 +79,11 @@ struct MenuBarView: View {
                 .background(.regularMaterial)
                 .zIndex(10)
             }
+
+            if let item = state.detailItem {
+                detailOverlay(item)
+                    .zIndex(12)
+            }
         }
         .frame(width: 700, height: 560)
         .alert(
@@ -157,35 +162,46 @@ struct MenuBarView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach(poolLayers.layers) { layer in
-                HStack(spacing: 5) {
-                    if state.deletingItemID == layer.itemID {
-                        ProgressView()
-                            .controlSize(.mini)
+                Button {
+                    if let item = state.items.first(where: { $0.id == layer.itemID }) {
+                        state.detailItem = item
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        if state.deletingItemID == layer.itemID {
+                            ProgressView()
+                                .controlSize(.mini)
+                                .frame(width: 9, height: 9)
+                        }
+                        Rectangle()
+                            .fill(layer.color.opacity(0.8))
                             .frame(width: 9, height: 9)
-                    }
-                    Rectangle()
-                        .fill(layer.color.opacity(0.8))
-                        .frame(width: 9, height: 9)
-                    Text(layer.name)
-                        .lineLimit(1)
-                        .strikethrough(state.cleanedItemIDs.contains(layer.itemID))
-                        .foregroundStyle(state.cleanedItemIDs.contains(layer.itemID) ? Color.secondary : Color.primary)
-                        .font(.caption)
-                    if layer.estimated {
-                        Text("估算")
-                            .font(.caption2)
+                        Text(layer.name)
+                            .lineLimit(1)
+                            .strikethrough(state.cleanedItemIDs.contains(layer.itemID))
+                            .foregroundStyle(state.cleanedItemIDs.contains(layer.itemID) ? Color.secondary : Color.primary)
+                            .font(.caption)
+                        if layer.estimated {
+                            Text("可能虚高")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                        }
+                        Spacer()
+                        Text(Format.bytes(layer.bytes))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let rate = state.growthRates[layer.itemID], rate > 0 {
+                            Text("+\(Format.bytes(Int64(rate * 7)))/周")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                        }
+                        safetyMark(layer)
                     }
-                    Spacer()
-                    Text(Format.bytes(layer.bytes))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let rate = state.growthRates[layer.itemID], rate > 0 {
-                        Text("+\(Format.bytes(Int64(rate * 7)))/周")
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
-                    }
-                    safetyMark(layer)
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .onHover { hovering in
+                    hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
                 }
             }
 
@@ -362,6 +378,119 @@ struct MenuBarView: View {
         state.showCleanConfirm = !outcome.entries.isEmpty
     }
 
+    /// 点击可清理项后弹出的说明浮层
+    private func detailOverlay(_ item: ScanItem) -> some View {
+        let isKept = state.keptItemIDs.contains(item.id)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(item.name)
+                    .font(.headline)
+                Spacer()
+                Button {
+                    state.detailItem = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+            }
+
+            Text(explanation(for: item))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if estimatedRecipeIDs.contains(item.recipeID) {
+                Text("提示：此项是 APFS 克隆（COW）文件，表观大小可能虚高，清理后实际释放的空间可能远小于显示值。")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+
+            Divider()
+
+            HStack(spacing: 6) {
+                Text("路径")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    revealInFinder(item.path)
+                } label: {
+                    Text(item.path)
+                        .font(.caption)
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .onHover { hovering in
+                    hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                }
+                Spacer()
+            }
+
+            Divider()
+
+            HStack(spacing: 16) {
+                LabeledContent("可清理量", value: Format.bytes(item.reclaimableBytes))
+                LabeledContent("安全级", value: safetyText(item.safety))
+            }
+            .font(.caption)
+
+            HStack(spacing: 10) {
+                if isKept {
+                    Button("取消保留") {
+                        service.unkeepItem(item.id)
+                    }
+                } else {
+                    Button("保留此项（不再清理）") {
+                        service.keepItem(item)
+                    }
+                }
+                Spacer()
+                Button("关闭") {
+                    state.detailItem = nil
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 380)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.15))
+    }
+
+    private func explanation(for item: ScanItem) -> String {
+        switch item.category {
+        case .xcode:
+            return "属于 Xcode 的构建产物或测试快照，删除后会在下次构建/测试时自动重新生成，因此可以安全清理。"
+        case .simulator:
+            return "模拟器相关设备数据，删除后如需使用会重新创建；清理前请确认对应模拟器已退出。"
+        case .packageManager:
+            return "包管理器的下载缓存，删除后需要时会重新下载，不影响已安装的依赖。"
+        case .common:
+            return "应用通用缓存，删除后应用会按需重新生成，不影响你的数据。"
+        case .project, .custom:
+            return "项目或自定义目录，删除前请确认其中没有需要保留的内容。"
+        }
+    }
+
+    private func safetyText(_ safety: SafetyLevel) -> String {
+        switch safety {
+        case .safeWhileRunning:
+            return "可自动清理"
+        case .requiresQuit:
+            return "需退出应用"
+        case .userConfirm:
+            return "需手动确认"
+        }
+    }
+
+    private func revealInFinder(_ path: String) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
     private func predictionText(_ days: Double) -> String {
         if days > 365 {
             return ">1 年（水位稳定）"
@@ -370,6 +499,9 @@ struct MenuBarView: View {
     }
 
     private func safetyMark(_ layer: CleanableLayer) -> some View {
+        if state.keptItemIDs.contains(layer.itemID) {
+            return Text("已保留").font(.caption2).foregroundStyle(.orange)
+        }
         if layer.recipeID == "trash" {
             return Text("需手动").font(.caption2).foregroundStyle(.blue)
         }

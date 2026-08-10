@@ -22,6 +22,8 @@ final class AppState: ObservableObject {
     @Published var ourTrashNames: [String] = []
     @Published var ourTrashBytes: Int64 = 0
     @Published var trashOthersBytes: Int64 = 0
+    @Published var detailItem: ScanItem?
+    @Published var keptItemIDs: Set<String> = []
     @Published var pendingClean: CleanOutcome?
     @Published var cleanOutcome: CleanOutcome?
     @Published var showCleanConfirm = false

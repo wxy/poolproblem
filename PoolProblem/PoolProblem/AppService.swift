@@ -128,6 +128,7 @@ final class AppService {
         state.ourTrashBytes = ourBytes
         let trashItem = state.items.first { $0.recipeID == "trash" }
         state.trashOthersBytes = max(0, (trashItem?.reclaimableBytes ?? 0) - ourBytes)
+        state.keptItemIDs = loadConfig().keptItemIDs
     }
 
     private func name(for recipeID: String) -> String {
@@ -139,6 +140,27 @@ final class AppService {
     private func itemName(for itemID: String) -> String {
         let recipeID = itemID.split(separator: ":").first.map(String.init) ?? itemID
         return name(for: recipeID)
+    }
+
+    /// 保留某一项（不再清理，但仍计入进水管）
+    func keepItem(_ item: ScanItem) {
+        var config = loadConfig()
+        config.keptItemIDs.insert(item.id)
+        saveConfig(config)
+        state.keptItemIDs = config.keptItemIDs
+    }
+
+    func unkeepItem(_ id: String) {
+        var config = loadConfig()
+        config.keptItemIDs.remove(id)
+        saveConfig(config)
+        state.keptItemIDs = config.keptItemIDs
+    }
+
+    func keptItemNames() -> [(id: String, name: String)] {
+        state.keptItemIDs
+            .map { ($0, itemName(for: $0)) }
+            .sorted { $0.name < $1.name }
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {

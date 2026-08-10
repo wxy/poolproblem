@@ -35,6 +35,9 @@ public struct RuleEvaluator: Sendable {
         if config.whitelistPaths.contains(item.path) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "whitelisted"))
         }
+        if config.keptItemIDs.contains(item.id) {
+            return EvaluatedAction(itemID: item.id, action: .skip(reason: "kept by user"))
+        }
         if !(rule?.enabled ?? true) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "disabled"))
         }

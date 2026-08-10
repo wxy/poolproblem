@@ -95,6 +95,25 @@ struct SettingsView: View {
                 }
             }
 
+            Section("保留项管理") {
+                if service.keptItemNames().isEmpty {
+                    Text("暂无保留项")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(service.keptItemNames(), id: \.id) { entry in
+                        HStack {
+                            Text(entry.name)
+                                .font(.caption)
+                            Spacer()
+                            Button("移除") {
+                                service.unkeepItem(entry.id)
+                            }
+                        }
+                    }
+                }
+            }
+
             Section("通用") {
                 Toggle("开机自启", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, newValue in
