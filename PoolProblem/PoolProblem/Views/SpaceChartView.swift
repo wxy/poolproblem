@@ -30,7 +30,7 @@ struct SpaceChartView: View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
-            let left: CGFloat = 40
+            let left: CGFloat = 30
             let right: CGFloat = 6
             let top: CGFloat = 6
             let bottom: CGFloat = 16
@@ -56,6 +56,14 @@ struct SpaceChartView: View {
                 }
                 .stroke(Color.secondary.opacity(0.4), lineWidth: 0.5)
 
+                // 横向网格线（25% / 50% / 75%）
+                ForEach([0.25, 0.5, 0.75], id: \.self) { fraction in
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.12))
+                        .frame(width: plotW, height: 0.5)
+                        .position(x: left + plotW / 2, y: top + plotH * CGFloat(fraction))
+                }
+
                 // 水线参考线（仅绘图区内，超出范围时贴边）
                 Rectangle()
                     .fill(Color.orange.opacity(0.6))
@@ -65,6 +73,25 @@ struct SpaceChartView: View {
                         y: min(max(yValue(waterline), top), top + plotH)
                     )
 
+                // Y 轴刻度（右对齐同一列，紧贴轴线左侧）
+                let axisLabelWidth: CGFloat = 26
+                let axisLabelX = left - 3 - axisLabelWidth / 2
+                Text(verbatim: "\(Int(maxValue / 1_000_000_000))GB")
+                    .font(.system(size: 7))
+                    .foregroundStyle(.secondary)
+                    .frame(width: axisLabelWidth, alignment: .trailing)
+                    .position(x: axisLabelX, y: top + 2)
+                Text(verbatim: "\(Int(maxValue / 2 / 1_000_000_000))GB")
+                    .font(.system(size: 7))
+                    .foregroundStyle(.secondary)
+                    .frame(width: axisLabelWidth, alignment: .trailing)
+                    .position(x: axisLabelX, y: top + plotH / 2)
+                Text(verbatim: "0GB")
+                    .font(.system(size: 7))
+                    .foregroundStyle(.secondary)
+                    .frame(width: axisLabelWidth, alignment: .trailing)
+                    .position(x: axisLabelX, y: top + plotH + 7)
+
                 // 清理事件柱
                 let maxEvent = max(events.map(\.freedBytes).max() ?? 0, 1)
                 ForEach(Array(events.enumerated()), id: \.offset) { _, event in
@@ -72,6 +99,7 @@ struct SpaceChartView: View {
                     let barHeight = plotH * 0.5 * CGFloat(Double(event.freedBytes) / Double(maxEvent))
                     Rectangle()
                         .fill((event.isManual ? Color.orange : Color.green).opacity(0.7))
+                        .overlay(Rectangle().stroke(Color.white.opacity(0.65), lineWidth: 0.5))
                         .frame(width: 6, height: max(barHeight, 2))
                         .position(x: ex, y: top + plotH - barHeight / 2)
                 }
@@ -101,23 +129,11 @@ struct SpaceChartView: View {
             .frame(width: w, height: h)
             .clipped()
         }
-        .overlay(alignment: .topLeading) {
-            Text(verbatim: "\(Int(maxValue / 1_000_000_000))GB")
-                .font(.system(size: 7))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 2)
-        }
-        .overlay(alignment: .bottomLeading) {
-            Text(verbatim: "0GB")
-                .font(.system(size: 7))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 2)
-        }
         .overlay(alignment: .bottomLeading) {
             Text(shortDate(earliest))
                 .font(.system(size: 7))
                 .foregroundStyle(.secondary)
-                .padding(.leading, 42)
+                .padding(.leading, 32)
         }
         .overlay(alignment: .bottomTrailing) {
             Text(shortDate(latest))

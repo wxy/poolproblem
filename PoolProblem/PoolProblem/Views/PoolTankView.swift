@@ -76,6 +76,7 @@ enum PoolLayers {
 
 struct PoolTankView: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let totalBytes: Int64
     let availableBytes: Int64
@@ -93,16 +94,25 @@ struct PoolTankView: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-            let phase = timeline.date.timeIntervalSinceReferenceDate
-            Canvas { context, size in
-                render(context: &context, size: size, phase: phase)
+        Group {
+            if reduceMotion {
+                // 减少动态效果：静止渲染一帧，不做波浪/水流动画
+                Canvas { context, size in
+                    render(context: &context, size: size, phase: 0, animate: false)
+                }
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                    let phase = timeline.date.timeIntervalSinceReferenceDate
+                    Canvas { context, size in
+                        render(context: &context, size: size, phase: phase, animate: true)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func render(context: inout GraphicsContext, size: CGSize, phase: Double) {
+    private func render(context: inout GraphicsContext, size: CGSize, phase: Double, animate: Bool) {
         let dark = colorScheme == .dark
         let tankRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         let tankPath = Path(tankRect)
@@ -264,7 +274,7 @@ struct PoolTankView: View {
             let streamX = pipe.xElbow
             let streamTop = pipeEndY + 3
             let streamBottom = surfaceY
-            if streamBottom > streamTop + 4 {
+            if animate && streamBottom > streamTop + 4 {
                 var band = Path()
                 band.move(to: CGPoint(x: streamX - 3.5, y: streamTop))
                 band.addLine(to: CGPoint(x: streamX + 3.5, y: streamTop))
@@ -389,21 +399,28 @@ struct PoolTankView: View {
             context.stroke(line, with: .color(.white.opacity(0.85)), lineWidth: 0.5)
         }
 
-        // 6) 水面波纹动效（水的最上层）
-        var wave = Path()
-        wave.move(to: CGPoint(x: 0, y: surfaceY))
-        var x: CGFloat = 0
-        while x <= size.width {
-            let y = surfaceY + sin((x + CGFloat(phase) * 90) * 0.05) * 2.5
-            wave.addLine(to: CGPoint(x: x, y: y))
-            x += 4
+        // 6) 水面波纹动效（水的最上层；减少动效时静止为一条直线）
+        if animate {
+            var wave = Path()
+            wave.move(to: CGPoint(x: 0, y: surfaceY))
+            var x: CGFloat = 0
+            while x <= size.width {
+                let y = surfaceY + sin((x + CGFloat(phase) * 90) * 0.05) * 2.5
+                wave.addLine(to: CGPoint(x: x, y: y))
+                x += 4
+            }
+            context.stroke(wave, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
+            var band = wave
+            band.addLine(to: CGPoint(x: size.width, y: surfaceY + 8))
+            band.addLine(to: CGPoint(x: 0, y: surfaceY + 8))
+            band.closeSubpath()
+            context.fill(band, with: .color(.white.opacity(0.12)))
+        } else {
+            var still = Path()
+            still.move(to: CGPoint(x: 0, y: surfaceY))
+            still.addLine(to: CGPoint(x: size.width, y: surfaceY))
+            context.stroke(still, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
         }
-        context.stroke(wave, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
-        var band = wave
-        band.addLine(to: CGPoint(x: size.width, y: surfaceY + 8))
-        band.addLine(to: CGPoint(x: 0, y: surfaceY + 8))
-        band.closeSubpath()
-        context.fill(band, with: .color(.white.opacity(0.12)))
 
         // 7) 天空主读数（可用空间）：固定在水池区上方，磁盘快满时浮在水面上
         drawReadout(context: &context, size: size, surfaceY: surfaceY, dark: dark)

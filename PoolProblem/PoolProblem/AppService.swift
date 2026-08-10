@@ -281,6 +281,7 @@ final class AppService {
         }
         await scanNow()
         state.lastCleanSummary = Localized.string("clean.summary", outcome.entries.count, Format.bytes(outcome.freedBytes))
+        state.cleanCelebrationID += 1
         return outcome
     }
 

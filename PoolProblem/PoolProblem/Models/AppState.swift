@@ -33,6 +33,7 @@ final class AppState: ObservableObject {
     @Published var cleanOutcome: CleanOutcome?
     @Published var showCleanConfirm = false
     @Published var poolGaugeImage: Image?
+    @Published var cleanCelebrationID = 0
 }
 
 enum Format {
