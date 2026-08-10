@@ -53,6 +53,7 @@ public struct Cleaner: Sendable {
         config: Config,
         waterlineBytes: Int64,
         forceClean: Bool = false,
+        source: CleanSource = .manual,
         onItemWillDelete: (@Sendable (String) -> Void)? = nil,
         onItemCleaned: (@Sendable (String) -> Void)? = nil
     ) throws -> CleanOutcome {
@@ -97,7 +98,8 @@ public struct Cleaner: Sendable {
                 timestamp: now(),
                 itemIDs: [item.id],
                 freedBytes: freed,
-                disposition: disposition
+                disposition: disposition,
+                source: source
             ))
         }
         if entries.isEmpty {

@@ -81,11 +81,14 @@ final class AppService {
         let snapshot = Snapshot(volume: result.volume, items: result.items)
         checkGrowth(previous: previous, latest: snapshot)
         checkLowSpace(available: result.volume.availableBytes)
+        if !state.isCleaning {
+            state.cleanedItemIDs = []
+        }
     }
 
     private func updateFlowMetrics(snapshots: [Snapshot]) async {
         state.waterlineBytes = waterlineBytes()
-        guard let last = snapshots.last else { return }
+        guard !snapshots.isEmpty else { return }
         state.growthRates = FlowAnalyzer().growthRates(snapshots: snapshots)
         // 进水管：按配方聚合"增速"（排除废纸篓），显示每周增长
         let itemRecipe = Dictionary(uniqueKeysWithValues: state.items.map { ($0.id, $0.recipeID) })
@@ -97,14 +100,14 @@ final class AppService {
         // 进水管：优先取增速前 2；不足 2 个时用当前可清理量最大的项补齐（都排除废纸篓）
         var inflows: [(String, Int64)] = recipeRates
             .sorted { $0.value > $1.value }
-            .prefix(2)
+            .prefix(3)
             .map { (name(for: $0.key), Int64($0.value * 7)) }
-        if inflows.count < 2 {
+        if inflows.count < 3 {
             let chosen = Set(recipeRates.keys)
             let fill = state.items
                 .filter { $0.recipeID != "trash" && !chosen.contains($0.recipeID) }
                 .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
-                .prefix(2 - inflows.count)
+                .prefix(3 - inflows.count)
             for item in fill {
                 inflows.append((name(for: item.recipeID), 0))
             }
@@ -128,6 +131,22 @@ final class AppService {
         state.ourTrashBytes = ourBytes
         let trashItem = state.items.first { $0.recipeID == "trash" }
         state.trashOthersBytes = max(0, (trashItem?.reclaimableBytes ?? 0) - ourBytes)
+        state.keptItemIDs = loadConfig().keptItemIDs
+        let sorted = snapshots.sorted { $0.volume.timestamp < $1.volume.timestamp }
+        state.availableHistory = sorted.map { $0.volume.availableBytes }
+        state.historyTimestamps = sorted.map { $0.volume.timestamp }
+        if let first = sorted.first, let last = sorted.last {
+            state.weeklyNetChangeBytes = last.volume.availableBytes - first.volume.availableBytes
+        }
+        state.cleaningEvents = entries
+            .suffix(20)
+            .map {
+                (
+                    timestamp: $0.timestamp,
+                    freedBytes: $0.freedBytes,
+                    isManual: $0.source == .manual
+                )
+            }
     }
 
     private func name(for recipeID: String) -> String {
@@ -139,6 +158,27 @@ final class AppService {
     private func itemName(for itemID: String) -> String {
         let recipeID = itemID.split(separator: ":").first.map(String.init) ?? itemID
         return name(for: recipeID)
+    }
+
+    /// 保留某一项（不再清理，但仍计入进水管）
+    func keepItem(_ item: ScanItem) {
+        var config = loadConfig()
+        config.keptItemIDs.insert(item.id)
+        writeConfig(config)
+        state.keptItemIDs = config.keptItemIDs
+    }
+
+    func unkeepItem(_ id: String) {
+        var config = loadConfig()
+        config.keptItemIDs.remove(id)
+        writeConfig(config)
+        state.keptItemIDs = config.keptItemIDs
+    }
+
+    func keptItemNames() -> [(id: String, name: String)] {
+        state.keptItemIDs
+            .map { ($0, itemName(for: $0)) }
+            .sorted { $0.name < $1.name }
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {
@@ -225,7 +265,7 @@ final class AppService {
             for (recipeID, ratio) in outcome.calibrationUpdates {
                 updated.cloneRatios[recipeID] = ratio
             }
-            saveConfig(updated)
+            writeConfig(updated)
         }
         await scanNow()
         state.lastCleanSummary = "已清理 \(outcome.entries.count) 项，移入回收站约 \(Format.bytes(outcome.freedBytes))"
@@ -260,6 +300,16 @@ final class AppService {
     }
 
     func saveConfig(_ config: Config) {
+        // 设置页整体保存时只更新它管理的字段，避免覆盖 keptItemIDs/cloneRatios（由其它入口维护）
+        var existing = loadConfig()
+        existing.waterlineGB = config.waterlineGB
+        existing.rules = config.rules
+        existing.whitelistPaths = config.whitelistPaths
+        existing.enabledRecipes = config.enabledRecipes
+        writeConfig(existing)
+    }
+
+    private func writeConfig(_ config: Config) {
         try? JSONStore().save(config, to: paths.configURL)
     }
 

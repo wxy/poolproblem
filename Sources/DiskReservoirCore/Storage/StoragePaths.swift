@@ -11,7 +11,7 @@ public struct StoragePaths: Sendable {
         } else if let env = ProcessInfo.processInfo.environment["POOLPROBLEM_DATA_DIR"] {
             self.baseURL = URL(fileURLWithPath: env, isDirectory: true)
         } else if let group = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.poolproblem.app"
+            forSecurityApplicationGroupIdentifier: "group.xingyu.wang.poolproblem"
         ) {
             self.baseURL = group
         } else {

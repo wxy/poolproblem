@@ -14,6 +14,11 @@ final class ReaderBox: @unchecked Sendable {
     var calls = 0
 }
 
+final class CaptureBox: @unchecked Sendable {
+    var will: [String] = []
+    var cleaned: [String] = []
+}
+
 @Test func cleanerStopsAtWaterline() throws {
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-clean-\(UUID().uuidString)", isDirectory: true)
@@ -111,4 +116,45 @@ final class ReaderBox: @unchecked Sendable {
     let outcome = try cleaner.run(scan: scan, config: .default, waterlineBytes: 30_000)
     #expect(outcome.entries.isEmpty)
     #expect(outcome.stillBelowWaterline == true)
+}
+
+@Test func cleanerReportsWillDeleteAndCleaned() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-clean4-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let paths = StoragePaths(baseURL: dir)
+    let logStore = CleanLogStore(paths: paths)
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    let item = ScanItem(
+        id: "cb", recipeID: "xctestdevices", name: "XCTest", path: "/tmp/cb",
+        category: .xcode, safety: .safeWhileRunning, disposition: .deletePermanently,
+        sizeBytes: 1000, allocatedBytes: 1000, reclaimableBytes: 1000,
+        fileCount: 1, lastModified: now.addingTimeInterval(-10 * 86_400)
+    )
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000, availableBytes: 10_000, timestamp: now),
+        items: [item], records: [], volumeURL: URL(fileURLWithPath: "/")
+    )
+    let box = ReaderBox()
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: MockDeleter(),
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: logStore,
+        availableBytesReader: { _ in
+            box.calls += 1
+            return box.calls == 1 ? 100 : 200
+        },
+        now: { now }
+    )
+    let capture = CaptureBox()
+    _ = try cleaner.run(
+        scan: scan,
+        config: .default,
+        waterlineBytes: 30_000,
+        onItemWillDelete: { capture.will.append($0) },
+        onItemCleaned: { capture.cleaned.append($0) }
+    )
+    #expect(capture.will == ["cb"])
+    #expect(capture.cleaned == ["cb"])
 }

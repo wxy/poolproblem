@@ -22,6 +22,12 @@ final class AppState: ObservableObject {
     @Published var ourTrashNames: [String] = []
     @Published var ourTrashBytes: Int64 = 0
     @Published var trashOthersBytes: Int64 = 0
+    @Published var detailItem: ScanItem?
+    @Published var keptItemIDs: Set<String> = []
+    @Published var availableHistory: [Int64] = []
+    @Published var weeklyNetChangeBytes: Int64 = 0
+    @Published var historyTimestamps: [Date] = []
+    @Published var cleaningEvents: [(timestamp: Date, freedBytes: Int64, isManual: Bool)] = []
     @Published var pendingClean: CleanOutcome?
     @Published var cleanOutcome: CleanOutcome?
     @Published var showCleanConfirm = false
@@ -29,6 +35,7 @@ final class AppState: ObservableObject {
 
 enum Format {
     static func bytes(_ value: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+        if value == 0 { return "0 KB" }
+        return ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
 }

@@ -43,10 +43,15 @@ struct SettingsView: View {
                             Text(recipe.name)
                                 .lineLimit(1)
                             Spacer()
-                            Stepper("保留 \(age(recipe)) 天", value: Binding(
+                            Text("保留 \(age(recipe)) 天")
+                                .font(.caption)
+                                .monospacedDigit()
+                                .frame(width: 74, alignment: .trailing)
+                            Stepper("", value: Binding(
                                 get: { age(recipe) },
                                 set: { setAge(recipe, $0) }
                             ), in: 1...365)
+                            .labelsHidden()
                         }
                     }
                 }
@@ -89,6 +94,25 @@ struct SettingsView: View {
                             Task {
                                 PermissionService.resetCache()
                                 hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
+                            }
+                        }
+                    }
+                }
+            }
+
+            Section("保留项管理") {
+                if service.keptItemNames().isEmpty {
+                    Text("暂无保留项")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(service.keptItemNames(), id: \.id) { entry in
+                        HStack {
+                            Text(entry.name)
+                                .font(.caption)
+                            Spacer()
+                            Button("移除") {
+                                service.unkeepItem(entry.id)
                             }
                         }
                     }
