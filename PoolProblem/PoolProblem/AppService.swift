@@ -19,11 +19,33 @@ final class AppService {
 
     func start() {
         Task { _ = await NotificationCenterService.shared.requestAuthorization() }
+        Task { await loadLatestState() }
         Task { await scanNow() }
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in await self?.scanNow() }
         }
+    }
+
+    func loadLatestState() async {
+        let paths = self.paths
+        let work = Task.detached(priority: .userInitiated) { () -> (VolumeInfo, [ScanItem], [Snapshot])? in
+            let volume = VolumeReader.read(fileURL: URL(fileURLWithPath: NSHomeDirectory()))
+            let store = SnapshotStore(paths: paths)
+            let snapshots = (try? store.snapshots()) ?? []
+            let items = snapshots.last?.items ?? []
+            return (volume, items, snapshots)
+        }
+        guard let (volume, items, snapshots) = await work.value else { return }
+        state.availableBytes = volume.availableBytes
+        state.totalBytes = volume.totalBytes
+        state.items = items
+        state.lastScanAt = snapshots.last?.volume.timestamp
+        state.predictionDays = FullPrediction().daysUntilFull(
+            snapshots: snapshots,
+            waterlineBytes: waterlineBytes()
+        )
+        await updateFlowMetrics(snapshots: snapshots)
     }
 
     func scanNow() async {
@@ -52,9 +74,29 @@ final class AppService {
             snapshots: all,
             waterlineBytes: waterlineBytes()
         )
+        await updateFlowMetrics(snapshots: all)
         let snapshot = Snapshot(volume: result.volume, items: result.items)
         checkGrowth(previous: previous, latest: snapshot)
         checkLowSpace(available: result.volume.availableBytes)
+    }
+
+    private func updateFlowMetrics(snapshots: [Snapshot]) async {
+        state.waterlineBytes = waterlineBytes()
+        guard let last = snapshots.last else { return }
+        let attribution = FlowAnalyzer().attribution(snapshots: snapshots, windowDays: 7)
+        state.topInflows = attribution.recipeDeltas
+            .sorted { $0.value > $1.value }
+            .prefix(2)
+            .map { (name(for: $0.key), $0.value) }
+        let cutoff = Date().addingTimeInterval(-7 * 86_400)
+        let entries = (try? logStore.entries()) ?? []
+        state.weeklyCleanedBytes = entries
+            .filter { $0.timestamp >= cutoff }
+            .reduce(0) { $0 + $1.freedBytes }
+    }
+
+    private func name(for recipeID: String) -> String {
+        RecipeRegistry.builtIn().first { $0.id == recipeID }?.name ?? recipeID
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {

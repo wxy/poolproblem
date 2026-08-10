@@ -7,13 +7,16 @@ struct MenuBarView: View {
     let service: AppService
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             header
-            if let prediction = state.predictionDays {
-                Text("按当前流速，约 \(Int(prediction.rounded())) 天后到水线")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            PoolTankView(
+                totalBytes: state.totalBytes,
+                availableBytes: state.availableBytes,
+                waterlineBytes: state.waterlineBytes,
+                topInflows: state.topInflows,
+                weeklyCleanedBytes: state.weeklyCleanedBytes
+            )
+            summary
             if state.isScanning {
                 ProgressView("扫描中…")
                     .controlSize(.small)
@@ -21,46 +24,55 @@ struct MenuBarView: View {
             itemList
             buttons
         }
-        .padding(12)
-        .frame(width: 340)
-        .task { service.start() }
+        .padding(16)
+        .frame(width: 440)
     }
 
     private var header: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("可用 \(Format.bytes(state.availableBytes))")
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                Text("共 \(Format.bytes(state.totalBytes))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text("The Pool Problem")
+                .font(.headline)
             Spacer()
-            ProgressView(value: fraction, total: 1)
-                .progressViewStyle(.linear)
-                .tint(state.availableBytes < 20_000_000_000 ? .red : .blue)
-                .frame(width: 80)
+            Text(state.lastScanAt.map { "更新于 \($0.formatted(date: .omitted, time: .shortened))" } ?? "")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
-    private var itemList: some View {
-        ScrollView {
-            VStack(spacing: 6) {
-                ForEach(state.items.sorted { $0.reclaimableBytes > $1.reclaimableBytes }) { item in
-                    HStack(spacing: 8) {
-                        Text(item.name)
-                            .lineLimit(1)
-                        Spacer()
-                        Text(Format.bytes(item.reclaimableBytes))
-                            .foregroundStyle(.secondary)
-                        badge(for: item.safety)
-                    }
-                    .font(.caption)
-                }
+    private var summary: some View {
+        HStack(spacing: 14) {
+            LabeledContent("可用", value: Format.bytes(state.availableBytes))
+            LabeledContent("共", value: Format.bytes(state.totalBytes))
+            LabeledContent("水线", value: Format.bytes(state.waterlineBytes))
+            if let prediction = state.predictionDays {
+                LabeledContent("预计", value: "\(Int(prediction.rounded())) 天后到水线")
             }
         }
-        .frame(maxHeight: 220)
+        .font(.caption)
+    }
+
+    private var itemList: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("可清理项（共 \(state.items.count) 项）")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(spacing: 6) {
+                    ForEach(Array(state.items.sorted { $0.reclaimableBytes > $1.reclaimableBytes }.prefix(6))) { item in
+                        HStack(spacing: 8) {
+                            Text(item.name)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(Format.bytes(item.reclaimableBytes))
+                                .foregroundStyle(.secondary)
+                            badge(for: item.safety)
+                        }
+                        .font(.caption)
+                    }
+                }
+            }
+            .frame(maxHeight: 180)
+        }
     }
 
     private var buttons: some View {
@@ -94,10 +106,6 @@ struct MenuBarView: View {
             state.pendingClean = await service.smartClean(dryRun: true)
             state.showCleanConfirm = state.pendingClean != nil
         }
-    }
-
-    private var fraction: Double {
-        state.totalBytes > 0 ? Double(state.availableBytes) / Double(state.totalBytes) : 0
     }
 
     private func badge(for safety: SafetyLevel) -> some View {
