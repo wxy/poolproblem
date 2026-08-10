@@ -1,4 +1,6 @@
 public struct Config: Codable, Equatable, Sendable {
+    // 兼容性设计空间：若未来需要支持旧版本配置，请为新增字段实现 decodeIfPresent，
+    // 并引入配置 schemaVersion（参考 DiskReservoirCore.schemaVersion）。
     public var waterlineGB: Double
     public var rules: [CleanRule]
     public var whitelistPaths: [String]

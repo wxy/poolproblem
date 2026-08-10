@@ -56,7 +56,12 @@ public struct RuleEvaluator: Sendable {
         }
         // 手动清理（force）：忽略年龄/最近修改保护，一律进回收站
         if force {
-            return EvaluatedAction(itemID: item.id, action: .trash)
+            switch item.disposition {
+            case .none:
+                return EvaluatedAction(itemID: item.id, action: .skip(reason: "disposition none"))
+            default:
+                return EvaluatedAction(itemID: item.id, action: .trash)
+            }
         }
         guard let modified = item.lastModified else {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "no modification date"))

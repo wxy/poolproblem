@@ -81,3 +81,59 @@ private func item(
         return
     }
 }
+
+@Test func forceCleansSafeWhileRunningToTrash() {
+    let evaluator = RuleEvaluator(config: .default, now: { Date(timeIntervalSince1970: 1_000_000) })
+    let result = evaluator.evaluate(
+        item: item(
+            "f", safety: .safeWhileRunning, disposition: .deletePermanently,
+            modified: Date(timeIntervalSince1970: 1_000_000 - 10 * 86_400)
+        ),
+        isProcessRunning: { _ in false },
+        force: true
+    )
+    #expect(result.action == .trash)
+}
+
+@Test func forceSkipsKeptItem() {
+    var config = Config.default
+    config.keptItemIDs = ["keep"]
+    let evaluator = RuleEvaluator(config: config)
+    let kept = ScanItem(
+        id: "keep", recipeID: "r", name: "N", path: "/tmp/keep",
+        category: .common, safety: .safeWhileRunning, disposition: .deletePermanently,
+        sizeBytes: 1, allocatedBytes: 1, reclaimableBytes: 1,
+        fileCount: 1, lastModified: Date(timeIntervalSince1970: 1)
+    )
+    let result = evaluator.evaluate(item: kept, isProcessRunning: { _ in false }, force: true)
+    guard case .skip = result.action else {
+        Issue.record("expected skip")
+        return
+    }
+}
+
+@Test func forceSkipsRequiresQuit() {
+    let evaluator = RuleEvaluator(config: .default)
+    let result = evaluator.evaluate(
+        item: item("q", safety: .requiresQuit, disposition: .trash),
+        isProcessRunning: { _ in false },
+        force: true
+    )
+    guard case .notify = result.action else {
+        Issue.record("expected notify")
+        return
+    }
+}
+
+@Test func forceRespectsDispositionNone() {
+    let evaluator = RuleEvaluator(config: .default)
+    let result = evaluator.evaluate(
+        item: item("n", safety: .safeWhileRunning, disposition: .none),
+        isProcessRunning: { _ in false },
+        force: true
+    )
+    guard case .skip = result.action else {
+        Issue.record("expected skip")
+        return
+    }
+}

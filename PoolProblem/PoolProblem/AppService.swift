@@ -81,6 +81,9 @@ final class AppService {
         let snapshot = Snapshot(volume: result.volume, items: result.items)
         checkGrowth(previous: previous, latest: snapshot)
         checkLowSpace(available: result.volume.availableBytes)
+        if !state.isCleaning {
+            state.cleanedItemIDs = []
+        }
     }
 
     private func updateFlowMetrics(snapshots: [Snapshot]) async {
@@ -161,14 +164,14 @@ final class AppService {
     func keepItem(_ item: ScanItem) {
         var config = loadConfig()
         config.keptItemIDs.insert(item.id)
-        saveConfig(config)
+        writeConfig(config)
         state.keptItemIDs = config.keptItemIDs
     }
 
     func unkeepItem(_ id: String) {
         var config = loadConfig()
         config.keptItemIDs.remove(id)
-        saveConfig(config)
+        writeConfig(config)
         state.keptItemIDs = config.keptItemIDs
     }
 
@@ -262,7 +265,7 @@ final class AppService {
             for (recipeID, ratio) in outcome.calibrationUpdates {
                 updated.cloneRatios[recipeID] = ratio
             }
-            saveConfig(updated)
+            writeConfig(updated)
         }
         await scanNow()
         state.lastCleanSummary = "已清理 \(outcome.entries.count) 项，移入回收站约 \(Format.bytes(outcome.freedBytes))"
@@ -297,6 +300,16 @@ final class AppService {
     }
 
     func saveConfig(_ config: Config) {
+        // 设置页整体保存时只更新它管理的字段，避免覆盖 keptItemIDs/cloneRatios（由其它入口维护）
+        var existing = loadConfig()
+        existing.waterlineGB = config.waterlineGB
+        existing.rules = config.rules
+        existing.whitelistPaths = config.whitelistPaths
+        existing.enabledRecipes = config.enabledRecipes
+        writeConfig(existing)
+    }
+
+    private func writeConfig(_ config: Config) {
         try? JSONStore().save(config, to: paths.configURL)
     }
 
