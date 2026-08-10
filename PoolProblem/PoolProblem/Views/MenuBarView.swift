@@ -19,7 +19,8 @@ struct MenuBarView: View {
                 waterlineBytes: state.waterlineBytes,
                 cleanableItems: state.items,
                 estimatedRecipeIDs: estimatedRecipeIDs,
-                inflowLabels: state.topInflows
+                inflowLabels: state.topInflows,
+                excludedItemIDs: state.cleanedItemIDs
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -86,10 +87,11 @@ struct MenuBarView: View {
         ) { outcome in
             Button("取消", role: .cancel) {}
             Button("清理", role: .destructive) {
+                // 实际清理：手动模式一律进回收站，可恢复
                 Task { state.cleanOutcome = await service.smartClean(dryRun: false) }
             }
         } message: { outcome in
-            Text("将处理 \(outcome.entries.count) 项，估算释放 \(Format.bytes(outcome.freedBytes))（真实以实测为准）。")
+            Text("将处理 \(outcome.entries.count) 项，估算释放 \(Format.bytes(outcome.freedBytes))（将移入回收站，可恢复；真实以实测为准）。")
         }
     }
 
@@ -113,6 +115,12 @@ struct MenuBarView: View {
 
             countdown
 
+            if let summary = state.lastCleanSummary {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Spacer(minLength: 0)
 
             buttons
@@ -133,23 +141,31 @@ struct MenuBarView: View {
     }
 
     private var legend: some View {
-        let layers = PoolLayers.make(
+        let poolLayers = PoolLayers.make(
             items: state.items,
             totalBytes: state.totalBytes,
             availableBytes: state.availableBytes,
-            estimatedRecipeIDs: estimatedRecipeIDs
+            estimatedRecipeIDs: estimatedRecipeIDs,
+            excludedItemIDs: []   // 图例保留已清理行（打删除线），只有水池层消失
         )
         return VStack(alignment: .leading, spacing: 5) {
-            Text("可清理项（\(layers.layers.count)）")
+            Text("可清理项（\(poolLayers.layers.count)）")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(layers.layers) { layer in
+            ForEach(poolLayers.layers) { layer in
                 HStack(spacing: 5) {
+                    if state.deletingItemID == layer.itemID {
+                        ProgressView()
+                            .controlSize(.mini)
+                            .frame(width: 9, height: 9)
+                    }
                     Rectangle()
                         .fill(layer.color.opacity(0.8))
                         .frame(width: 9, height: 9)
                     Text(layer.name)
                         .lineLimit(1)
+                        .strikethrough(state.cleanedItemIDs.contains(layer.itemID))
+                        .foregroundStyle(state.cleanedItemIDs.contains(layer.itemID) ? Color.secondary : Color.primary)
                         .font(.caption)
                     if layer.estimated {
                         Text("估算")
@@ -165,22 +181,45 @@ struct MenuBarView: View {
                             .font(.caption2)
                             .foregroundStyle(.blue)
                     }
-                    safetyMark(layer.safety)
+                    safetyMark(layer)
                 }
             }
-            if layers.nonCleanableBytes > 0 {
-                HStack(spacing: 5) {
-                    Rectangle()
-                        .fill(PoolLayers.nonCleanableColor)
-                        .frame(width: 9, height: 9)
-                    Text("不可清理（其余已用）")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(Format.bytes(layers.nonCleanableBytes))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+
+            if poolLayers.trashBytes > 0 || poolLayers.nonCleanableBytes > 0 {
+                Divider()
+                VStack(alignment: .leading, spacing: 5) {
+                    if poolLayers.trashBytes > 0 {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.trashColor)
+                                .frame(width: 9, height: 9)
+                            Text("废纸篓")
+                                .font(.caption)
+                            Spacer()
+                            Text(Format.bytes(poolLayers.trashBytes))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("需手动")
+                                .font(.caption2)
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                    if poolLayers.nonCleanableBytes > 0 {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.nonCleanableColor)
+                                .frame(width: 9, height: 9)
+                            Text("不可清理（其余已用）")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(Format.bytes(poolLayers.nonCleanableBytes))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
+                .padding(.top, 2)
             }
         }
     }
@@ -232,13 +271,21 @@ struct MenuBarView: View {
         // 用最近一次扫描结果即时生成预览（不做全量扫描，避免点击后长时间等待）
         let config = service.loadConfig()
         let evaluator = RuleEvaluator(config: config)
-        let suggestions = state.items.compactMap { item -> (ScanItem, EvaluatedAction)? in
-            let action = evaluator.evaluate(item: item) { name in
-                name.map { PGrepProcessInspector().isRunning($0) } ?? false
-            }
+        let suggestions = state.items
+            .filter { $0.reclaimableBytes > 0 }
+            .compactMap { item -> (ScanItem, EvaluatedAction)? in
+            let action = evaluator.evaluate(
+                item: item,
+                isProcessRunning: { name in
+                    name.map { PGrepProcessInspector().isRunning($0) } ?? false
+                },
+                force: true
+            )
             switch action.action {
-            case .skip: return nil
-            default: return (item, action)
+            case .trash, .delete:
+                return (item, action)
+            default:
+                return nil
             }
         }
         let outcome = CleanOutcome(
@@ -248,7 +295,7 @@ struct MenuBarView: View {
                     timestamp: Date(),
                     itemIDs: [entry.0.id],
                     freedBytes: entry.0.reclaimableBytes,
-                    disposition: entry.1.action == .trash ? .trash : .deletePermanently
+                    disposition: .trash
                 )
             },
             freedBytes: suggestions.reduce(0) { $0 + $1.0.reclaimableBytes },
@@ -266,7 +313,11 @@ struct MenuBarView: View {
         return "\(Int(days.rounded())) 天后到水线"
     }
 
-    private func safetyMark(_ safety: SafetyLevel) -> some View {
+    private func safetyMark(_ layer: CleanableLayer) -> some View {
+        if layer.recipeID == "trash" {
+            return Text("需手动").font(.caption2).foregroundStyle(.blue)
+        }
+        let safety = layer.safety
         switch safety {
         case .safeWhileRunning:
             return Text("可清理").font(.caption2).foregroundStyle(.green)

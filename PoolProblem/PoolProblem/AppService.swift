@@ -51,6 +51,8 @@ final class AppService {
     func scanNow() async {
         guard !state.isScanning else { return }
         state.isScanning = true
+        state.isCleaning = false
+        state.lastCleanSummary = nil
         defer { state.isScanning = false }
         let paths = self.paths
         let cloneRatios = loadConfig().cloneRatios
@@ -84,17 +86,32 @@ final class AppService {
     private func updateFlowMetrics(snapshots: [Snapshot]) async {
         state.waterlineBytes = waterlineBytes()
         guard let last = snapshots.last else { return }
-        let attribution = FlowAnalyzer().attribution(snapshots: snapshots, windowDays: 7)
-        state.topInflows = attribution.recipeDeltas
-            .sorted { $0.value > $1.value }
-            .prefix(2)
-            .map { (name(for: $0.key), $0.value) }
+        state.growthRates = FlowAnalyzer().growthRates(snapshots: snapshots)
+        // 进水管：按配方聚合"增速"（排除废纸篓），显示每周增长
+        let itemRecipe = Dictionary(uniqueKeysWithValues: state.items.map { ($0.id, $0.recipeID) })
+        var recipeRates: [String: Double] = [:]
+        for (itemID, rate) in state.growthRates {
+            guard let recipeID = itemRecipe[itemID], recipeID != "trash" else { continue }
+            recipeRates[recipeID, default: 0] += rate
+        }
+        if recipeRates.isEmpty {
+            // 回退：按当前可清理量取前两项（排除废纸篓）
+            state.topInflows = state.items
+                .filter { $0.recipeID != "trash" }
+                .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
+                .prefix(2)
+                .map { (name(for: $0.recipeID), 0) }
+        } else {
+            state.topInflows = recipeRates
+                .sorted { $0.value > $1.value }
+                .prefix(2)
+                .map { (name(for: $0.key), Int64($0.value * 7)) }
+        }
         let cutoff = Date().addingTimeInterval(-7 * 86_400)
         let entries = (try? logStore.entries()) ?? []
         state.weeklyCleanedBytes = entries
             .filter { $0.timestamp >= cutoff }
             .reduce(0) { $0 + $1.freedBytes }
-        state.growthRates = FlowAnalyzer().growthRates(snapshots: snapshots)
     }
 
     private func name(for recipeID: String) -> String {
@@ -107,6 +124,11 @@ final class AppService {
         let config = loadConfig()
         let logStore = self.logStore
         let cloneRatios = config.cloneRatios
+        let state = self.state
+        if !dryRun {
+            state.isCleaning = true
+            state.cleanedItemIDs = []
+        }
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? DiskReservoirCore.Scanner(cloneRatios: cloneRatios).scan(
                 recipes: RecipeRegistry.builtIn(),
@@ -144,10 +166,39 @@ final class AppService {
                 deleter: FileManagerFileDeleter(),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
-            ).run(scan: result, config: config, waterlineBytes: Int64(config.waterlineGB * 1_000_000_000))
+            ).run(
+                scan: result,
+                config: config,
+                waterlineBytes: Int64.max,   // 手动清理不受水线限制
+                forceClean: true,            // 手动清理：忽略年龄/最近修改，一律进回收站
+                onItemWillDelete: { itemID in
+                    Task { @MainActor in
+                        state.deletingItemID = itemID
+                    }
+                },
+                onItemCleaned: { itemID in
+                    Task { @MainActor in
+                        var cleaned = state.cleanedItemIDs
+                        cleaned.insert(itemID)
+                        state.cleanedItemIDs = cleaned
+                        state.deletingItemID = nil
+                        if let item = state.items.first(where: { $0.id == itemID }) {
+                            state.availableBytes = min(
+                                state.totalBytes,
+                                state.availableBytes + item.reclaimableBytes
+                            )
+                            self.growTrashItem(by: item.reclaimableBytes)
+                        }
+                    }
+                }
+            )
             return (result, outcome)
         }
-        guard let (_, outcome) = await work.value, let outcome else { return nil }
+        guard let (_, outcome) = await work.value, let outcome else {
+            state.isCleaning = false
+            return nil
+        }
+        state.isCleaning = false
         if !outcome.calibrationUpdates.isEmpty {
             var updated = config
             for (recipeID, ratio) in outcome.calibrationUpdates {
@@ -156,7 +207,31 @@ final class AppService {
             saveConfig(updated)
         }
         await scanNow()
+        state.lastCleanSummary = "已清理 \(outcome.entries.count) 项，移入回收站约 \(Format.bytes(outcome.freedBytes))"
         return outcome
+    }
+
+    /// 删除移入回收站时，实时增长垃圾箱图层
+    private func growTrashItem(by bytes: Int64) {
+        guard let index = state.items.firstIndex(where: { $0.recipeID == "trash" }) else { return }
+        let item = state.items[index]
+        let updated = ScanItem(
+            id: item.id,
+            recipeID: item.recipeID,
+            name: item.name,
+            path: item.path,
+            category: item.category,
+            safety: item.safety,
+            disposition: item.disposition,
+            sizeBytes: item.sizeBytes + bytes,
+            allocatedBytes: item.allocatedBytes + bytes,
+            reclaimableBytes: item.reclaimableBytes + bytes,
+            fileCount: item.fileCount + 1,
+            lastModified: item.lastModified
+        )
+        var items = state.items
+        items[index] = updated
+        state.items = items
     }
 
     func loadConfig() -> Config {

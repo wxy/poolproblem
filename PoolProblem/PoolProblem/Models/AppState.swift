@@ -14,6 +14,10 @@ final class AppState: ObservableObject {
     @Published var weeklyCleanedBytes: Int64 = 0
     @Published var growthRates: [String: Double] = [:]
     @Published var isScanning = false
+    @Published var isCleaning = false
+    @Published var cleanedItemIDs: Set<String> = []
+    @Published var deletingItemID: String?
+    @Published var lastCleanSummary: String?
     @Published var pendingClean: CleanOutcome?
     @Published var cleanOutcome: CleanOutcome?
     @Published var showCleanConfirm = false

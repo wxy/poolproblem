@@ -48,7 +48,14 @@ public struct Cleaner: Sendable {
         self.now = now
     }
 
-    public func run(scan: ScanResult, config: Config, waterlineBytes: Int64) throws -> CleanOutcome {
+    public func run(
+        scan: ScanResult,
+        config: Config,
+        waterlineBytes: Int64,
+        forceClean: Bool = false,
+        onItemWillDelete: (@Sendable (String) -> Void)? = nil,
+        onItemCleaned: (@Sendable (String) -> Void)? = nil
+    ) throws -> CleanOutcome {
         var deficit = waterlineBytes - scan.volume.availableBytes
         guard deficit > 0 else {
             return CleanOutcome(entries: [], freedBytes: 0, actualFreedBytes: 0, stillBelowWaterline: false)
@@ -61,10 +68,15 @@ public struct Cleaner: Sendable {
         var freedTotal: Int64 = 0
         var below = true
         for item in candidates {
+            guard item.reclaimableBytes > 0 else { continue }
             guard deficit > 0 else { below = false; break }
-            let decision = evaluator.evaluate(item: item) { name in
-                name.map { inspector.isRunning($0) } ?? false
-            }
+            let decision = evaluator.evaluate(
+                item: item,
+                isProcessRunning: { name in
+                    name.map { inspector.isRunning($0) } ?? false
+                },
+                force: forceClean
+            )
             let disposition: CleanDisposition?
             switch decision.action {
             case .delete:
@@ -75,7 +87,9 @@ public struct Cleaner: Sendable {
                 disposition = nil
             }
             guard let disposition else { continue }
+            onItemWillDelete?(item.id)
             let freed = try deleter.delete(url: URL(fileURLWithPath: item.path), disposition: disposition)
+            onItemCleaned?(item.id)
             freedTotal += freed
             deficit -= freed
             entries.append(CleanLogEntry(

@@ -4,6 +4,7 @@ import DiskReservoirCore
 struct CleanableLayer: Identifiable {
     let id: Int
     let itemID: String
+    let recipeID: String
     let name: String
     let bytes: Int64
     let color: Color
@@ -28,6 +29,7 @@ enum PoolLayers {
     ]
 
     static let nonCleanableColor = Color(red: 0.05, green: 0.12, blue: 0.30)
+    static let trashColor = Color(red: 0.55, green: 0.78, blue: 0.95)
 
     static func layerOpacity(index: Int, count: Int) -> Double {
         guard count > 1 else { return 0.7 }
@@ -39,11 +41,16 @@ enum PoolLayers {
         items: [ScanItem],
         totalBytes: Int64,
         availableBytes: Int64,
-        estimatedRecipeIDs: Set<String>
-    ) -> (layers: [CleanableLayer], nonCleanableBytes: Int64) {
+        estimatedRecipeIDs: Set<String>,
+        excludedItemIDs: Set<String> = []
+    ) -> (layers: [CleanableLayer], nonCleanableBytes: Int64, trashBytes: Int64) {
         let used = max(0, totalBytes - availableBytes)
         let cleanable = items
-            .filter { $0.reclaimableBytes > 0 }
+            .filter {
+                $0.reclaimableBytes > 0
+                    && !excludedItemIDs.contains($0.id)
+                    && $0.recipeID != "trash"
+            }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         var layers: [CleanableLayer] = []
         var sum: Int64 = 0
@@ -51,15 +58,19 @@ enum PoolLayers {
             layers.append(CleanableLayer(
                 id: index,
                 itemID: item.id,
+                recipeID: item.recipeID,
                 name: item.name,
                 bytes: item.reclaimableBytes,
-                color: palette[index % palette.count],
+                color: item.recipeID == "trash" ? trashColor : palette[index % palette.count],
                 safety: item.safety,
                 estimated: estimatedRecipeIDs.contains(item.recipeID)
             ))
             sum += item.reclaimableBytes
         }
-        return (layers, max(0, used - sum))
+        let trashBytes = items
+            .filter { $0.recipeID == "trash" && $0.reclaimableBytes > 0 && !excludedItemIDs.contains($0.id) }
+            .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
+        return (layers, max(0, used - sum - trashBytes), trashBytes)
     }
 }
 
@@ -70,6 +81,7 @@ struct PoolTankView: View {
     let cleanableItems: [ScanItem]
     let estimatedRecipeIDs: Set<String>
     let inflowLabels: [(name: String, bytes: Int64)]
+    let excludedItemIDs: Set<String>
 
     /// 可视窗口覆盖的"已用空间"跨度：
     /// 从水面附近（可用 + 可清理）向下再多露出 20GB 不可清理，证明上方都可清理/可用
@@ -107,11 +119,12 @@ struct PoolTankView: View {
 
         let surfaceY = yForUsed(used)
         let waterlineY = yForUsed(waterlineUsed)
-        let (layers, nonCleanable) = PoolLayers.make(
+        let (layers, nonCleanable, trashBytes) = PoolLayers.make(
             items: cleanableItems,
             totalBytes: totalBytes,
             availableBytes: availableBytes,
-            estimatedRecipeIDs: estimatedRecipeIDs
+            estimatedRecipeIDs: estimatedRecipeIDs,
+            excludedItemIDs: excludedItemIDs
         )
 
         // 全程只设置一次裁剪
@@ -247,16 +260,22 @@ struct PoolTankView: View {
             let midX = (pipe.xStart + pipe.xElbow) / 2
             drawBadge(
                 context: &context,
-                text: bytes > 0 ? name : "进水",
+                text: name,
                 center: CGPoint(x: midX, y: pipe.yTop - 16)
             )
+            let rateText: String
             if bytes > 0 {
-                drawBadge(
-                    context: &context,
-                    text: "+\(Format.bytes(bytes))/周",
-                    center: CGPoint(x: midX, y: pipe.yTop)
-                )
+                rateText = "+\(Format.bytes(bytes))/周"
+            } else if bytes < 0 {
+                rateText = "\(Format.bytes(-bytes))/周"
+            } else {
+                rateText = "稳定"
             }
+            drawBadge(
+                context: &context,
+                text: rateText,
+                center: CGPoint(x: midX, y: pipe.yTop)
+            )
 
             // 实心水流：直带略微收窄（不圆角），从半空管口流出进入水池 + 落水溅波
             let streamX = pipe.xElbow
@@ -264,10 +283,10 @@ struct PoolTankView: View {
             let streamBottom = surfaceY
             if streamBottom > streamTop + 4 {
                 var band = Path()
-                band.move(to: CGPoint(x: streamX - 5, y: streamTop))
-                band.addLine(to: CGPoint(x: streamX + 5, y: streamTop))
-                band.addLine(to: CGPoint(x: streamX + 4, y: streamBottom))
-                band.addLine(to: CGPoint(x: streamX - 4, y: streamBottom))
+                band.move(to: CGPoint(x: streamX - 3.5, y: streamTop))
+                band.addLine(to: CGPoint(x: streamX + 3.5, y: streamTop))
+                band.addLine(to: CGPoint(x: streamX + 5, y: streamBottom))
+                band.addLine(to: CGPoint(x: streamX - 5, y: streamBottom))
                 band.closeSubpath()
                 context.fill(
                     band,
@@ -281,7 +300,7 @@ struct PoolTankView: View {
                 let flowT = (phase * 0.7).truncatingRemainder(dividingBy: 1)
                 let lineY = streamTop + CGFloat(flowT) * (streamBottom - streamTop)
                 context.fill(
-                    Path(CGRect(x: streamX - 4.5, y: lineY - 1, width: 9, height: 2)),
+                    Path(CGRect(x: streamX - 3.5, y: lineY - 1, width: 7, height: 2)),
                     with: .color(.white.opacity(0.35))
                 )
 
@@ -346,6 +365,19 @@ struct PoolTankView: View {
             color: PoolLayers.nonCleanableColor.opacity(0.9)
         )
         bottomUsed = nonCleanableTop
+        // 废纸篓层（浅蓝，位于不可清理之上、可清理层之下）
+        if trashBytes > 0 {
+            let top = bottomUsed + Double(trashBytes)
+            boundaries.append(yForUsed(top))
+            fillLayer(
+                context: &context,
+                bottomUsed: bottomUsed,
+                topUsed: top,
+                yForUsed: yForUsed,
+                color: PoolLayers.trashColor.opacity(0.85)
+            )
+            bottomUsed = top
+        }
         for (index, layer) in layers.enumerated() {
             let top = bottomUsed + Double(layer.bytes)
             boundaries.append(yForUsed(top))

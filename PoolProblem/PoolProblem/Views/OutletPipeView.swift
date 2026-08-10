@@ -27,8 +27,8 @@ struct OutletPipeView: View {
 
             // 标签（管子上方）
             let text = weeklyCleanedBytes > 0
-                ? "出水（清理）\(Format.bytes(weeklyCleanedBytes))/周"
-                : "出水（清理）"
+                ? "本周已清理 \(Format.bytes(weeklyCleanedBytes))"
+                : "本周尚未清理"
             PipePainter.drawBadge(
                 context: &context,
                 text: text,
