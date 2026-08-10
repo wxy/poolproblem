@@ -7,6 +7,9 @@ struct PoolProblemApp: App {
     @State private var statusItemController: StatusItemController?
 
     init() {
+        guard InstanceLock.acquire() else {
+            exit(0)
+        }
         let state = AppState()
         _state = StateObject(wrappedValue: state)
         let service = AppService(state: state)

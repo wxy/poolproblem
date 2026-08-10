@@ -9,13 +9,15 @@ struct MenuBarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             header
-            PoolTankView(
-                totalBytes: state.totalBytes,
-                availableBytes: state.availableBytes,
-                waterlineBytes: state.waterlineBytes,
-                topInflows: state.topInflows,
-                weeklyCleanedBytes: state.weeklyCleanedBytes
-            )
+            section {
+                PoolTankView(
+                    totalBytes: state.totalBytes,
+                    availableBytes: state.availableBytes,
+                    waterlineBytes: state.waterlineBytes,
+                    topInflows: state.topInflows,
+                    weeklyCleanedBytes: state.weeklyCleanedBytes
+                )
+            }
             summary
             if state.isScanning {
                 ProgressView("扫描中…")
@@ -26,6 +28,12 @@ struct MenuBarView: View {
         }
         .padding(16)
         .frame(width: 440)
+    }
+
+    private func section<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(10)
+            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var header: some View {

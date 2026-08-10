@@ -86,7 +86,10 @@ struct SettingsView: View {
                     if !hasFullDiskAccess {
                         Button("去设置") { PermissionService.openSystemSettings() }
                         Button("重新检测") {
-                            Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
+                            Task {
+                                PermissionService.resetCache()
+                                hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
+                            }
                         }
                     }
                 }
