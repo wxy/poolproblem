@@ -34,6 +34,8 @@ struct PoolTankView: View {
                     Image(systemName: "arrow.down.circle.fill")
                         .foregroundStyle(.blue)
                     Text("\(inflow.name) +\(Format.bytes(inflow.bytes))")
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
                 .font(.caption)
                 .padding(.horizontal, 8)
@@ -53,7 +55,12 @@ struct PoolTankView: View {
         HStack(spacing: 5) {
             Image(systemName: "arrow.right.circle.fill")
                 .foregroundStyle(.green)
-            Text("出水（清理）\(Format.bytes(weeklyCleanedBytes))/周")
+            if weeklyCleanedBytes > 0 {
+                Text("出水（清理）\(Format.bytes(weeklyCleanedBytes))/周")
+            } else {
+                Text("本周暂无清理")
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
         }
         .font(.caption)

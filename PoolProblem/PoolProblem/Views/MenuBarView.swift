@@ -53,10 +53,17 @@ struct MenuBarView: View {
             LabeledContent("共", value: Format.bytes(state.totalBytes))
             LabeledContent("水线", value: Format.bytes(state.waterlineBytes))
             if let prediction = state.predictionDays {
-                LabeledContent("预计", value: "\(Int(prediction.rounded())) 天后到水线")
+                LabeledContent("预计", value: predictionText(prediction))
             }
         }
         .font(.caption)
+    }
+
+    private func predictionText(_ days: Double) -> String {
+        if days > 365 {
+            return ">1 年（水位稳定）"
+        }
+        return "\(Int(days.rounded())) 天后到水线"
     }
 
     private var itemList: some View {

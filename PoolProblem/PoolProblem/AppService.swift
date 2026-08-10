@@ -96,7 +96,9 @@ final class AppService {
     }
 
     private func name(for recipeID: String) -> String {
-        RecipeRegistry.builtIn().first { $0.id == recipeID }?.name ?? recipeID
+        let full = RecipeRegistry.builtIn().first { $0.id == recipeID }?.name ?? recipeID
+        let trimmed = full.components(separatedBy: " (").first ?? full
+        return String(trimmed.prefix(16))
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {
