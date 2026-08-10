@@ -17,7 +17,6 @@ struct MenuBarView: View {
                         waterlineBytes: state.waterlineBytes,
                         cleanableItems: state.items
                     )
-                    .frame(width: 250)
                     legend
                 }
             }
@@ -44,42 +43,50 @@ struct MenuBarView: View {
             totalBytes: state.totalBytes,
             availableBytes: state.availableBytes
         )
-        return VStack(alignment: .leading, spacing: 6) {
-            Text("可清理层（\(layers.layers.count) 项）")
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("可清理项（\(layers.layers.count)）")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ScrollView {
-                VStack(spacing: 4) {
-                    ForEach(layers.layers) { layer in
-                        HStack(spacing: 6) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(layer.color)
-                                .frame(width: 10, height: 10)
-                            Text(layer.name)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(Format.bytes(layer.bytes))
-                                .foregroundStyle(.secondary)
-                        }
-                        .font(.caption)
-                    }
-                    if layers.nonCleanableBytes > 0 {
-                        HStack(spacing: 6) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(PoolLayers.nonCleanableColor)
-                                .frame(width: 10, height: 10)
-                            Text("不可清理（其余已用）")
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(Format.bytes(layers.nonCleanableBytes))
-                                .foregroundStyle(.secondary)
-                        }
-                        .font(.caption)
-                    }
+            ForEach(layers.layers) { layer in
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(layer.color.opacity(0.8))
+                        .frame(width: 10, height: 10)
+                    Text(layer.name)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(Format.bytes(layer.bytes))
+                        .foregroundStyle(.secondary)
+                    safetyMark(layer.safety)
                 }
+                .font(.caption)
+            }
+            if layers.nonCleanableBytes > 0 {
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(PoolLayers.nonCleanableColor)
+                        .frame(width: 10, height: 10)
+                    Text("不可清理（其余已用）")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(Format.bytes(layers.nonCleanableBytes))
+                        .foregroundStyle(.secondary)
+                }
+                .font(.caption)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: 360, alignment: .topLeading)
+    }
+
+    private func safetyMark(_ safety: SafetyLevel) -> some View {
+        switch safety {
+        case .safeWhileRunning:
+            return Text("可清理").font(.caption2).foregroundStyle(.green)
+        case .requiresQuit:
+            return Text("需退出").font(.caption2).foregroundStyle(.orange)
+        case .userConfirm:
+            return Text("需确认").font(.caption2).foregroundStyle(.gray)
+        }
     }
 
     private var header: some View {

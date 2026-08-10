@@ -108,9 +108,6 @@ struct SettingsView: View {
             config = service.loadConfig()
             expertMode = UserDefaults.standard.bool(forKey: "expertMode")
         }
-        .task {
-            hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
-        }
         .onChange(of: expertMode) { _, newValue in
             UserDefaults.standard.set(newValue, forKey: "expertMode")
         }
