@@ -26,7 +26,6 @@ struct MenuBarView: View {
                 ProgressView("扫描中…")
                     .controlSize(.small)
             }
-            itemList
             buttons
         }
         .padding(16)
@@ -67,7 +66,7 @@ struct MenuBarView: View {
                     if layers.nonCleanableBytes > 0 {
                         HStack(spacing: 6) {
                             RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.gray.opacity(0.55))
+                                .fill(PoolLayers.nonCleanableColor)
                                 .frame(width: 10, height: 10)
                             Text("不可清理（其余已用）")
                                 .foregroundStyle(.secondary)
@@ -113,30 +112,6 @@ struct MenuBarView: View {
         return "\(Int(days.rounded())) 天后到水线"
     }
 
-    private var itemList: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("可清理项（共 \(state.items.count) 项）")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            ScrollView {
-                VStack(spacing: 6) {
-                    ForEach(Array(state.items.sorted { $0.reclaimableBytes > $1.reclaimableBytes }.prefix(6))) { item in
-                        HStack(spacing: 8) {
-                            Text(item.name)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(Format.bytes(item.reclaimableBytes))
-                                .foregroundStyle(.secondary)
-                            badge(for: item.safety)
-                        }
-                        .font(.caption)
-                    }
-                }
-            }
-            .frame(maxHeight: 180)
-        }
-    }
-
     private var buttons: some View {
         HStack {
             Button("智能清理") { runSmartClean() }
@@ -170,17 +145,4 @@ struct MenuBarView: View {
         }
     }
 
-    private func badge(for safety: SafetyLevel) -> some View {
-        let (text, color): (String, Color) = switch safety {
-        case .safeWhileRunning: ("可自动清", .green)
-        case .requiresQuit: ("需退出", .orange)
-        case .userConfirm: ("需确认", .gray)
-        }
-        return Text(text)
-            .font(.caption2)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(color.opacity(0.15), in: Capsule())
-            .foregroundStyle(color)
-    }
 }

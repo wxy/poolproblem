@@ -10,9 +10,20 @@ struct CleanableLayer: Identifiable {
 
 enum PoolLayers {
     static let palette: [Color] = [
-        .blue, .cyan, .teal, .mint, .green,
-        .yellow, .orange, .red, .purple, .pink, .indigo,
+        Color(red: 0.22, green: 0.72, blue: 0.33),
+        Color(red: 0.30, green: 0.80, blue: 0.45),
+        Color(red: 0.42, green: 0.82, blue: 0.60),
+        Color(red: 0.55, green: 0.85, blue: 0.55),
+        Color(red: 0.55, green: 0.88, blue: 0.72),
+        Color(red: 0.50, green: 0.82, blue: 0.88),
+        Color(red: 0.40, green: 0.75, blue: 0.90),
+        Color(red: 0.52, green: 0.80, blue: 0.95),
+        Color(red: 0.62, green: 0.86, blue: 1.00),
+        Color(red: 0.72, green: 0.90, blue: 1.00),
+        Color(red: 0.82, green: 0.94, blue: 1.00),
     ]
+
+    static let nonCleanableColor = Color(red: 0.10, green: 0.22, blue: 0.50)
 
     static func make(items: [ScanItem], totalBytes: Int64, availableBytes: Int64)
         -> (layers: [CleanableLayer], nonCleanableBytes: Int64) {
@@ -49,10 +60,6 @@ struct PoolTankView: View {
         totalBytes > 0 ? Double(totalBytes - waterlineBytes) / Double(totalBytes) : 0
     }
 
-    private var belowWaterline: Bool {
-        availableBytes < waterlineBytes
-    }
-
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
             gauge
@@ -63,7 +70,7 @@ struct PoolTankView: View {
 
     private var gauge: some View {
         Canvas { context, size in
-            let barRect = CGRect(x: 0, y: 4, width: 10, height: size.height - 8)
+            let barRect = CGRect(x: 0, y: 4, width: 12, height: size.height - 8)
             let waterlineY = barRect.maxY - barRect.height * CGFloat(waterlineFraction)
             let barPath = Path(roundedRect: barRect, cornerRadius: 5)
             context.clip(to: barPath)
@@ -78,22 +85,31 @@ struct PoolTankView: View {
                 width: barRect.width, height: waterlineY - barRect.minY
             )
             context.fill(Path(redRect), with: .color(.red))
-            context.stroke(barPath, with: .color(.secondary.opacity(0.6)), lineWidth: 1)
-            // GB 刻度
+            // 刻度线 + GB 数字（水尺样式）
             for fraction in [0.0, 0.25, 0.5, 0.75, 1.0] {
                 let y = barRect.maxY - barRect.height * CGFloat(fraction)
                 var tick = Path()
-                tick.move(to: CGPoint(x: barRect.maxX, y: y))
-                tick.addLine(to: CGPoint(x: barRect.maxX + 4, y: y))
-                context.stroke(tick, with: .color(.secondary.opacity(0.7)), lineWidth: 1)
+                tick.move(to: CGPoint(x: barRect.minX + 1, y: y))
+                tick.addLine(to: CGPoint(x: barRect.maxX - 1, y: y))
+                context.stroke(tick, with: .color(.white.opacity(0.9)), lineWidth: 1.2)
                 let gb = Int(Double(totalBytes) * fraction / 1_000_000_000)
                 let label = Text("\(gb)G")
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(y <= waterlineY ? Color.white : Color.black.opacity(0.7))
                 context.draw(label, at: CGPoint(x: barRect.maxX + 20, y: y), anchor: .trailing)
             }
+            // 水位线分界（加粗线 + 标签）
+            var boundary = Path()
+            boundary.move(to: CGPoint(x: barRect.minX, y: waterlineY))
+            boundary.addLine(to: CGPoint(x: barRect.maxX, y: waterlineY))
+            context.stroke(boundary, with: .color(.black.opacity(0.8)), lineWidth: 1.5)
+            let tag = Text("水线 \(Format.bytes(waterlineBytes))")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.primary)
+            context.draw(tag, at: CGPoint(x: barRect.maxX + 20, y: waterlineY + 8), anchor: .trailing)
+            context.stroke(barPath, with: .color(.secondary.opacity(0.6)), lineWidth: 1)
         }
-        .frame(width: 46)
+        .frame(width: 78)
     }
 
     private var tank: some View {
@@ -132,7 +148,7 @@ struct PoolTankView: View {
                             width: tankRect.width,
                             height: nonCleanableHeight
                         )),
-                        with: .color(.gray.opacity(0.55))
+                        with: .color(PoolLayers.nonCleanableColor)
                     )
                     // 鸡尾酒分层：可清理项
                     var cursor = tankRect.maxY - nonCleanableHeight
@@ -147,35 +163,10 @@ struct PoolTankView: View {
                         context.fill(Path(layerRect), with: .color(layer.color))
                         cursor -= h
                     }
-                    // 水位标线
-                    let waterlineY = tankRect.maxY - tankRect.height * CGFloat(waterlineFraction)
-                    var line = Path()
-                    line.move(to: CGPoint(x: tankRect.minX + 3, y: waterlineY))
-                    line.addLine(to: CGPoint(x: tankRect.maxX - 3, y: waterlineY))
-                    context.stroke(
-                        line,
-                        with: .color(waterlineColor),
-                        style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
-                    )
                     context.stroke(tankPath, with: .color(.secondary.opacity(0.6)), lineWidth: 1.5)
                 }
             }
         }
         .frame(maxWidth: .infinity)
-        .overlay(alignment: .topTrailing) {
-            let tankHeight = 360.0 - 8.0
-            let y = tankHeight - tankHeight * waterlineFraction + 4
-            Text("水线 \(Format.bytes(waterlineBytes))")
-                .font(.system(size: 9, weight: .medium))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(waterlineColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 4))
-                .foregroundStyle(waterlineColor)
-                .offset(y: y - 6)
-        }
-    }
-
-    private var waterlineColor: Color {
-        belowWaterline ? .red : .orange
     }
 }
