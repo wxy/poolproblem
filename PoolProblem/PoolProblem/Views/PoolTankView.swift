@@ -21,11 +21,11 @@ enum PoolLayers {
         Color(red: 0.32, green: 0.76, blue: 0.44),
         Color(red: 0.48, green: 0.84, blue: 0.54),
         Color(red: 0.34, green: 0.76, blue: 0.68),
-        Color(red: 0.40, green: 0.80, blue: 0.80),
-        Color(red: 0.54, green: 0.86, blue: 0.90),
-        Color(red: 0.68, green: 0.91, blue: 0.95),
-        Color(red: 0.80, green: 0.94, blue: 0.98),
-        Color(red: 0.90, green: 0.97, blue: 1.00),
+        Color(red: 0.40, green: 0.80, blue: 0.78),
+        Color(red: 0.52, green: 0.86, blue: 0.80),
+        Color(red: 0.64, green: 0.90, blue: 0.84),
+        Color(red: 0.77, green: 0.94, blue: 0.89),
+        Color(red: 0.88, green: 0.97, blue: 0.93),
     ]
 
     static let nonCleanableColor = Color(red: 0.05, green: 0.12, blue: 0.30)
@@ -190,11 +190,25 @@ struct PoolTankView: View {
 
         // 3.5) 金属拐角水管（参照 xingyu.wang 官网 pipes：管身金属渐变+高光阴影、两端端盖、拐角连接件）
         let pipeDiameter: CGFloat = 18
-        // 一个大 L、一个小 L（参数指定：大 L 水平 Y=100 垂直 200；小 L 水平 Y=200 垂直 100）
-        let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)] = [
-            (390, 100, 140, 200),
-            (390, 200, 270, 100),
-        ]
+        // 进水管数量：可清理项 ≤5 → 1 根；5~10 → 2 根；>10 → 3 根（当前测试固定为 3 根）
+        let cleanableCount = cleanableItems.filter { $0.recipeID != "trash" && $0.reclaimableBytes > 0 }.count
+        let pipeCount = cleanableCount <= 5 ? 1 : (cleanableCount <= 10 ? 2 : 3)
+        let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)]
+        switch pipeCount {
+        case 1:
+            pipes = [(390, 120, 160, 180)]
+        case 3:
+            pipes = [
+                (390, 100, 140, 200),
+                (390, 170, 230, 130),
+                (390, 230, 300, 70),
+            ]
+        default:
+            pipes = [
+                (390, 100, 140, 200),
+                (390, 200, 270, 100),
+            ]
+        }
         for (index, pipe) in pipes.enumerated() {
             let name: String
             let bytes: Int64

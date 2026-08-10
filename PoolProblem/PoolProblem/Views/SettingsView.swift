@@ -43,10 +43,15 @@ struct SettingsView: View {
                             Text(recipe.name)
                                 .lineLimit(1)
                             Spacer()
-                            Stepper("保留 \(age(recipe)) 天", value: Binding(
+                            Text("保留 \(age(recipe)) 天")
+                                .font(.caption)
+                                .monospacedDigit()
+                                .frame(width: 74, alignment: .trailing)
+                            Stepper("", value: Binding(
                                 get: { age(recipe) },
                                 set: { setAge(recipe, $0) }
                             ), in: 1...365)
+                            .labelsHidden()
                         }
                     }
                 }

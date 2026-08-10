@@ -7,6 +7,7 @@ struct MenuBarView: View {
     let service: AppService
     @State private var showSettings = false
     @State private var spinning = false
+    @State private var showNonCleanableInfo = false
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -24,6 +25,7 @@ struct MenuBarView: View {
                 excludedItemIDs: state.cleanedItemIDs
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onHover { _ in NSCursor.arrow.set() }
 
             HStack(alignment: .top, spacing: 0) {
                 Spacer(minLength: 0)
@@ -43,14 +45,14 @@ struct MenuBarView: View {
 
             // 出水管：跨在水池右缘、画在面板之上（从池里往外流水），点击触发智能清理
             OutletPipeView(weeklyCleanedBytes: state.weeklyCleanedBytes)
-                .frame(width: 190, height: 90)
-                .position(x: 385, y: 515)
+                .frame(width: 380, height: 90)
+                .position(x: 480, y: 515)
                 .allowsHitTesting(false)
 
             Color.clear
                 .contentShape(Rectangle())
-                .frame(width: 190, height: 60)
-                .position(x: 385, y: 515)
+                .frame(width: 380, height: 60)
+                .position(x: 480, y: 515)
                 .onTapGesture { runSmartClean() }
                 .onHover { hovering in
                     hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
@@ -82,10 +84,23 @@ struct MenuBarView: View {
 
             if let item = state.detailItem {
                 detailOverlay(item)
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
                     .zIndex(12)
+            }
+
+            if showNonCleanableInfo {
+                infoOverlay(
+                    title: "不可清理（其余已用）",
+                    body: "这部分包含无法安全自动清理的内容：系统及系统数据、正在使用的应用数据（如微信、QQ、照片图库等），以及我们未纳入清理配方的其他占用。\n建议使用对应软件内置的存储/清理功能管理它们产生的缓存与垃圾。"
+                )
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
+                .zIndex(13)
             }
         }
         .frame(width: 700, height: 560)
+        .onHover { hovering in
+            if !hovering { NSCursor.arrow.set() }
+        }
         .alert(
             "确认清理",
             isPresented: $state.showCleanConfirm,
@@ -138,15 +153,63 @@ struct MenuBarView: View {
     }
 
     private var summary: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            LabeledContent("可用", value: Format.bytes(state.availableBytes))
-            LabeledContent("共", value: Format.bytes(state.totalBytes))
-            LabeledContent("水线", value: Format.bytes(state.waterlineBytes))
-            if let prediction = state.predictionDays {
-                LabeledContent("预计", value: predictionText(prediction))
+        VStack(alignment: .leading, spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                statItem(
+                    "可用",
+                    Format.bytes(state.availableBytes),
+                    color: state.availableBytes < state.waterlineBytes ? .red : .green
+                )
+                statItem("已用", Format.bytes(state.totalBytes - state.availableBytes))
+                statItem("总容量", Format.bytes(state.totalBytes))
+                statItem("水线", Format.bytes(state.waterlineBytes))
+                statItem("预计到水线", state.predictionDays.map { predictionText($0) } ?? "—")
+                statItem(
+                    "本周净变",
+                    Format.bytes(state.weeklyNetChangeBytes),
+                    color: state.weeklyNetChangeBytes >= 0 ? .orange : .green
+                )
+            }
+            if !state.availableHistory.isEmpty {
+                let history = zip(state.historyTimestamps, state.availableHistory).map { ($0, $1) }
+                SpaceChartView(
+                    history: history,
+                    waterline: state.waterlineBytes,
+                    events: state.cleaningEvents
+                )
+                .frame(height: 60)
+                HStack(spacing: 12) {
+                    chartDot(.orange, "手动清理")
+                    chartDot(.green, "自动清理")
+                    Spacer()
+                }
             }
         }
-        .font(.caption)
+    }
+
+    private func chartDot(_ color: Color, _ text: String) -> some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 1)
+                .fill(color)
+                .frame(width: 8, height: 8)
+            Text(text)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func statItem(_ label: String, _ value: String, color: Color = .primary) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(color)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var legend: some View {
@@ -164,15 +227,10 @@ struct MenuBarView: View {
             ForEach(poolLayers.layers) { layer in
                 Button {
                     if let item = state.items.first(where: { $0.id == layer.itemID }) {
-                        state.detailItem = item
+                        withAnimation { state.detailItem = item }
                     }
                 } label: {
                     HStack(spacing: 5) {
-                        if state.deletingItemID == layer.itemID {
-                            ProgressView()
-                                .controlSize(.mini)
-                                .frame(width: 9, height: 9)
-                        }
                         Rectangle()
                             .fill(layer.color.opacity(0.8))
                             .frame(width: 9, height: 9)
@@ -181,22 +239,31 @@ struct MenuBarView: View {
                             .strikethrough(state.cleanedItemIDs.contains(layer.itemID))
                             .foregroundStyle(state.cleanedItemIDs.contains(layer.itemID) ? Color.secondary : Color.primary)
                             .font(.caption)
-                        if layer.estimated {
-                            Text("可能虚高")
+                        if let rate = state.growthRates[layer.itemID], rate > 0 {
+                            let weekly = rate * 7
+                            let arrows = weekly < 0.5e9 ? 1 : (weekly < 2e9 ? 2 : 3)
+                            Text(String(repeating: "↑", count: arrows))
                                 .font(.caption2)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(arrows == 1 ? Color.green : (arrows == 2 ? Color.orange : Color.red))
                         }
                         Spacer()
                         Text(Format.bytes(layer.bytes))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        if let rate = state.growthRates[layer.itemID], rate > 0 {
-                            Text("+\(Format.bytes(Int64(rate * 7)))/周")
-                                .font(.caption2)
-                                .foregroundStyle(.blue)
-                        }
+                        // COW 项：大小后面显示"?"（占位对齐，非 COW 项保留空白）
+                        Text(layer.estimated ? "?" : " ")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .frame(width: 10)
                         safetyMark(layer)
                     }
+                    .opacity(state.deletingItemID == layer.itemID ? 0.35 : 1)
+                    .animation(
+                        state.deletingItemID == layer.itemID
+                            ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true)
+                            : .default,
+                        value: state.deletingItemID == layer.itemID
+                    )
                 }
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
@@ -205,55 +272,55 @@ struct MenuBarView: View {
                 }
             }
 
-            if poolLayers.trashBytes > 0 || poolLayers.nonCleanableBytes > 0 {
-                Divider()
-                VStack(alignment: .leading, spacing: 5) {
-                    if poolLayers.trashBytes > 0 {
-                        Button {
-                            withAnimation { state.trashExpanded.toggle() }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Rectangle()
-                                    .fill(PoolLayers.trashColor)
-                                    .frame(width: 9, height: 9)
-                                Text("废纸篓")
-                                    .font(.caption)
-                                Spacer()
-                                Text(Format.bytes(poolLayers.trashBytes))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text("需手动")
-                                    .font(.caption2)
-                                    .foregroundStyle(.blue)
-                                Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
+            Divider()
+            VStack(alignment: .leading, spacing: 5) {
+                Button {
+                    withAnimation { state.trashExpanded.toggle() }
+                } label: {
+                    HStack(spacing: 5) {
+                        Rectangle()
+                            .fill(PoolLayers.trashColor)
+                            .frame(width: 9, height: 9)
+                        Text("废纸篓")
+                            .font(.caption)
+                        Spacer()
+                        Text(Format.bytes(poolLayers.trashBytes))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("需手动")
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                        Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .onHover { hovering in
+                    hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                }
+                if state.trashExpanded {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if !state.ourTrashNames.isEmpty {
+                            ForEach(state.ourTrashNames, id: \.self) { name in
+                                Text("· \(name)")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .buttonStyle(.plain)
-                        .focusEffectDisabled()
-                        .onHover { hovering in
-                            hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                        }
-                        if state.trashExpanded {
-                            VStack(alignment: .leading, spacing: 3) {
-                                if !state.ourTrashNames.isEmpty {
-                                    ForEach(state.ourTrashNames, id: \.self) { name in
-                                        Text("· \(name)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                if state.trashOthersBytes > 0 {
-                                    Text("其他（手动放入）：\(Format.bytes(state.trashOthersBytes))")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .padding(.leading, 14)
+                        if state.trashOthersBytes > 0 {
+                            Text("其他（手动放入）：\(Format.bytes(state.trashOthersBytes))")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    if poolLayers.nonCleanableBytes > 0 {
+                    .padding(.leading, 14)
+                }
+                if poolLayers.nonCleanableBytes > 0 {
+                    Button {
+                        withAnimation { showNonCleanableInfo = true }
+                    } label: {
                         HStack(spacing: 5) {
                             Rectangle()
                                 .fill(PoolLayers.nonCleanableColor)
@@ -267,9 +334,14 @@ struct MenuBarView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .buttonStyle(.plain)
+                    .focusEffectDisabled()
+                    .onHover { hovering in
+                        hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                    }
                 }
-                .padding(.top, 2)
             }
+            .padding(.top, 2)
         }
     }
 
@@ -435,6 +507,10 @@ struct MenuBarView: View {
                 LabeledContent("安全级", value: safetyText(item.safety))
             }
             .font(.caption)
+            if let rate = state.growthRates[item.id], rate > 0 {
+                LabeledContent("每周增速", value: "+\(Format.bytes(Int64(rate * 7)))")
+                    .font(.caption)
+            }
 
             HStack(spacing: 10) {
                 if isKept {
@@ -449,6 +525,42 @@ struct MenuBarView: View {
                 Spacer()
                 Button("关闭") {
                     state.detailItem = nil
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 380)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.15))
+    }
+
+    /// 通用信息浮层（不可清理说明等）
+    private func infoOverlay(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                Button {
+                    withAnimation { showNonCleanableInfo = false }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+            }
+
+            Text(body)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Spacer()
+                Button("关闭") {
+                    withAnimation { showNonCleanableInfo = false }
                 }
             }
         }
@@ -510,7 +622,7 @@ struct MenuBarView: View {
         case .safeWhileRunning:
             return Text("可清理").font(.caption2).foregroundStyle(.green)
         case .requiresQuit:
-            return Text("需退出").font(.caption2).foregroundStyle(.orange)
+            return Text("需退出").font(.caption2).foregroundStyle(.red)
         case .userConfirm:
             return Text("需确认").font(.caption2).foregroundStyle(.gray)
         }
