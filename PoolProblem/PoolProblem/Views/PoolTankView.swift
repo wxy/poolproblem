@@ -184,7 +184,7 @@ struct PoolTankView: View {
         context.stroke(boundary, with: .color(.black.opacity(0.9)), lineWidth: 1.5)
         drawBadge(
             context: &context,
-            text: "水线 \(Format.bytes(waterlineBytes))",
+            text: Localized.string("pool.waterline", Format.bytes(waterlineBytes)),
             center: CGPoint(x: stripRect.maxX + 30, y: waterlineY + 10)
         )
 
@@ -216,7 +216,7 @@ struct PoolTankView: View {
                 name = inflowLabels[index].0
                 bytes = inflowLabels[index].1
             } else {
-                name = "进水"
+                name = Localized.string("pool.inflow")
                 bytes = 0
             }
 
@@ -279,11 +279,11 @@ struct PoolTankView: View {
             )
             let rateText: String
             if bytes > 0 {
-                rateText = "+\(Format.bytes(bytes))/周"
+                rateText = Localized.string("pool.rate_positive", Format.bytes(bytes))
             } else if bytes < 0 {
-                rateText = "\(Format.bytes(-bytes))/周"
+                rateText = Localized.string("pool.rate_negative", Format.bytes(-bytes))
             } else {
-                rateText = "稳定"
+                rateText = Localized.string("pool.rate_stable")
             }
             drawBadge(
                 context: &context,

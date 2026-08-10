@@ -6,3 +6,4 @@
 PoolProblem/PoolProblem.xcodeproj/xcuserdata/
 PoolProblem/PoolProblem.xcodeproj/project.xcworkspace/xcuserdata/
 DerivedData/
+*.profraw

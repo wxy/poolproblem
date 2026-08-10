@@ -58,15 +58,15 @@ struct MenuBarView: View {
                     hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
                 }
                 .disabled(state.isScanning)
-                .help("点击出水管执行智能清理")
+                .help(Localized.string("outlet.click_to_clean"))
 
             if showSettings {
                 VStack(spacing: 0) {
                     HStack {
-                        Text("设置")
+                        Text(Localized.string("settings.title"))
                             .font(.headline)
                         Spacer()
-                        Button("完成") { showSettings = false }
+                        Button(Localized.string("settings.done")) { showSettings = false }
                             .buttonStyle(.plain)
                             .focusEffectDisabled()
                             .onHover { hovering in
@@ -90,8 +90,8 @@ struct MenuBarView: View {
 
             if showNonCleanableInfo {
                 infoOverlay(
-                    title: "不可清理（其余已用）",
-                    body: "这部分包含无法安全自动清理的内容：系统及系统数据、正在使用的应用数据（如微信、QQ、照片图库等），以及我们未纳入清理配方的其他占用。\n建议使用对应软件内置的存储/清理功能管理它们产生的缓存与垃圾。"
+                    title: Localized.string("section.non_cleanable"),
+                    body: Localized.string("info.non_cleanable_body")
                 )
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
                 .zIndex(13)
@@ -102,17 +102,17 @@ struct MenuBarView: View {
             if !hovering { NSCursor.arrow.set() }
         }
         .alert(
-            "确认清理",
+            Localized.string("clean.confirm_title"),
             isPresented: $state.showCleanConfirm,
             presenting: state.pendingClean
         ) { outcome in
-            Button("取消", role: .cancel) {}
-            Button("清理", role: .destructive) {
+            Button(Localized.string("common.cancel"), role: .cancel) {}
+            Button(Localized.string("common.clean"), role: .destructive) {
                 // 实际清理：手动模式一律进回收站，可恢复
                 Task { state.cleanOutcome = await service.smartClean(dryRun: false) }
             }
         } message: { outcome in
-            Text("将处理 \(outcome.entries.count) 项，估算释放 \(Format.bytes(outcome.freedBytes))（将移入回收站，可恢复；真实以实测为准）。")
+            Text(Localized.string("clean.confirm_message", outcome.entries.count, Format.bytes(outcome.freedBytes)))
         }
     }
 
@@ -120,9 +120,9 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("The Pool Problem")
+                    Text(verbatim: "The Pool Problem")
                         .font(.headline)
-                    Text(state.lastScanAt.map { "更新于 \($0.formatted(date: .omitted, time: .shortened))" } ?? "尚未扫描")
+                    Text(state.lastScanAt.map { Localized.string("header.updated_at", $0.formatted(date: .omitted, time: .shortened)) } ?? Localized.string("header.not_scanned"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -156,16 +156,16 @@ struct MenuBarView: View {
         VStack(alignment: .leading, spacing: 8) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 statItem(
-                    "可用",
+                    Localized.string("stat.available"),
                     Format.bytes(state.availableBytes),
                     color: state.availableBytes < state.waterlineBytes ? .red : .green
                 )
-                statItem("已用", Format.bytes(state.totalBytes - state.availableBytes))
-                statItem("总容量", Format.bytes(state.totalBytes))
-                statItem("水线", Format.bytes(state.waterlineBytes))
-                statItem("预计到水线", state.predictionDays.map { predictionText($0) } ?? "—")
+                statItem(Localized.string("stat.used"), Format.bytes(state.totalBytes - state.availableBytes))
+                statItem(Localized.string("stat.total"), Format.bytes(state.totalBytes))
+                statItem(Localized.string("stat.waterline"), Format.bytes(state.waterlineBytes))
+                statItem(Localized.string("stat.prediction"), state.predictionDays.map { predictionText($0) } ?? "—")
                 statItem(
-                    "本周净变",
+                    Localized.string("stat.weekly_net_change"),
                     Format.bytes(state.weeklyNetChangeBytes),
                     color: state.weeklyNetChangeBytes >= 0 ? .orange : .green
                 )
@@ -179,8 +179,8 @@ struct MenuBarView: View {
                 )
                 .frame(height: 60)
                 HStack(spacing: 12) {
-                    chartDot(.orange, "手动清理")
-                    chartDot(.green, "自动清理")
+                    chartDot(.orange, Localized.string("chart.manual"))
+                    chartDot(.green, Localized.string("chart.auto"))
                     Spacer()
                 }
             }
@@ -221,7 +221,7 @@ struct MenuBarView: View {
             excludedItemIDs: []   // 图例保留已清理行（打删除线），只有水池层消失
         )
         return VStack(alignment: .leading, spacing: 5) {
-            Text("可清理项（\(poolLayers.layers.count)）")
+            Text(Localized.string("section.cleanable_count", poolLayers.layers.count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach(poolLayers.layers) { layer in
@@ -234,7 +234,7 @@ struct MenuBarView: View {
                         Rectangle()
                             .fill(layer.color.opacity(0.8))
                             .frame(width: 9, height: 9)
-                        Text(layer.name)
+                        Text(Localized.recipeName(layer.recipeID, fallback: layer.name))
                             .lineLimit(1)
                             .strikethrough(state.cleanedItemIDs.contains(layer.itemID))
                             .foregroundStyle(state.cleanedItemIDs.contains(layer.itemID) ? Color.secondary : Color.primary)
@@ -251,7 +251,7 @@ struct MenuBarView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         // COW 项：大小后面显示"?"（占位对齐，非 COW 项保留空白）
-                        Text(layer.estimated ? "?" : " ")
+                        Text(verbatim: layer.estimated ? "?" : " ")
                             .font(.caption2)
                             .foregroundStyle(.orange)
                             .frame(width: 10)
@@ -281,13 +281,13 @@ struct MenuBarView: View {
                         Rectangle()
                             .fill(PoolLayers.trashColor)
                             .frame(width: 9, height: 9)
-                        Text("废纸篓")
+                        Text(Localized.string("recipe.trash"))
                             .font(.caption)
                         Spacer()
                         Text(Format.bytes(poolLayers.trashBytes))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("需手动")
+                        Text(Localized.string("badge.manual"))
                             .font(.caption2)
                             .foregroundStyle(.blue)
                         Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
@@ -304,13 +304,13 @@ struct MenuBarView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         if !state.ourTrashNames.isEmpty {
                             ForEach(state.ourTrashNames, id: \.self) { name in
-                                Text("· \(name)")
+                                Text(verbatim: "· \(name)")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
                         }
                         if state.trashOthersBytes > 0 {
-                            Text("其他（手动放入）：\(Format.bytes(state.trashOthersBytes))")
+                            Text(Localized.string("trash.others", Format.bytes(state.trashOthersBytes)))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -325,7 +325,7 @@ struct MenuBarView: View {
                             Rectangle()
                                 .fill(PoolLayers.nonCleanableColor)
                                 .frame(width: 9, height: 9)
-                            Text("不可清理（其余已用）")
+                            Text(Localized.string("section.non_cleanable"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -351,12 +351,12 @@ struct MenuBarView: View {
                 .foregroundStyle(.secondary)
             if let days = state.predictionDays {
                 if days <= 1 {
-                    Text("距自动清理阈值约 \(Int((days * 24).rounded())) 小时")
+                    Text(Localized.string("countdown.hours", Int((days * 24).rounded())))
                 } else {
-                    Text("距自动清理阈值约 \(Int(days.rounded())) 天")
+                    Text(Localized.string("countdown.days", Int(days.rounded())))
                 }
             } else {
-                Text("水位稳定，暂无自动清理计划")
+                Text(Localized.string("countdown.stable"))
             }
             Spacer()
         }
@@ -382,7 +382,7 @@ struct MenuBarView: View {
             .onHover { hovering in
                 hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
             }
-            .help("手动刷新")
+            .help(Localized.string("refresh.tooltip"))
             .disabled(state.isScanning)
             .onChange(of: state.isScanning) { _, scanning in
                 spinning = scanning
@@ -407,7 +407,7 @@ struct MenuBarView: View {
             .onHover { hovering in
                 hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
             }
-            .help("退出")
+            .help(Localized.string("quit.tooltip"))
         }
     }
 
@@ -455,7 +455,7 @@ struct MenuBarView: View {
         let isKept = state.keptItemIDs.contains(item.id)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(item.name)
+                Text(Localized.recipeName(item.recipeID, fallback: item.name))
                     .font(.headline)
                 Spacer()
                 Button {
@@ -472,7 +472,7 @@ struct MenuBarView: View {
                 .foregroundStyle(.secondary)
 
             if estimatedRecipeIDs.contains(item.recipeID) {
-                Text("提示：此项是 APFS 克隆（COW）文件，表观大小可能虚高，清理后实际释放的空间可能远小于显示值。")
+                Text(Localized.string("detail.cow_warning"))
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
@@ -480,7 +480,7 @@ struct MenuBarView: View {
             Divider()
 
             HStack(spacing: 6) {
-                Text("路径")
+                Text(Localized.string("detail.path"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {
@@ -503,27 +503,27 @@ struct MenuBarView: View {
             Divider()
 
             HStack(spacing: 16) {
-                LabeledContent("可清理量", value: Format.bytes(item.reclaimableBytes))
-                LabeledContent("安全级", value: safetyText(item.safety))
+                LabeledContent(Localized.string("detail.reclaimable"), value: Format.bytes(item.reclaimableBytes))
+                LabeledContent(Localized.string("detail.safety"), value: safetyText(item.safety))
             }
             .font(.caption)
             if let rate = state.growthRates[item.id], rate > 0 {
-                LabeledContent("每周增速", value: "+\(Format.bytes(Int64(rate * 7)))")
+                LabeledContent(Localized.string("detail.weekly_rate"), value: "+\(Format.bytes(Int64(rate * 7)))")
                     .font(.caption)
             }
 
             HStack(spacing: 10) {
                 if isKept {
-                    Button("取消保留") {
+                    Button(Localized.string("detail.unkeep")) {
                         service.unkeepItem(item.id)
                     }
                 } else {
-                    Button("保留此项（不再清理）") {
+                    Button(Localized.string("detail.keep")) {
                         service.keepItem(item)
                     }
                 }
                 Spacer()
-                Button("关闭") {
+                Button(Localized.string("common.close")) {
                     state.detailItem = nil
                 }
             }
@@ -559,7 +559,7 @@ struct MenuBarView: View {
 
             HStack {
                 Spacer()
-                Button("关闭") {
+                Button(Localized.string("common.close")) {
                     withAnimation { showNonCleanableInfo = false }
                 }
             }
@@ -576,26 +576,26 @@ struct MenuBarView: View {
     private func explanation(for item: ScanItem) -> String {
         switch item.category {
         case .xcode:
-            return "属于 Xcode 的构建产物或测试快照，删除后会在下次构建/测试时自动重新生成，因此可以安全清理。"
+            return Localized.string("explain.xcode")
         case .simulator:
-            return "模拟器相关设备数据，删除后如需使用会重新创建；清理前请确认对应模拟器已退出。"
+            return Localized.string("explain.simulator")
         case .packageManager:
-            return "包管理器的下载缓存，删除后需要时会重新下载，不影响已安装的依赖。"
+            return Localized.string("explain.package_manager")
         case .common:
-            return "应用通用缓存，删除后应用会按需重新生成，不影响你的数据。"
+            return Localized.string("explain.common")
         case .project, .custom:
-            return "项目或自定义目录，删除前请确认其中没有需要保留的内容。"
+            return Localized.string("explain.project")
         }
     }
 
     private func safetyText(_ safety: SafetyLevel) -> String {
         switch safety {
         case .safeWhileRunning:
-            return "可自动清理"
+            return Localized.string("safety.safe_while_running")
         case .requiresQuit:
-            return "需退出应用"
+            return Localized.string("safety.requires_quit")
         case .userConfirm:
-            return "需手动确认"
+            return Localized.string("safety.user_confirm")
         }
     }
 
@@ -605,26 +605,26 @@ struct MenuBarView: View {
 
     private func predictionText(_ days: Double) -> String {
         if days > 365 {
-            return ">1 年（水位稳定）"
+            return Localized.string("prediction.stable")
         }
-        return "\(Int(days.rounded())) 天后到水线"
+        return Localized.string("prediction.days", Int(days.rounded()))
     }
 
     private func safetyMark(_ layer: CleanableLayer) -> some View {
         if state.keptItemIDs.contains(layer.itemID) {
-            return Text("已保留").font(.caption2).foregroundStyle(.orange)
+            return Text(Localized.string("badge.kept")).font(.caption2).foregroundStyle(.orange)
         }
         if layer.recipeID == "trash" {
-            return Text("需手动").font(.caption2).foregroundStyle(.blue)
+            return Text(Localized.string("badge.manual")).font(.caption2).foregroundStyle(.blue)
         }
         let safety = layer.safety
         switch safety {
         case .safeWhileRunning:
-            return Text("可清理").font(.caption2).foregroundStyle(.green)
+            return Text(Localized.string("badge.cleanable")).font(.caption2).foregroundStyle(.green)
         case .requiresQuit:
-            return Text("需退出").font(.caption2).foregroundStyle(.red)
+            return Text(Localized.string("badge.requires_quit")).font(.caption2).foregroundStyle(.red)
         case .userConfirm:
-            return Text("需确认").font(.caption2).foregroundStyle(.gray)
+            return Text(Localized.string("badge.user_confirm")).font(.caption2).foregroundStyle(.gray)
         }
     }
 }

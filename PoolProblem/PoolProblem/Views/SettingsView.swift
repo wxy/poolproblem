@@ -13,26 +13,26 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            Section("水位") {
+            Section(Localized.string("settings.waterline_section")) {
                 HStack {
-                    Text("目标可用空间")
+                    Text(Localized.string("settings.waterline_label"))
                     Slider(value: waterlineBinding, in: 10...100, step: 5)
-                    Text("\(Int(config.waterlineGB)) GB")
+                    Text(verbatim: "\(Int(config.waterlineGB)) GB")
                         .monospacedDigit()
                         .frame(width: 44, alignment: .trailing)
                 }
             }
 
-            Section("运行模式") {
-                Picker("模式", selection: $expertMode) {
-                    Text("傻瓜模式（全自动）").tag(false)
-                    Text("专家模式（精细控制）").tag(true)
+            Section(Localized.string("settings.mode_section")) {
+                Picker(Localized.string("settings.mode"), selection: $expertMode) {
+                    Text(Localized.string("settings.mode_foolproof")).tag(false)
+                    Text(Localized.string("settings.mode_expert")).tag(true)
                 }
                 .pickerStyle(.segmented)
             }
 
             if expertMode {
-                Section("清理配方") {
+                Section(Localized.string("settings.recipes_section")) {
                     ForEach(RecipeRegistry.builtIn(), id: \.id) { recipe in
                         HStack {
                             Toggle("", isOn: Binding(
@@ -40,10 +40,10 @@ struct SettingsView: View {
                                 set: { setEnabled(recipe, $0) }
                             ))
                             .labelsHidden()
-                            Text(recipe.name)
+                            Text(Localized.recipeName(recipe.id, fallback: recipe.name))
                                 .lineLimit(1)
                             Spacer()
-                            Text("保留 \(age(recipe)) 天")
+                            Text(Localized.string("settings.keep_days", age(recipe)))
                                 .font(.caption)
                                 .monospacedDigit()
                                 .frame(width: 74, alignment: .trailing)
@@ -56,20 +56,20 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("白名单（永不清理）") {
+                Section(Localized.string("settings.whitelist_section")) {
                     ForEach(config.whitelistPaths, id: \.self) { path in
                         HStack {
                             Text(path).font(.caption).lineLimit(1)
                             Spacer()
-                            Button("移除") {
+                            Button(Localized.string("common.remove")) {
                                 config.whitelistPaths.removeAll { $0 == path }
                             }
                         }
                     }
                     HStack {
-                        TextField("输入路径…", text: $newWhitelistPath)
+                        TextField(Localized.string("settings.path_placeholder"), text: $newWhitelistPath)
                             .textFieldStyle(.roundedBorder)
-                        Button("添加") {
+                        Button(Localized.string("common.add")) {
                             let trimmed = newWhitelistPath.trimmingCharacters(in: .whitespaces)
                             if !trimmed.isEmpty, !config.whitelistPaths.contains(trimmed) {
                                 config.whitelistPaths.append(trimmed)
@@ -81,16 +81,16 @@ struct SettingsView: View {
                 }
             }
 
-            Section("权限") {
+            Section(Localized.string("settings.permission_section")) {
                 HStack {
                     Image(systemName: hasFullDiskAccess ? "checkmark.shield" : "exclamationmark.shield")
                     Text(hasFullDiskAccess
-                         ? "完全磁盘访问已授权"
-                         : "需要完全磁盘访问才能扫描受保护目录（如 ~/Library/Containers）")
+                         ? Localized.string("settings.permission_granted")
+                         : Localized.string("settings.permission_needed"))
                     Spacer()
                     if !hasFullDiskAccess {
-                        Button("去设置") { PermissionService.openSystemSettings() }
-                        Button("重新检测") {
+                        Button(Localized.string("settings.open_settings")) { PermissionService.openSystemSettings() }
+                        Button(Localized.string("settings.recheck")) {
                             Task {
                                 PermissionService.resetCache()
                                 hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
@@ -100,9 +100,9 @@ struct SettingsView: View {
                 }
             }
 
-            Section("保留项管理") {
+            Section(Localized.string("settings.kept_section")) {
                 if service.keptItemNames().isEmpty {
-                    Text("暂无保留项")
+                    Text(Localized.string("settings.no_kept"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
@@ -111,7 +111,7 @@ struct SettingsView: View {
                             Text(entry.name)
                                 .font(.caption)
                             Spacer()
-                            Button("移除") {
+                            Button(Localized.string("common.remove")) {
                                 service.unkeepItem(entry.id)
                             }
                         }
@@ -119,8 +119,8 @@ struct SettingsView: View {
                 }
             }
 
-            Section("通用") {
-                Toggle("开机自启", isOn: $launchAtLogin)
+            Section(Localized.string("settings.general_section")) {
+                Toggle(Localized.string("settings.launch_at_login"), isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, newValue in
                         try? LaunchAtLoginService.setEnabled(newValue)
                     }

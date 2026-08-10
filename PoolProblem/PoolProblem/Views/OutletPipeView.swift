@@ -28,14 +28,14 @@ struct OutletPipeView: View {
             // 管子上方：点击提示
             drawPill(
                 context: &context,
-                text: "排水",
+                text: Localized.string("outlet.drain"),
                 center: CGPoint(x: pipeRect.midX, y: 18)
             )
 
             // 管子右侧：本周已清理数据
             let dataText = weeklyCleanedBytes > 0
-                ? "本周已清理 \(Format.bytes(weeklyCleanedBytes))"
-                : "本周尚未清理"
+                ? Localized.string("outlet.cleaned_this_week", Format.bytes(weeklyCleanedBytes))
+                : Localized.string("outlet.not_cleaned")
             drawPill(
                 context: &context,
                 text: dataText,

@@ -35,7 +35,7 @@ final class AppState: ObservableObject {
 
 enum Format {
     static func bytes(_ value: Int64) -> String {
-        if value == 0 { return "0 KB" }
+        if value == 0 { return String(localized: "0KB") }
         return ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
 }
