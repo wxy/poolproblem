@@ -110,8 +110,14 @@ struct PoolTankView: View {
         let stripRect = CGRect(
             x: tankRect.minX + 4,
             y: tankRect.minY + 6,
-            width: 20,
+            width: 26,
             height: tankRect.height - 12
+        )
+        let waterRect = CGRect(
+            x: stripRect.maxX + 8,
+            y: tankRect.minY + 4,
+            width: tankRect.maxX - (stripRect.maxX + 8) - 2,
+            height: tankRect.height - 8
         )
 
         context.clip(to: tankPath)
@@ -145,39 +151,37 @@ struct PoolTankView: View {
                 lineWidth: isMajor ? 1.6 : 1
             )
         }
-        context.stroke(stripPath, with: .color(.secondary.opacity(0.8)), lineWidth: 1)
-
-        // 3) GB 数字（画在标尺右侧，不裁剪，水层之下）
-        context.clip(to: tankPath)
         for fraction in [0.0, 0.25, 0.5, 0.75, 1.0] {
             let y = stripRect.maxY - stripRect.height * CGFloat(fraction)
             let onRed = y <= waterlineY
             let gb = Int(Double(totalBytes) * fraction / 1_000_000_000)
             let label = Text("\(gb)G")
-                .font(.system(size: 9, weight: .bold))
+                .font(.system(size: 8, weight: .bold))
                 .foregroundStyle(onRed ? Color.white : Color.black.opacity(0.8))
-            context.draw(label, at: CGPoint(x: stripRect.maxX + 5, y: y), anchor: .leading)
+            context.draw(label, at: CGPoint(x: stripRect.midX, y: y), anchor: .center)
         }
+        context.stroke(stripPath, with: .color(.secondary.opacity(0.8)), lineWidth: 1)
 
-        // 4) 水层（半透明，底层深绿 → 表层清透）
+        // 3) 水层（只在水池区域，半透明，底层深绿 → 表层清透）
+        context.clip(to: tankPath)
         let nonCleanableHeight = waterHeight * CGFloat(Double(nonCleanable) / usedD)
         context.fill(
             Path(CGRect(
-                x: tankRect.minX,
-                y: tankRect.maxY - nonCleanableHeight,
-                width: tankRect.width,
+                x: waterRect.minX,
+                y: waterRect.maxY - nonCleanableHeight,
+                width: waterRect.width,
                 height: nonCleanableHeight
             )),
             with: .color(PoolLayers.nonCleanableColor.opacity(0.95))
         )
-        var cursor = tankRect.maxY - nonCleanableHeight
+        var cursor = waterRect.maxY - nonCleanableHeight
         for (index, layer) in layers.enumerated() {
             let h = waterHeight * CGFloat(Double(layer.bytes) / usedD * scale)
             context.fill(
                 Path(CGRect(
-                    x: tankRect.minX,
+                    x: waterRect.minX,
                     y: cursor - h,
-                    width: tankRect.width,
+                    width: waterRect.width,
                     height: h
                 )),
                 with: .color(layer.color.opacity(PoolLayers.layerOpacity(index: index, count: layers.count)))
@@ -188,21 +192,25 @@ struct PoolTankView: View {
         // 5) 水面波纹动效
         let surfaceY = cursor
         var wave = Path()
-        wave.move(to: CGPoint(x: tankRect.minX, y: surfaceY))
-        var x: CGFloat = tankRect.minX
-        while x <= tankRect.maxX {
+        wave.move(to: CGPoint(x: waterRect.minX, y: surfaceY))
+        var x: CGFloat = waterRect.minX
+        while x <= waterRect.maxX {
             let y = surfaceY + sin((x + CGFloat(phase) * 90) * 0.05) * 2.5
             wave.addLine(to: CGPoint(x: x, y: y))
             x += 4
         }
         context.stroke(wave, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
         var band = wave
-        band.addLine(to: CGPoint(x: tankRect.maxX, y: surfaceY + 8))
-        band.addLine(to: CGPoint(x: tankRect.minX, y: surfaceY + 8))
+        band.addLine(to: CGPoint(x: waterRect.maxX, y: surfaceY + 8))
+        band.addLine(to: CGPoint(x: waterRect.minX, y: surfaceY + 8))
         band.closeSubpath()
         context.fill(band, with: .color(.white.opacity(0.12)))
 
-        // 6) 水位线标签（置顶可读）
+        // 6) 水位线分界 + 标签
+        var boundary = Path()
+        boundary.move(to: CGPoint(x: stripRect.minX, y: waterlineY))
+        boundary.addLine(to: CGPoint(x: stripRect.maxX, y: waterlineY))
+        context.stroke(boundary, with: .color(.black.opacity(0.9)), lineWidth: 1.5)
         let tag = Text("水线 \(Format.bytes(waterlineBytes))")
             .font(.system(size: 9, weight: .bold))
             .foregroundStyle(.primary)
