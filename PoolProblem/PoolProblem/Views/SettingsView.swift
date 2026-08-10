@@ -103,7 +103,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: expertMode ? 620 : 320)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             config = service.loadConfig()
             expertMode = UserDefaults.standard.bool(forKey: "expertMode")

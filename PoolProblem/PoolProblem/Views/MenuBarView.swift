@@ -5,6 +5,7 @@ import DiskReservoirCore
 struct MenuBarView: View {
     @ObservedObject var state: AppState
     let service: AppService
+    @State private var showSettings = false
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -28,6 +29,53 @@ struct MenuBarView: View {
                     .frame(width: 310)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .background(.regularMaterial, in: Rectangle())
+            }
+
+            // 水池右缘边线（明确水池边界，出水管接点更清晰）
+            Rectangle()
+                .fill(Color.black.opacity(0.7))
+                .frame(width: 2)
+                .frame(maxHeight: .infinity)
+                .position(x: 391, y: 280)
+                .allowsHitTesting(false)
+
+            // 出水管：跨在水池右缘、画在面板之上（从池里往外流水），点击触发智能清理
+            OutletPipeView(weeklyCleanedBytes: state.weeklyCleanedBytes)
+                .frame(width: 190, height: 90)
+                .position(x: 385, y: 515)
+                .allowsHitTesting(false)
+
+            Color.clear
+                .contentShape(Rectangle())
+                .frame(width: 190, height: 60)
+                .position(x: 385, y: 515)
+                .onTapGesture { runSmartClean() }
+                .onHover { hovering in
+                    hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                }
+                .disabled(state.isScanning)
+                .help("点击出水管执行智能清理")
+
+            if showSettings {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("设置")
+                            .font(.headline)
+                        Spacer()
+                        Button("完成") { showSettings = false }
+                            .buttonStyle(.plain)
+                            .focusEffectDisabled()
+                            .onHover { hovering in
+                                hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
+                            }
+                    }
+                    .padding(12)
+
+                    SettingsView(state: state, service: service)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .background(.regularMaterial)
+                .zIndex(10)
             }
         }
         .frame(width: 700, height: 560)
@@ -158,23 +206,57 @@ struct MenuBarView: View {
 
     private var buttons: some View {
         HStack {
-            Button("智能清理") { runSmartClean() }
-                .disabled(state.isScanning)
             Spacer()
-            SettingsLink {
+            Button {
+                showSettings = true
+            } label: {
                 Image(systemName: "gearshape")
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .onHover { hovering in
+                hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
             }
             Button("退出", role: .destructive) {
                 NSApplication.shared.terminate(nil)
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .onHover { hovering in
+                hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
             }
         }
     }
 
     private func runSmartClean() {
-        Task {
-            state.pendingClean = await service.smartClean(dryRun: true)
-            state.showCleanConfirm = state.pendingClean != nil
+        // 用最近一次扫描结果即时生成预览（不做全量扫描，避免点击后长时间等待）
+        let config = service.loadConfig()
+        let evaluator = RuleEvaluator(config: config)
+        let suggestions = state.items.compactMap { item -> (ScanItem, EvaluatedAction)? in
+            let action = evaluator.evaluate(item: item) { name in
+                name.map { PGrepProcessInspector().isRunning($0) } ?? false
+            }
+            switch action.action {
+            case .skip: return nil
+            default: return (item, action)
+            }
         }
+        let outcome = CleanOutcome(
+            entries: suggestions.map { entry in
+                CleanLogEntry(
+                    id: UUID(),
+                    timestamp: Date(),
+                    itemIDs: [entry.0.id],
+                    freedBytes: entry.0.reclaimableBytes,
+                    disposition: entry.1.action == .trash ? .trash : .deletePermanently
+                )
+            },
+            freedBytes: suggestions.reduce(0) { $0 + $1.0.reclaimableBytes },
+            actualFreedBytes: 0,
+            stillBelowWaterline: state.availableBytes < state.waterlineBytes
+        )
+        state.pendingClean = outcome
+        state.showCleanConfirm = !outcome.entries.isEmpty
     }
 
     private func predictionText(_ days: Double) -> String {

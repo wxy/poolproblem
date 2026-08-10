@@ -243,13 +243,20 @@ struct PoolTankView: View {
                 size: pipeDiameter + 10
             )
 
-            // 标签（放在水平管段上方，避开右侧栏遮挡）
-            let labelText = bytes > 0 ? "\(name) +\(Format.bytes(bytes))/周" : "进水"
+            // 两个标签：名称在管子上方，增速标签贴在管身上
+            let midX = (pipe.xStart + pipe.xElbow) / 2
             drawBadge(
                 context: &context,
-                text: labelText,
-                center: CGPoint(x: pipe.xStart - 110, y: pipe.yTop - 32)
+                text: bytes > 0 ? name : "进水",
+                center: CGPoint(x: midX, y: pipe.yTop - 16)
             )
+            if bytes > 0 {
+                drawBadge(
+                    context: &context,
+                    text: "+\(Format.bytes(bytes))/周",
+                    center: CGPoint(x: midX, y: pipe.yTop)
+                )
+            }
 
             // 实心水流：直带略微收窄（不圆角），从半空管口流出进入水池 + 落水溅波
             let streamX = pipe.xElbow
