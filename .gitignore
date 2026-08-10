@@ -1,5 +1,8 @@
 .build/
 .swiftpm/
 .DS_Store
-*.xcodeproj
+*.xcodeproj/
+!PoolProblem/PoolProblem.xcodeproj/
+PoolProblem/PoolProblem.xcodeproj/xcuserdata/
+PoolProblem/PoolProblem.xcodeproj/project.xcworkspace/xcuserdata/
 DerivedData/
