@@ -15,7 +15,10 @@ struct MenuBarView: View {
                         totalBytes: state.totalBytes,
                         availableBytes: state.availableBytes,
                         waterlineBytes: state.waterlineBytes,
-                        cleanableItems: state.items
+                        cleanableItems: state.items,
+                        estimatedRecipeIDs: Set(
+                            RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id)
+                        )
                     )
                     legend
                 }
@@ -41,7 +44,10 @@ struct MenuBarView: View {
         let layers = PoolLayers.make(
             items: state.items,
             totalBytes: state.totalBytes,
-            availableBytes: state.availableBytes
+            availableBytes: state.availableBytes,
+            estimatedRecipeIDs: Set(
+                RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id)
+            )
         )
         return VStack(alignment: .leading, spacing: 8) {
             Text("可清理项（\(layers.layers.count)）")
@@ -54,6 +60,11 @@ struct MenuBarView: View {
                         .frame(width: 10, height: 10)
                     Text(layer.name)
                         .lineLimit(1)
+                    if layer.estimated {
+                        Text("估算")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     Spacer()
                     Text(Format.bytes(layer.bytes))
                         .foregroundStyle(.secondary)

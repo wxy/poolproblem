@@ -14,7 +14,7 @@ struct SuggestCommand: ParsableCommand {
     func run() throws {
         let paths = StoragePaths()
         let config = try JSONStore().load(Config.self, from: paths.configURL) ?? .default
-        let scanner = DiskReservoirCore.Scanner()
+        let scanner = DiskReservoirCore.Scanner(cloneRatios: config.cloneRatios)
         let result = try scanner.scan(recipes: RecipeRegistry.builtIn(), homeDirectory: NSHomeDirectory())
         let evaluator = RuleEvaluator(config: config)
         let suggestions = result.items.compactMap { item -> (ScanItem, EvaluatedAction)? in

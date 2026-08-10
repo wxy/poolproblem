@@ -12,9 +12,10 @@ struct ScanCommand: ParsableCommand {
     var json = false
 
     func run() throws {
-        let scanner = DiskReservoirCore.Scanner()
-        let result = try scanner.scan(recipes: RecipeRegistry.builtIn(), homeDirectory: NSHomeDirectory())
         let paths = StoragePaths()
+        let config = try JSONStore().load(Config.self, from: paths.configURL) ?? .default
+        let scanner = DiskReservoirCore.Scanner(cloneRatios: config.cloneRatios)
+        let result = try scanner.scan(recipes: RecipeRegistry.builtIn(), homeDirectory: NSHomeDirectory())
         try SnapshotStore(paths: paths).append(Snapshot(volume: result.volume, items: result.items))
         if json {
             let data = try JSONOutput.scan(result: result)

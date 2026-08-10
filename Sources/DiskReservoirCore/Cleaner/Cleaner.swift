@@ -5,17 +5,20 @@ public struct CleanOutcome: Equatable, Sendable {
     public let freedBytes: Int64
     public let actualFreedBytes: Int64
     public let stillBelowWaterline: Bool
+    public let calibrationUpdates: [String: Double]
 
     public init(
         entries: [CleanLogEntry],
         freedBytes: Int64,
         actualFreedBytes: Int64,
-        stillBelowWaterline: Bool
+        stillBelowWaterline: Bool,
+        calibrationUpdates: [String: Double] = [:]
     ) {
         self.entries = entries
         self.freedBytes = freedBytes
         self.actualFreedBytes = actualFreedBytes
         self.stillBelowWaterline = stillBelowWaterline
+        self.calibrationUpdates = calibrationUpdates
     }
 }
 
@@ -93,11 +96,24 @@ public struct Cleaner: Sendable {
         }
         let availableAfter = availableBytesReader(scan.volumeURL)
         let actualFreed = max(0, availableAfter - availableBefore)
+        var calibrationUpdates: [String: Double] = [:]
+        if freedTotal > 0, actualFreed > 0 {
+            let runRatio = min(1, max(0, Double(actualFreed) / Double(freedTotal)))
+            let cleanedRecipeIDs = Set(
+                entries
+                    .flatMap { $0.itemIDs }
+                    .compactMap { id in scan.items.first { $0.id == id }?.recipeID }
+            )
+            for recipeID in cleanedRecipeIDs {
+                calibrationUpdates[recipeID] = runRatio
+            }
+        }
         return CleanOutcome(
             entries: entries,
             freedBytes: freedTotal,
             actualFreedBytes: actualFreed,
-            stillBelowWaterline: below
+            stillBelowWaterline: below,
+            calibrationUpdates: calibrationUpdates
         )
     }
 }

@@ -53,8 +53,9 @@ final class AppService {
         state.isScanning = true
         defer { state.isScanning = false }
         let paths = self.paths
+        let cloneRatios = loadConfig().cloneRatios
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, Snapshot?, [Snapshot])? in
-            guard let result = try? Scanner().scan(
+            guard let result = try? DiskReservoirCore.Scanner(cloneRatios: cloneRatios).scan(
                 recipes: RecipeRegistry.builtIn(),
                 homeDirectory: NSHomeDirectory()
             ) else { return nil }
@@ -104,8 +105,9 @@ final class AppService {
     func smartClean(dryRun: Bool) async -> CleanOutcome? {
         let config = loadConfig()
         let logStore = self.logStore
+        let cloneRatios = config.cloneRatios
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
-            guard let result = try? Scanner().scan(
+            guard let result = try? DiskReservoirCore.Scanner(cloneRatios: cloneRatios).scan(
                 recipes: RecipeRegistry.builtIn(),
                 homeDirectory: NSHomeDirectory()
             ) else { return nil }
@@ -145,6 +147,13 @@ final class AppService {
             return (result, outcome)
         }
         guard let (_, outcome) = await work.value, let outcome else { return nil }
+        if !outcome.calibrationUpdates.isEmpty {
+            var updated = config
+            for (recipeID, ratio) in outcome.calibrationUpdates {
+                updated.cloneRatios[recipeID] = ratio
+            }
+            saveConfig(updated)
+        }
         await scanNow()
         return outcome
     }

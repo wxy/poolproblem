@@ -11,6 +11,7 @@ enum BuiltInRecipes {
             defaultAgeDays: 3,
             minimumSizeMB: 100,
             processName: nil,
+            cloneProne: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Developer/XCTestDevices"]
             }
@@ -63,6 +64,7 @@ enum BuiltInRecipes {
             defaultAgeDays: 30,
             minimumSizeMB: 100,
             processName: "Simulator",
+            cloneProne: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Developer/CoreSimulator/Devices"]
             }

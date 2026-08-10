@@ -7,6 +7,7 @@ public struct Recipe: Sendable {
     public let defaultAgeDays: Int
     public let minimumSizeMB: Double
     public let processName: String?
+    public let cloneProne: Bool
     public let resolvePaths: @Sendable (StoragePaths) -> [String]
 
     public init(
@@ -18,6 +19,7 @@ public struct Recipe: Sendable {
         defaultAgeDays: Int,
         minimumSizeMB: Double,
         processName: String?,
+        cloneProne: Bool = false,
         resolvePaths: @escaping @Sendable (StoragePaths) -> [String]
     ) {
         self.id = id
@@ -28,6 +30,7 @@ public struct Recipe: Sendable {
         self.defaultAgeDays = defaultAgeDays
         self.minimumSizeMB = minimumSizeMB
         self.processName = processName
+        self.cloneProne = cloneProne
         self.resolvePaths = resolvePaths
     }
 }
