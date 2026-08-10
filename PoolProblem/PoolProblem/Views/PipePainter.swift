@@ -63,21 +63,37 @@ enum PipePainter {
         )
     }
 
-    static func drawBadge(context: inout GraphicsContext, text: String, center: CGPoint) {
+    /// 统一的标签（圆角药丸徽标）：白底黑字，供进水管/标尺/出水管共用，
+    /// 保证外形、字号、内边距一致。
+    static func drawLabel(
+        context: inout GraphicsContext,
+        text: String,
+        center: CGPoint,
+        anchorLeading: Bool = false,
+        fontSize: CGFloat = 9,
+        weight: Font.Weight = .medium
+    ) {
         let label = Text(text)
-            .font(.system(size: 8, weight: .bold))
+            .font(.system(size: fontSize, weight: weight))
             .foregroundStyle(.black)
+            .monospacedDigit()
         let resolved = context.resolve(label)
-        let textSize = resolved.measure(in: CGSize(width: 160, height: 20))
-        let badgeRect = CGRect(
-            x: center.x - (textSize.width + 8) / 2,
-            y: center.y - (textSize.height + 2) / 2,
-            width: textSize.width + 8,
-            height: textSize.height + 2
+        let textSize = resolved.measure(in: CGSize(width: 400, height: 30))
+        let horizontalPadding: CGFloat = 10
+        let verticalPadding: CGFloat = 3
+        let rect = CGRect(
+            x: anchorLeading ? center.x : center.x - (textSize.width + horizontalPadding * 2) / 2,
+            y: center.y - (textSize.height + verticalPadding * 2) / 2,
+            width: textSize.width + horizontalPadding * 2,
+            height: textSize.height + verticalPadding * 2
         )
-        let badgePath = Path(badgeRect)
-        context.fill(badgePath, with: .color(.white.opacity(0.92)))
-        context.stroke(badgePath, with: .color(.gray.opacity(0.7)), lineWidth: 0.5)
-        context.draw(resolved, at: center, anchor: .center)
+        let path = Path(roundedRect: rect, cornerRadius: 4)
+        context.fill(path, with: .color(.white.opacity(0.92)))
+        context.stroke(path, with: .color(.gray.opacity(0.6)), lineWidth: 0.5)
+        context.draw(
+            resolved,
+            at: CGPoint(x: anchorLeading ? center.x + (textSize.width + horizontalPadding * 2) / 2 : center.x, y: center.y),
+            anchor: .center
+        )
     }
 }

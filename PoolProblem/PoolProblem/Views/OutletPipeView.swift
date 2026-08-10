@@ -51,22 +51,6 @@ struct OutletPipeView: View {
         center: CGPoint,
         anchorLeading: Bool = false
     ) {
-        let label = Text(text)
-            .font(.system(size: 9))
-            .foregroundStyle(.black)
-        let resolved = context.resolve(label)
-        let textSize = resolved.measure(in: CGSize(width: 340, height: 20))
-        let rect = CGRect(
-            x: anchorLeading ? center.x : center.x - (textSize.width + 12) / 2,
-            y: center.y - (textSize.height + 4) / 2,
-            width: textSize.width + 12,
-            height: textSize.height + 4
-        )
-        context.fill(Path(roundedRect: rect, cornerRadius: 4), with: .color(.white.opacity(0.85)))
-        context.draw(
-            resolved,
-            at: CGPoint(x: anchorLeading ? center.x + (textSize.width + 12) / 2 : center.x, y: center.y),
-            anchor: .center
-        )
+        PipePainter.drawLabel(context: &context, text: text, center: center, anchorLeading: anchorLeading)
     }
 }

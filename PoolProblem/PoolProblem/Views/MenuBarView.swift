@@ -3,6 +3,9 @@ import AppKit
 import DiskReservoirCore
 
 struct MenuBarView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     @ObservedObject var state: AppState
     let service: AppService
     @State private var showSettings = false
@@ -22,7 +25,8 @@ struct MenuBarView: View {
                 cleanableItems: state.items,
                 estimatedRecipeIDs: estimatedRecipeIDs,
                 inflowLabels: state.topInflows,
-                excludedItemIDs: state.cleanedItemIDs
+                excludedItemIDs: state.cleanedItemIDs,
+                gaugeImage: state.poolGaugeImage
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onHover { _ in NSCursor.arrow.set() }
@@ -32,16 +36,27 @@ struct MenuBarView: View {
                 rightPanel
                     .frame(width: 310)
                     .frame(maxHeight: .infinity, alignment: .top)
-                    .background(.regularMaterial, in: Rectangle())
+                    .background(
+                        Rectangle().fill(
+                            Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.94)
+                        )
+                    )
             }
 
-            // 水池右缘边线（明确水池边界，出水管接点更清晰）
-            Rectangle()
-                .fill(Color.black.opacity(0.7))
-                .frame(width: 2)
-                .frame(maxHeight: .infinity)
-                .position(x: 391, y: 280)
-                .allowsHitTesting(false)
+            // 水池右缘池壁：内侧受光高光 + 深色壁体（出水管左端盖对齐壁体右缘 x=392）
+            ZStack {
+                Rectangle()
+                    .fill(Color.white.opacity(colorScheme == .dark ? 0.16 : 0.45))
+                    .frame(width: 1)
+                    .frame(maxHeight: .infinity)
+                    .position(x: 389.2, y: 280)
+                Rectangle()
+                    .fill(Color.black.opacity(colorScheme == .dark ? 0.85 : 0.70))
+                    .frame(width: 2)
+                    .frame(maxHeight: .infinity)
+                    .position(x: 391, y: 280)
+            }
+            .allowsHitTesting(false)
 
             // 出水管：跨在水池右缘、画在面板之上（从池里往外流水），点击触发智能清理
             OutletPipeView(weeklyCleanedBytes: state.weeklyCleanedBytes)
@@ -60,15 +75,23 @@ struct MenuBarView: View {
                 .disabled(state.isScanning)
                 .help(Localized.string("outlet.click_to_clean"))
 
+            // 清理完成反馈：出水口处的绿色闪光（水花）
+            CleanCelebrationView(celebrationID: state.cleanCelebrationID)
+                .frame(width: 380, height: 90)
+                .position(x: 480, y: 515)
+                .allowsHitTesting(false)
+
             if showSettings {
                 VStack(spacing: 0) {
                     HStack {
                         Text(Localized.string("settings.title"))
                             .font(.headline)
                         Spacer()
-                        Button(Localized.string("settings.done")) { showSettings = false }
-                            .buttonStyle(.plain)
-                            .focusEffectDisabled()
+                        Button(Localized.string("settings.done")) {
+                            withAnimation(overlaySpring) { showSettings = false }
+                        }
+                        .buttonStyle(PressableButtonStyle())
+                        .focusEffectDisabled()
                             .onHover { hovering in
                                 hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
                             }
@@ -78,7 +101,8 @@ struct MenuBarView: View {
                     SettingsView(state: state, service: service)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .background(.regularMaterial)
+                .background(Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.97))
+                .transition(.scale(scale: 0.98).combined(with: .opacity))
                 .zIndex(10)
             }
 
@@ -227,7 +251,7 @@ struct MenuBarView: View {
             ForEach(poolLayers.layers) { layer in
                 Button {
                     if let item = state.items.first(where: { $0.id == layer.itemID }) {
-                        withAnimation { state.detailItem = item }
+                        withAnimation(overlaySpring) { state.detailItem = item }
                     }
                 } label: {
                     HStack(spacing: 5) {
@@ -319,7 +343,7 @@ struct MenuBarView: View {
                 }
                 if poolLayers.nonCleanableBytes > 0 {
                     Button {
-                        withAnimation { showNonCleanableInfo = true }
+                        withAnimation(overlaySpring) { showNonCleanableInfo = true }
                     } label: {
                         HStack(spacing: 5) {
                             Rectangle()
@@ -377,7 +401,7 @@ struct MenuBarView: View {
                         value: spinning
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableButtonStyle())
             .focusEffectDisabled()
             .onHover { hovering in
                 hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
@@ -388,11 +412,11 @@ struct MenuBarView: View {
                 spinning = scanning
             }
             Button {
-                showSettings = true
+                withAnimation(overlaySpring) { showSettings = true }
             } label: {
                 Image(systemName: "gearshape")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableButtonStyle())
             .focusEffectDisabled()
             .onHover { hovering in
                 hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
@@ -402,7 +426,7 @@ struct MenuBarView: View {
             } label: {
                 Image(systemName: "rectangle.portrait.and.arrow.right")
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableButtonStyle())
             .focusEffectDisabled()
             .onHover { hovering in
                 hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
@@ -459,7 +483,7 @@ struct MenuBarView: View {
                     .font(.headline)
                 Spacer()
                 Button {
-                    state.detailItem = nil
+                    withAnimation(overlaySpring) { state.detailItem = nil }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                 }
@@ -524,13 +548,16 @@ struct MenuBarView: View {
                 }
                 Spacer()
                 Button(Localized.string("common.close")) {
-                    state.detailItem = nil
+                    withAnimation(overlaySpring) { state.detailItem = nil }
                 }
             }
         }
         .padding(16)
         .frame(width: 380)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(
+            Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.97),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -545,7 +572,7 @@ struct MenuBarView: View {
                     .font(.headline)
                 Spacer()
                 Button {
-                    withAnimation { showNonCleanableInfo = false }
+                    withAnimation(overlaySpring) { showNonCleanableInfo = false }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                 }
@@ -560,13 +587,16 @@ struct MenuBarView: View {
             HStack {
                 Spacer()
                 Button(Localized.string("common.close")) {
-                    withAnimation { showNonCleanableInfo = false }
+                    withAnimation(overlaySpring) { showNonCleanableInfo = false }
                 }
             }
         }
         .padding(16)
         .frame(width: 380)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(
+            Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.97),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -625,6 +655,44 @@ struct MenuBarView: View {
             return Text(Localized.string("badge.requires_quit")).font(.caption2).foregroundStyle(.red)
         case .userConfirm:
             return Text(Localized.string("badge.user_confirm")).font(.caption2).foregroundStyle(.gray)
+        }
+    }
+}
+
+/// 浮层过渡统一用弹簧（critically damped，response 0.35s）
+private let overlaySpring = Animation.spring(response: 0.35, dampingFraction: 1.0)
+
+/// 按钮按下即时反馈：缩放 + 轻微透明
+private struct PressableButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.93 : 1)
+            .opacity(configuration.isPressed ? 0.75 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.9), value: configuration.isPressed)
+    }
+}
+
+/// 清理完成反馈：出水口处扩散并淡出的绿色水花
+private struct CleanCelebrationView: View {
+    let celebrationID: Int
+    @State private var burst = false
+
+    var body: some View {
+        ZStack {
+            if celebrationID > 0 {
+                Circle()
+                    .stroke(Color.green.opacity(0.8), lineWidth: 2)
+                    .frame(width: 14, height: 14)
+                    .scaleEffect(burst ? 5.5 : 1)
+                    .opacity(burst ? 0 : 1)
+                    .id(celebrationID)
+                    .onAppear {
+                        burst = false
+                        withAnimation(.easeOut(duration: 1.1)) {
+                            burst = true
+                        }
+                    }
+            }
         }
     }
 }

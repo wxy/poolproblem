@@ -75,6 +75,9 @@ enum PoolLayers {
 }
 
 struct PoolTankView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let totalBytes: Int64
     let availableBytes: Int64
     let waterlineBytes: Int64
@@ -82,31 +85,39 @@ struct PoolTankView: View {
     let estimatedRecipeIDs: Set<String>
     let inflowLabels: [(name: String, bytes: Int64)]
     let excludedItemIDs: Set<String>
+    let gaugeImage: Image?
 
     /// 可视窗口覆盖的"已用空间"跨度：
     /// 从水面附近（可用 + 可清理）向下再多露出 20GB 不可清理，证明上方都可清理/可用
     private var windowSpanBytes: Int64 {
-        let cleanableTotal = cleanableItems.reduce(Int64(0)) { $0 + max($1.reclaimableBytes, 0) }
-        let span = availableBytes + cleanableTotal + 20_000_000_000
-        return max(span, 30_000_000_000)
+        GaugeImageRenderer.windowSpanBytes(availableBytes: availableBytes, cleanableItems: cleanableItems)
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-            let phase = timeline.date.timeIntervalSinceReferenceDate
-            Canvas { context, size in
-                render(context: &context, size: size, phase: phase)
+        Group {
+            if reduceMotion {
+                // 减少动态效果：静止渲染一帧，不做波浪/水流动画
+                Canvas { context, size in
+                    render(context: &context, size: size, phase: 0, animate: false)
+                }
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                    let phase = timeline.date.timeIntervalSinceReferenceDate
+                    Canvas { context, size in
+                        render(context: &context, size: size, phase: phase, animate: true)
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func render(context: inout GraphicsContext, size: CGSize, phase: Double) {
+    private func render(context: inout GraphicsContext, size: CGSize, phase: Double, animate: Bool) {
+        let dark = colorScheme == .dark
         let tankRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         let tankPath = Path(tankRect)
         let span = Double(max(windowSpanBytes, 1))
         let used = Double(max(0, totalBytes - availableBytes))
-        let waterlineUsed = Double(max(0, totalBytes - waterlineBytes))
         // 标尺顶部留出空间（徽标不顶到窗口圆角）
         let topInset: CGFloat = 26
         let usableH = max(1, size.height - topInset)
@@ -118,7 +129,6 @@ struct PoolTankView: View {
         }
 
         let surfaceY = yForUsed(used)
-        let waterlineY = yForUsed(waterlineUsed)
         let (layers, nonCleanable, trashBytes) = PoolLayers.make(
             items: cleanableItems,
             totalBytes: totalBytes,
@@ -130,63 +140,32 @@ struct PoolTankView: View {
         // 全程只设置一次裁剪
         context.clip(to: tankPath)
 
-        // 1) 不透明池体（水面以上为空气）
-        context.fill(tankPath, with: .color(Color(white: 0.96)))
-
-        // 2) 红白窄条标尺（左侧，水层之下；红色 = 警戒区在水线之上）
-        let stripRect = CGRect(x: 4, y: 6, width: 26, height: size.height - 12)
-        let stripPath = Path(stripRect)
-        let stripRed = CGRect(
-            x: stripRect.minX, y: stripRect.minY,
-            width: stripRect.width, height: max(0, waterlineY - stripRect.minY)
-        )
-        let stripWhite = CGRect(
-            x: stripRect.minX, y: max(waterlineY, stripRect.minY),
-            width: stripRect.width, height: max(0, stripRect.maxY - max(waterlineY, stripRect.minY))
-        )
-        context.fill(Path(stripRed), with: .color(.red))
-        context.fill(Path(stripWhite), with: .color(.white))
-        // 顶部留白区也画刻度（徽标之外仍有标尺）
-        for extraY in [CGFloat(10), 18] {
-            var tick = Path()
-            tick.move(to: CGPoint(x: stripRect.minX + 1, y: extraY))
-            tick.addLine(to: CGPoint(x: stripRect.maxX - 5, y: extraY))
-            context.stroke(tick, with: .color(.black.opacity(0.5)), lineWidth: 1)
-        }
-        for fraction in stride(from: 0.0, through: 1.0, by: 0.1) {
-            let value = Double(totalBytes) - fraction * span
-            let y = yForUsed(value)
-            let isMajor = fraction.truncatingRemainder(dividingBy: 0.25) == 0
-            var tick = Path()
-            tick.move(to: CGPoint(x: stripRect.minX + 1, y: y))
-            tick.addLine(to: CGPoint(x: stripRect.maxX - (isMajor ? 1 : 5), y: y))
-            context.stroke(
-                tick,
-                with: .color(isMajor ? Color.black.opacity(0.8) : Color.black.opacity(0.5)),
-                lineWidth: isMajor ? 1.6 : 1
+        // 1) 天空（空气 = 可用空间）：柔和渐变 + 左上日光
+        context.fill(
+            tankPath,
+            with: .linearGradient(
+                Gradient(colors: dark
+                    ? [Color(red: 0.06, green: 0.10, blue: 0.16), Color(red: 0.13, green: 0.19, blue: 0.25)]
+                    : [Color(red: 0.81, green: 0.90, blue: 0.97), Color(red: 0.94, green: 0.975, blue: 0.96)]),
+                startPoint: CGPoint(x: 0, y: 0),
+                endPoint: CGPoint(x: 0, y: size.height)
             )
-        }
-        context.stroke(stripPath, with: .color(.black.opacity(0.7)), lineWidth: 1.5)
-
-        // 3) GB 数字徽标与水线徽标（直角，水层之下）
-        for fraction in stride(from: 0.0, through: 1.0, by: 0.25) {
-            let value = Double(totalBytes) - fraction * span
-            let y = yForUsed(value)
-            drawBadge(
-                context: &context,
-                text: "\(Int(value / 1_000_000_000))G",
-                center: CGPoint(x: stripRect.midX, y: y)
-            )
-        }
-        var boundary = Path()
-        boundary.move(to: CGPoint(x: stripRect.minX, y: waterlineY))
-        boundary.addLine(to: CGPoint(x: stripRect.maxX, y: waterlineY))
-        context.stroke(boundary, with: .color(.black.opacity(0.9)), lineWidth: 1.5)
-        drawBadge(
-            context: &context,
-            text: Localized.string("pool.waterline", Format.bytes(waterlineBytes)),
-            center: CGPoint(x: stripRect.maxX + 30, y: waterlineY + 10)
         )
+        let glowRadius: CGFloat = 260
+        context.fill(
+            Path(ellipseIn: CGRect(x: -120, y: -160, width: glowRadius * 2, height: glowRadius * 2)),
+            with: .radialGradient(
+                Gradient(colors: [Color.white.opacity(dark ? 0.09 : 0.26), .clear]),
+                center: CGPoint(x: -120 + glowRadius, y: -160 + glowRadius),
+                startRadius: 0,
+                endRadius: glowRadius
+            )
+        )
+
+        // 2) E 字型国际水位标尺（预生成位图，水层之下；红区 = 水线以上警戒）
+        if let gaugeImage {
+            context.draw(gaugeImage, in: tankRect)
+        }
 
         // 3.5) 金属拐角水管（参照 xingyu.wang 官网 pipes：管身金属渐变+高光阴影、两端端盖、拐角连接件）
         let pipeDiameter: CGFloat = 18
@@ -295,7 +274,7 @@ struct PoolTankView: View {
             let streamX = pipe.xElbow
             let streamTop = pipeEndY + 3
             let streamBottom = surfaceY
-            if streamBottom > streamTop + 4 {
+            if animate && streamBottom > streamTop + 4 {
                 var band = Path()
                 band.move(to: CGPoint(x: streamX - 3.5, y: streamTop))
                 band.addLine(to: CGPoint(x: streamX + 3.5, y: streamTop))
@@ -355,11 +334,17 @@ struct PoolTankView: View {
             context.fill(
                 Path(waterBody),
                 with: .linearGradient(
-                    Gradient(colors: [
-                        Color(red: 0.02, green: 0.22, blue: 0.18).opacity(0.6),
-                        Color(red: 0.10, green: 0.52, blue: 0.42).opacity(0.4),
-                        Color(red: 0.55, green: 0.84, blue: 0.84).opacity(0.18),
-                    ]),
+                    Gradient(colors: dark
+                        ? [
+                            Color(red: 0.01, green: 0.06, blue: 0.10).opacity(0.66),
+                            Color(red: 0.06, green: 0.18, blue: 0.24).opacity(0.50),
+                            Color(red: 0.32, green: 0.58, blue: 0.64).opacity(0.26),
+                        ]
+                        : [
+                            Color(red: 0.02, green: 0.22, blue: 0.18).opacity(0.6),
+                            Color(red: 0.10, green: 0.52, blue: 0.42).opacity(0.4),
+                            Color(red: 0.55, green: 0.84, blue: 0.84).opacity(0.18),
+                        ]),
                     startPoint: CGPoint(x: 0, y: size.height),
                     endPoint: CGPoint(x: 0, y: surfaceY)
                 )
@@ -376,7 +361,9 @@ struct PoolTankView: View {
             bottomUsed: bottomUsed,
             topUsed: nonCleanableTop,
             yForUsed: yForUsed,
-            color: PoolLayers.nonCleanableColor.opacity(0.9)
+            color: dark
+                ? Color(red: 0.16, green: 0.24, blue: 0.52).opacity(0.9)
+                : PoolLayers.nonCleanableColor.opacity(0.9)
         )
         bottomUsed = nonCleanableTop
         // 废纸篓层（浅蓝，位于不可清理之上、可清理层之下）
@@ -412,24 +399,75 @@ struct PoolTankView: View {
             context.stroke(line, with: .color(.white.opacity(0.85)), lineWidth: 0.5)
         }
 
-        // 6) 水面波纹动效（水的最上层）
-        var wave = Path()
-        wave.move(to: CGPoint(x: 0, y: surfaceY))
-        var x: CGFloat = 0
-        while x <= size.width {
-            let y = surfaceY + sin((x + CGFloat(phase) * 90) * 0.05) * 2.5
-            wave.addLine(to: CGPoint(x: x, y: y))
-            x += 4
+        // 6) 水面波纹动效（水的最上层；减少动效时静止为一条直线）
+        if animate {
+            var wave = Path()
+            wave.move(to: CGPoint(x: 0, y: surfaceY))
+            var x: CGFloat = 0
+            while x <= size.width {
+                let y = surfaceY + sin((x + CGFloat(phase) * 90) * 0.05) * 2.5
+                wave.addLine(to: CGPoint(x: x, y: y))
+                x += 4
+            }
+            context.stroke(wave, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
+            var band = wave
+            band.addLine(to: CGPoint(x: size.width, y: surfaceY + 8))
+            band.addLine(to: CGPoint(x: 0, y: surfaceY + 8))
+            band.closeSubpath()
+            context.fill(band, with: .color(.white.opacity(0.12)))
+        } else {
+            var still = Path()
+            still.move(to: CGPoint(x: 0, y: surfaceY))
+            still.addLine(to: CGPoint(x: size.width, y: surfaceY))
+            context.stroke(still, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
         }
-        context.stroke(wave, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
-        var band = wave
-        band.addLine(to: CGPoint(x: size.width, y: surfaceY + 8))
-        band.addLine(to: CGPoint(x: 0, y: surfaceY + 8))
-        band.closeSubpath()
-        context.fill(band, with: .color(.white.opacity(0.12)))
+
+        // 7) 天空主读数（可用空间）：固定在水池区上方，磁盘快满时浮在水面上
+        drawReadout(context: &context, size: size, surfaceY: surfaceY, dark: dark)
 
         // 水池外框（可见窗口的边界）
-        context.stroke(tankPath, with: .color(.secondary.opacity(0.5)), lineWidth: 1)
+        context.stroke(
+            tankPath,
+            with: .color(dark ? Color.white.opacity(0.16) : Color.secondary.opacity(0.5)),
+            lineWidth: 1
+        )
+    }
+
+    /// 画布内直接绘制文本（可选锚点）
+    private func drawText(
+        context: inout GraphicsContext,
+        text: String,
+        at point: CGPoint,
+        color: Color,
+        size: CGFloat,
+        weight: Font.Weight = .semibold,
+        anchor: UnitPoint = .center
+    ) {
+        let label = Text(text)
+            .font(.system(size: size, weight: weight))
+            .foregroundStyle(color)
+            .monospacedDigit()
+        let resolved = context.resolve(label)
+        context.draw(resolved, at: point, anchor: anchor)
+    }
+
+    /// 天空主读数：可用空间（空气 = 可用空间）；磁盘快满时上浮到水面之上
+    private func drawReadout(context: inout GraphicsContext, size: CGSize, surfaceY: CGFloat, dark: Bool) {
+        let centerX = (size.width - 310) / 2
+        var valueY: CGFloat = 76
+        if surfaceY < valueY + 18 {
+            valueY = max(48, surfaceY - 14)
+        }
+        let shadowColor = dark ? Color.black.opacity(0.5) : Color.white.opacity(0.55)
+        let labelColor = dark ? Color.white.opacity(0.65) : Color(red: 0.25, green: 0.36, blue: 0.44)
+        let valueColor = dark ? Color.white : Color(red: 0.07, green: 0.17, blue: 0.24)
+        let label = Localized.string("pool.available_label")
+        let value = Format.bytes(availableBytes)
+        // 柔和阴影：先画一遍偏移的浅色/深色文本
+        drawText(context: &context, text: label, at: CGPoint(x: centerX, y: valueY - 24 + 1), color: shadowColor, size: 10, weight: .medium)
+        drawText(context: &context, text: label, at: CGPoint(x: centerX, y: valueY - 24), color: labelColor, size: 10, weight: .medium)
+        drawText(context: &context, text: value, at: CGPoint(x: centerX, y: valueY + 1), color: shadowColor, size: 24, weight: .heavy)
+        drawText(context: &context, text: value, at: CGPoint(x: centerX, y: valueY), color: valueColor, size: 24, weight: .heavy)
     }
 
     private func fillLayer(
@@ -551,20 +589,6 @@ struct PoolTankView: View {
     }
 
     private func drawBadge(context: inout GraphicsContext, text: String, center: CGPoint) {
-        let label = Text(text)
-            .font(.system(size: 8, weight: .bold))
-            .foregroundStyle(.black)
-        let resolved = context.resolve(label)
-        let textSize = resolved.measure(in: CGSize(width: 120, height: 20))
-        let badgeRect = CGRect(
-            x: center.x - (textSize.width + 8) / 2,
-            y: center.y - (textSize.height + 2) / 2,
-            width: textSize.width + 8,
-            height: textSize.height + 2
-        )
-        let badgePath = Path(badgeRect)
-        context.fill(badgePath, with: .color(.white.opacity(0.92)))
-        context.stroke(badgePath, with: .color(.gray.opacity(0.7)), lineWidth: 0.5)
-        context.draw(resolved, at: center, anchor: .center)
+        PipePainter.drawLabel(context: &context, text: text, center: center)
     }
 }

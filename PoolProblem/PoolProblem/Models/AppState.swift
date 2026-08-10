@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 import DiskReservoirCore
 
 @MainActor
@@ -31,6 +32,8 @@ final class AppState: ObservableObject {
     @Published var pendingClean: CleanOutcome?
     @Published var cleanOutcome: CleanOutcome?
     @Published var showCleanConfirm = false
+    @Published var poolGaugeImage: Image?
+    @Published var cleanCelebrationID = 0
 }
 
 enum Format {

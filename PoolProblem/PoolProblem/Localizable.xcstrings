@@ -676,6 +676,22 @@
         }
       }
     },
+    "pool.available_label" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可用空间"
+          }
+        }
+      }
+    },
     "pool.inflow" : {
       "localizations" : {
         "en" : {
