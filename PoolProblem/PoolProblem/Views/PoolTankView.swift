@@ -84,13 +84,12 @@ struct PoolTankView: View {
     let estimatedRecipeIDs: Set<String>
     let inflowLabels: [(name: String, bytes: Int64)]
     let excludedItemIDs: Set<String>
+    let gaugeImage: Image?
 
     /// 可视窗口覆盖的"已用空间"跨度：
     /// 从水面附近（可用 + 可清理）向下再多露出 20GB 不可清理，证明上方都可清理/可用
     private var windowSpanBytes: Int64 {
-        let cleanableTotal = cleanableItems.reduce(Int64(0)) { $0 + max($1.reclaimableBytes, 0) }
-        let span = availableBytes + cleanableTotal + 20_000_000_000
-        return max(span, 30_000_000_000)
+        GaugeImageRenderer.windowSpanBytes(availableBytes: availableBytes, cleanableItems: cleanableItems)
     }
 
     var body: some View {
@@ -109,7 +108,6 @@ struct PoolTankView: View {
         let tankPath = Path(tankRect)
         let span = Double(max(windowSpanBytes, 1))
         let used = Double(max(0, totalBytes - availableBytes))
-        let waterlineUsed = Double(max(0, totalBytes - waterlineBytes))
         // 标尺顶部留出空间（徽标不顶到窗口圆角）
         let topInset: CGFloat = 26
         let usableH = max(1, size.height - topInset)
@@ -121,7 +119,6 @@ struct PoolTankView: View {
         }
 
         let surfaceY = yForUsed(used)
-        let waterlineY = yForUsed(waterlineUsed)
         let (layers, nonCleanable, trashBytes) = PoolLayers.make(
             items: cleanableItems,
             totalBytes: totalBytes,
@@ -155,60 +152,10 @@ struct PoolTankView: View {
             )
         )
 
-        // 2) 红白窄条标尺（左侧，水层之下；红色 = 警戒区在水线之上）
-        let stripRect = CGRect(x: 4, y: 6, width: 26, height: size.height - 12)
-        let stripPath = Path(stripRect)
-        let stripRed = CGRect(
-            x: stripRect.minX, y: stripRect.minY,
-            width: stripRect.width, height: max(0, waterlineY - stripRect.minY)
-        )
-        let stripWhite = CGRect(
-            x: stripRect.minX, y: max(waterlineY, stripRect.minY),
-            width: stripRect.width, height: max(0, stripRect.maxY - max(waterlineY, stripRect.minY))
-        )
-        context.fill(Path(stripRed), with: .color(.red))
-        context.fill(Path(stripWhite), with: .color(.white))
-        // 顶部留白区也画刻度（徽标之外仍有标尺）
-        for extraY in [CGFloat(10), 18] {
-            var tick = Path()
-            tick.move(to: CGPoint(x: stripRect.minX + 1, y: extraY))
-            tick.addLine(to: CGPoint(x: stripRect.maxX - 5, y: extraY))
-            context.stroke(tick, with: .color(.black.opacity(0.5)), lineWidth: 1)
+        // 2) E 字型国际水位标尺（预生成位图，水层之下；红区 = 水线以上警戒）
+        if let gaugeImage {
+            context.draw(gaugeImage, in: tankRect)
         }
-        for fraction in stride(from: 0.0, through: 1.0, by: 0.1) {
-            let value = Double(totalBytes) - fraction * span
-            let y = yForUsed(value)
-            let isMajor = fraction.truncatingRemainder(dividingBy: 0.25) == 0
-            var tick = Path()
-            tick.move(to: CGPoint(x: stripRect.minX + 1, y: y))
-            tick.addLine(to: CGPoint(x: stripRect.maxX - (isMajor ? 1 : 5), y: y))
-            context.stroke(
-                tick,
-                with: .color(isMajor ? Color.black.opacity(0.8) : Color.black.opacity(0.5)),
-                lineWidth: isMajor ? 1.6 : 1
-            )
-        }
-        context.stroke(stripPath, with: .color(.black.opacity(0.7)), lineWidth: 1.5)
-
-        // 3) GB 数字徽标与水线徽标（直角，水层之下）
-        for fraction in stride(from: 0.0, through: 1.0, by: 0.25) {
-            let value = Double(totalBytes) - fraction * span
-            let y = yForUsed(value)
-            drawBadge(
-                context: &context,
-                text: "\(Int(value / 1_000_000_000))G",
-                center: CGPoint(x: stripRect.midX, y: y)
-            )
-        }
-        var boundary = Path()
-        boundary.move(to: CGPoint(x: stripRect.minX, y: waterlineY))
-        boundary.addLine(to: CGPoint(x: stripRect.maxX, y: waterlineY))
-        context.stroke(boundary, with: .color(.black.opacity(0.9)), lineWidth: 1.5)
-        drawBadge(
-            context: &context,
-            text: Localized.string("pool.waterline", Format.bytes(waterlineBytes)),
-            center: CGPoint(x: stripRect.maxX + 30, y: waterlineY + 10)
-        )
 
         // 3.5) 金属拐角水管（参照 xingyu.wang 官网 pipes：管身金属渐变+高光阴影、两端端盖、拐角连接件）
         let pipeDiameter: CGFloat = 18
@@ -625,20 +572,6 @@ struct PoolTankView: View {
     }
 
     private func drawBadge(context: inout GraphicsContext, text: String, center: CGPoint) {
-        let label = Text(text)
-            .font(.system(size: 8, weight: .bold))
-            .foregroundStyle(.black)
-        let resolved = context.resolve(label)
-        let textSize = resolved.measure(in: CGSize(width: 120, height: 20))
-        let badgeRect = CGRect(
-            x: center.x - (textSize.width + 8) / 2,
-            y: center.y - (textSize.height + 2) / 2,
-            width: textSize.width + 8,
-            height: textSize.height + 2
-        )
-        let badgePath = Path(badgeRect)
-        context.fill(badgePath, with: .color(.white.opacity(0.92)))
-        context.stroke(badgePath, with: .color(.gray.opacity(0.7)), lineWidth: 0.5)
-        context.draw(resolved, at: center, anchor: .center)
+        PipePainter.drawLabel(context: &context, text: text, center: center)
     }
 }

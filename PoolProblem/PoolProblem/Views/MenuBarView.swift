@@ -24,7 +24,8 @@ struct MenuBarView: View {
                 cleanableItems: state.items,
                 estimatedRecipeIDs: estimatedRecipeIDs,
                 inflowLabels: state.topInflows,
-                excludedItemIDs: state.cleanedItemIDs
+                excludedItemIDs: state.cleanedItemIDs,
+                gaugeImage: state.poolGaugeImage
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onHover { _ in NSCursor.arrow.set() }

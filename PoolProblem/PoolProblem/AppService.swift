@@ -46,6 +46,7 @@ final class AppService {
             waterlineBytes: waterlineBytes()
         )
         await updateFlowMetrics(snapshots: snapshots)
+        refreshGaugeImage()
     }
 
     func scanNow() async {
@@ -84,6 +85,17 @@ final class AppService {
         if !state.isCleaning {
             state.cleanedItemIDs = []
         }
+        refreshGaugeImage()
+    }
+
+    /// 数据变化后预生成 E 字型标尺位图（避免弹窗打开时执行重活）
+    private func refreshGaugeImage() {
+        state.poolGaugeImage = GaugeImageRenderer.render(
+            totalBytes: state.totalBytes,
+            waterlineBytes: state.waterlineBytes,
+            availableBytes: state.availableBytes,
+            cleanableItems: state.items
+        )
     }
 
     private func updateFlowMetrics(snapshots: [Snapshot]) async {
