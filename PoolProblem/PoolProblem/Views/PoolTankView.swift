@@ -11,21 +11,28 @@ struct CleanableLayer: Identifiable {
 }
 
 enum PoolLayers {
+    // 由深到浅：底层深绿 → 表层清透（模拟光线穿透）
     static let palette: [Color] = [
-        Color(red: 0.22, green: 0.72, blue: 0.33),
-        Color(red: 0.30, green: 0.80, blue: 0.45),
-        Color(red: 0.42, green: 0.82, blue: 0.60),
-        Color(red: 0.55, green: 0.85, blue: 0.55),
-        Color(red: 0.55, green: 0.88, blue: 0.72),
-        Color(red: 0.50, green: 0.82, blue: 0.88),
-        Color(red: 0.40, green: 0.75, blue: 0.90),
-        Color(red: 0.52, green: 0.80, blue: 0.95),
-        Color(red: 0.62, green: 0.86, blue: 1.00),
-        Color(red: 0.72, green: 0.90, blue: 1.00),
-        Color(red: 0.82, green: 0.94, blue: 1.00),
+        Color(red: 0.08, green: 0.42, blue: 0.22),
+        Color(red: 0.14, green: 0.60, blue: 0.30),
+        Color(red: 0.24, green: 0.72, blue: 0.38),
+        Color(red: 0.42, green: 0.82, blue: 0.50),
+        Color(red: 0.55, green: 0.88, blue: 0.58),
+        Color(red: 0.42, green: 0.82, blue: 0.76),
+        Color(red: 0.48, green: 0.86, blue: 0.86),
+        Color(red: 0.62, green: 0.90, blue: 0.93),
+        Color(red: 0.76, green: 0.93, blue: 0.97),
+        Color(red: 0.86, green: 0.96, blue: 0.99),
+        Color(red: 0.93, green: 0.98, blue: 1.00),
     ]
 
-    static let nonCleanableColor = Color(red: 0.10, green: 0.22, blue: 0.50)
+    static let nonCleanableColor = Color(red: 0.05, green: 0.12, blue: 0.30)
+
+    static func layerOpacity(index: Int, count: Int) -> Double {
+        guard count > 1 else { return 0.6 }
+        let progress = Double(index) / Double(count - 1)
+        return 0.9 - progress * 0.55   // 底层 0.9 → 表层 0.35
+    }
 
     static func make(
         items: [ScanItem],
@@ -70,116 +77,137 @@ struct PoolTankView: View {
     }
 
     var body: some View {
-        Canvas { context, size in
-            let tankRect = CGRect(
-                x: 4,
-                y: 6,
-                width: size.width - 8,
-                height: size.height - 12
-            )
-            let tankPath = Path(roundedRect: tankRect, cornerRadius: 10)
-            let waterlineY = tankRect.maxY - tankRect.height * CGFloat(waterlineFraction)
-            let used = max(0, totalBytes - availableBytes)
-            let usedD = Double(max(used, 1))
-            let (layers, nonCleanable) = PoolLayers.make(
-                items: cleanableItems,
-                totalBytes: totalBytes,
-                availableBytes: availableBytes,
-                estimatedRecipeIDs: estimatedRecipeIDs
-            )
-            let waterHeight = tankRect.height * CGFloat(min(max(usedFraction, 0), 1))
-            let sumLayer = layers.reduce(Int64(0)) { $0 + $1.bytes }
-            let scale = used > 0 && sumLayer > used ? Double(used) / Double(sumLayer) : 1.0
-            let stripRect = CGRect(
-                x: tankRect.minX + 4,
-                y: tankRect.minY + 6,
-                width: 20,
-                height: tankRect.height - 12
-            )
-
-            context.clip(to: tankPath)
-
-            // 1) 池体底色
-            context.fill(tankPath, with: .color(Color.secondary.opacity(0.06)))
-
-            // 2) 分层（半透明）
-            let nonCleanableHeight = waterHeight * CGFloat(Double(nonCleanable) / usedD)
-            context.fill(
-                Path(CGRect(
-                    x: tankRect.minX,
-                    y: tankRect.maxY - nonCleanableHeight,
-                    width: tankRect.width,
-                    height: nonCleanableHeight
-                )),
-                with: .color(PoolLayers.nonCleanableColor.opacity(0.65))
-            )
-            var cursor = tankRect.maxY - nonCleanableHeight
-            for layer in layers {
-                let h = waterHeight * CGFloat(Double(layer.bytes) / usedD * scale)
-                context.fill(
-                    Path(CGRect(
-                        x: tankRect.minX,
-                        y: cursor - h,
-                        width: tankRect.width,
-                        height: h
-                    )),
-                    with: .color(layer.color.opacity(0.55))
-                )
-                cursor -= h
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+            let phase = timeline.date.timeIntervalSinceReferenceDate
+            Canvas { context, size in
+                render(context: &context, size: size, phase: phase)
             }
-
-            // 3) 红白窄条标尺（贴水池左侧，画在水层之上保证清晰）
-            let stripPath = Path(roundedRect: stripRect, cornerRadius: 4)
-            context.clip(to: stripPath)
-            let stripWhite = CGRect(
-                x: stripRect.minX, y: waterlineY,
-                width: stripRect.width, height: stripRect.maxY - waterlineY
-            )
-            context.fill(Path(stripWhite), with: .color(.white))
-            let stripRed = CGRect(
-                x: stripRect.minX, y: stripRect.minY,
-                width: stripRect.width, height: waterlineY - stripRect.minY
-            )
-            context.fill(Path(stripRed), with: .color(.red))
-            for fraction in stride(from: 0.0, through: 1.0, by: 0.1) {
-                let y = stripRect.maxY - stripRect.height * CGFloat(fraction)
-                let onRed = y <= waterlineY
-                let isMajor = fraction.truncatingRemainder(dividingBy: 0.25) == 0
-                var tick = Path()
-                tick.move(to: CGPoint(x: stripRect.minX + 1, y: y))
-                tick.addLine(to: CGPoint(
-                    x: stripRect.maxX - (isMajor ? 1 : 5),
-                    y: y
-                ))
-                context.stroke(
-                    tick,
-                    with: .color(onRed ? Color.white : Color.black.opacity(0.7)),
-                    lineWidth: isMajor ? 1.6 : 1
-                )
-                if isMajor {
-                    let gb = Int(Double(totalBytes) * fraction / 1_000_000_000)
-                    let label = Text("\(gb)G")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(onRed ? Color.white : Color.black.opacity(0.8))
-                    context.draw(label, at: CGPoint(x: stripRect.maxX + 4, y: y), anchor: .leading)
-                }
-            }
-            context.stroke(stripPath, with: .color(.secondary.opacity(0.8)), lineWidth: 1)
-
-            // 4) 水位线分界 + 标签
-            context.clip(to: tankPath)
-            var boundary = Path()
-            boundary.move(to: CGPoint(x: stripRect.minX, y: waterlineY))
-            boundary.addLine(to: CGPoint(x: stripRect.maxX, y: waterlineY))
-            context.stroke(boundary, with: .color(.black.opacity(0.9)), lineWidth: 1.5)
-            let tag = Text("水线 \(Format.bytes(waterlineBytes))")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(.primary)
-            context.draw(tag, at: CGPoint(x: stripRect.maxX + 4, y: waterlineY + 10), anchor: .leading)
-
-            context.stroke(tankPath, with: .color(.secondary.opacity(0.6)), lineWidth: 1.5)
         }
         .frame(height: 360)
         .frame(maxWidth: .infinity)
+    }
+
+    private func render(context: inout GraphicsContext, size: CGSize, phase: Double) {
+        let tankRect = CGRect(
+            x: 4,
+            y: 6,
+            width: size.width - 8,
+            height: size.height - 12
+        )
+        let tankPath = Path(roundedRect: tankRect, cornerRadius: 10)
+        let waterlineY = tankRect.maxY - tankRect.height * CGFloat(waterlineFraction)
+        let used = max(0, totalBytes - availableBytes)
+        let usedD = Double(max(used, 1))
+        let (layers, nonCleanable) = PoolLayers.make(
+            items: cleanableItems,
+            totalBytes: totalBytes,
+            availableBytes: availableBytes,
+            estimatedRecipeIDs: estimatedRecipeIDs
+        )
+        let waterHeight = tankRect.height * CGFloat(min(max(usedFraction, 0), 1))
+        let sumLayer = layers.reduce(Int64(0)) { $0 + $1.bytes }
+        let scale = used > 0 && sumLayer > used ? Double(used) / Double(sumLayer) : 1.0
+        let stripRect = CGRect(
+            x: tankRect.minX + 4,
+            y: tankRect.minY + 6,
+            width: 20,
+            height: tankRect.height - 12
+        )
+
+        context.clip(to: tankPath)
+
+        // 1) 不透明的池体
+        context.fill(tankPath, with: .color(Color(white: 0.96)))
+
+        // 2) 红白窄条标尺（水层之下）
+        let stripPath = Path(roundedRect: stripRect, cornerRadius: 4)
+        context.clip(to: stripPath)
+        let stripWhite = CGRect(
+            x: stripRect.minX, y: waterlineY,
+            width: stripRect.width, height: stripRect.maxY - waterlineY
+        )
+        context.fill(Path(stripWhite), with: .color(.white))
+        let stripRed = CGRect(
+            x: stripRect.minX, y: stripRect.minY,
+            width: stripRect.width, height: waterlineY - stripRect.minY
+        )
+        context.fill(Path(stripRed), with: .color(.red))
+        for fraction in stride(from: 0.0, through: 1.0, by: 0.1) {
+            let y = stripRect.maxY - stripRect.height * CGFloat(fraction)
+            let onRed = y <= waterlineY
+            let isMajor = fraction.truncatingRemainder(dividingBy: 0.25) == 0
+            var tick = Path()
+            tick.move(to: CGPoint(x: stripRect.minX + 1, y: y))
+            tick.addLine(to: CGPoint(x: stripRect.maxX - (isMajor ? 1 : 5), y: y))
+            context.stroke(
+                tick,
+                with: .color(onRed ? Color.white : Color.black.opacity(0.7)),
+                lineWidth: isMajor ? 1.6 : 1
+            )
+        }
+        context.stroke(stripPath, with: .color(.secondary.opacity(0.8)), lineWidth: 1)
+
+        // 3) GB 数字（画在标尺右侧，不裁剪，水层之下）
+        context.clip(to: tankPath)
+        for fraction in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            let y = stripRect.maxY - stripRect.height * CGFloat(fraction)
+            let onRed = y <= waterlineY
+            let gb = Int(Double(totalBytes) * fraction / 1_000_000_000)
+            let label = Text("\(gb)G")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(onRed ? Color.white : Color.black.opacity(0.8))
+            context.draw(label, at: CGPoint(x: stripRect.maxX + 5, y: y), anchor: .leading)
+        }
+
+        // 4) 水层（半透明，底层深绿 → 表层清透）
+        let nonCleanableHeight = waterHeight * CGFloat(Double(nonCleanable) / usedD)
+        context.fill(
+            Path(CGRect(
+                x: tankRect.minX,
+                y: tankRect.maxY - nonCleanableHeight,
+                width: tankRect.width,
+                height: nonCleanableHeight
+            )),
+            with: .color(PoolLayers.nonCleanableColor.opacity(0.95))
+        )
+        var cursor = tankRect.maxY - nonCleanableHeight
+        for (index, layer) in layers.enumerated() {
+            let h = waterHeight * CGFloat(Double(layer.bytes) / usedD * scale)
+            context.fill(
+                Path(CGRect(
+                    x: tankRect.minX,
+                    y: cursor - h,
+                    width: tankRect.width,
+                    height: h
+                )),
+                with: .color(layer.color.opacity(PoolLayers.layerOpacity(index: index, count: layers.count)))
+            )
+            cursor -= h
+        }
+
+        // 5) 水面波纹动效
+        let surfaceY = cursor
+        var wave = Path()
+        wave.move(to: CGPoint(x: tankRect.minX, y: surfaceY))
+        var x: CGFloat = tankRect.minX
+        while x <= tankRect.maxX {
+            let y = surfaceY + sin((x + CGFloat(phase) * 90) * 0.05) * 2.5
+            wave.addLine(to: CGPoint(x: x, y: y))
+            x += 4
+        }
+        context.stroke(wave, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
+        var band = wave
+        band.addLine(to: CGPoint(x: tankRect.maxX, y: surfaceY + 8))
+        band.addLine(to: CGPoint(x: tankRect.minX, y: surfaceY + 8))
+        band.closeSubpath()
+        context.fill(band, with: .color(.white.opacity(0.12)))
+
+        // 6) 水位线标签（置顶可读）
+        let tag = Text("水线 \(Format.bytes(waterlineBytes))")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(.primary)
+        context.draw(tag, at: CGPoint(x: stripRect.maxX + 4, y: waterlineY + 10), anchor: .leading)
+
+        context.stroke(tankPath, with: .color(.secondary.opacity(0.6)), lineWidth: 1.5)
     }
 }
