@@ -5,13 +5,13 @@ import Foundation
 struct CleanCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "clean",
-        abstract: "按水线与规则执行清理"
+        abstract: CLILocalized.string("clean.abstract")
     )
 
-    @Flag(name: .long, help: "只预览，不实际删除")
+    @Flag(name: .long, help: ArgumentHelp(CLILocalized.string("flag.dry_run")))
     var dryRun = false
 
-    @Flag(name: .long, help: "输出 JSON")
+    @Flag(name: .long, help: ArgumentHelp(CLILocalized.string("flag.json")))
     var json = false
 
     func run() throws {
@@ -75,7 +75,7 @@ struct CleanCommand: ParsableCommand {
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data("\n".utf8))
         } else {
-            print("清理项: \(outcome.entries.count)，估算释放: \(outcome.freedBytes)，实测释放: \(outcome.actualFreedBytes)")
+            print(CLILocalized.string("clean.summary", outcome.entries.count, outcome.freedBytes, outcome.actualFreedBytes))
         }
     }
 }

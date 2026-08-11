@@ -5,10 +5,10 @@ import Foundation
 struct StatusCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "status",
-        abstract: "水位、预测与最近清理记录"
+        abstract: CLILocalized.string("status.abstract")
     )
 
-    @Flag(name: .long, help: "输出 JSON")
+    @Flag(name: .long, help: ArgumentHelp(CLILocalized.string("flag.json")))
     var json = false
 
     func run() throws {
@@ -26,15 +26,15 @@ struct StatusCommand: ParsableCommand {
             FileHandle.standardOutput.write(Data("\n".utf8))
         } else {
             if let latest = snapshots.last {
-                print("可用: \(latest.volume.availableBytes) 字节（快照 \(snapshots.count) 份）")
+                print(CLILocalized.string("status.available", latest.volume.availableBytes, snapshots.count))
             } else {
-                print("尚无快照，请先运行 scan 并保存（后续 App 版会自动保存）。")
+                print(CLILocalized.string("status.no_snapshot"))
             }
             if let prediction {
-                print("按当前流速，约 \(Int(prediction.rounded())) 天后到水线。")
+                print(CLILocalized.string("status.prediction", Int(prediction.rounded())))
             }
             for entry in log.suffix(10) {
-                print("清理 \(entry.timestamp)：\(entry.freedBytes) 字节 (\(entry.disposition.rawValue))")
+                print(CLILocalized.string("status.clean_log", entry.timestamp.description, entry.freedBytes, entry.disposition.rawValue))
             }
         }
     }

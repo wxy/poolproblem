@@ -5,10 +5,10 @@ import Foundation
 struct SuggestCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "suggest",
-        abstract: "按规则给出可清理建议"
+        abstract: CLILocalized.string("suggest.abstract")
     )
 
-    @Flag(name: .long, help: "输出 JSON")
+    @Flag(name: .long, help: ArgumentHelp(CLILocalized.string("flag.json")))
     var json = false
 
     func run() throws {

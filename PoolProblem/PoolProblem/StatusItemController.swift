@@ -22,7 +22,10 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         popover.contentViewController = hostingController
 
         if let button = statusItem.button {
-            button.image = PoolStatusIcon.image(usedRatio: usedRatio())
+            button.image = PoolStatusIcon.image(
+                availableBytes: state.availableBytes,
+                waterlineBytes: state.waterlineBytes
+            )
             button.action = #selector(togglePopover)
             button.target = self
             button.setAccessibilityLabel("The Pool Problem")
@@ -36,13 +39,11 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
             .store(in: &cancellables)
     }
 
-    private func usedRatio() -> Double {
-        guard state.totalBytes > 0 else { return 0.5 }
-        return Double(max(0, state.totalBytes - state.availableBytes)) / Double(state.totalBytes)
-    }
-
     private func refreshIcon() {
-        statusItem.button?.image = PoolStatusIcon.image(usedRatio: usedRatio())
+        statusItem.button?.image = PoolStatusIcon.image(
+            availableBytes: state.availableBytes,
+            waterlineBytes: state.waterlineBytes
+        )
     }
 
     @objc private func togglePopover() {
