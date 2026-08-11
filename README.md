@@ -74,3 +74,13 @@ APFS 克隆文件（`cp -c` / Xcode 测试快照）的 inode 与资源标识不�
 
 - 设计：[docs/superpowers/specs/2026-08-09-the-pool-problem-design.md](docs/superpowers/specs/2026-08-09-the-pool-problem-design.md)
 - 实现计划：[docs/superpowers/plans/2026-08-09-core-cli.md](docs/superpowers/plans/2026-08-09-core-cli.md)
+
+## 贡献 / Contributing
+
+欢迎贡献！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [CLA.md](CLA.md)。
+提交 Pull Request 前，请将你的 GitHub 用户名添加到 `.github/CLA_SIGNERS`，即视为签署贡献者许可协议；
+CI 的 `CLA` 状态检查会强制校验。
+
+## License
+
+本项目以 [Apache License 2.0](LICENSE) 发布。Copyright © 2026 xingyu wang.

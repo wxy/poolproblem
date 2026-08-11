@@ -1,0 +1,52 @@
+name: CLA
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  statuses: write
+  contents: read
+
+jobs:
+  check-cla:
+    name: CLA Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if author signed CLA
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          set -euo pipefail
+          # 读取 PR head 上的签署名单（含本 PR 新增的签署，视为签署凭证）
+          signers=""
+          if content=$(gh api "repos/${GITHUB_REPOSITORY}/contents/.github/CLA_SIGNERS?ref=${HEAD_SHA}" --jq '.content' 2>/dev/null); then
+            signers=$(printf '%s' "$content" | base64 -d 2>/dev/null || true)
+          fi
+          if printf '%s\n' "$signers" | grep -qx "$AUTHOR"; then
+            state="success"
+            desc="CLA signed"
+          else
+            state="failure"
+            desc="CLA not signed"
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/statuses/${HEAD_SHA}" \
+            -f state="$state" -f context="CLA" -f description="$desc" > /dev/null
+          if [ "$state" = "failure" ]; then
+            existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              --jq '[.[].body] | join("")' 2>/dev/null || true)
+            if ! printf '%s' "$existing" | grep -q "cla-not-signed"; then
+              gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
+                -f body="<!-- cla-not-signed -->
+## ⚠️ CLA 未签署 / CLA not signed
+
+感谢你的贡献！合并前请先阅读并签署[贡献者许可协议](https://github.com/${GITHUB_REPOSITORY}/blob/main/CLA.md)：
+请在本 PR 中把你的 GitHub 用户名 **$AUTHOR** 添加到 [.github/CLA_SIGNERS](https://github.com/${GITHUB_REPOSITORY}/blob/main/.github/CLA_SIGNERS)（每行一个用户名）。
+
+Thanks for your contribution! Before merging, please read and sign the [Contributor License Agreement](https://github.com/${GITHUB_REPOSITORY}/blob/main/CLA.md): add your GitHub username **$AUTHOR** to [.github/CLA_SIGNERS](https://github.com/${GITHUB_REPOSITORY}/blob/main/.github/CLA_SIGNERS) (one per line) in this Pull Request." > /dev/null
+            fi
+          fi
