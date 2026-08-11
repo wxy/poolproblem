@@ -1,44 +1,33 @@
 import AppKit
 
-/// 菜单栏模板图标：玻璃蓄水池（18pt，内置 2x Retina 绘制），水位随"已用空间"比例变化
+/// 菜单栏模板图标：玻璃蓄水池（18pt，自动 2x backing）
+/// 水位语义（方案 B）：可用空间 ≥ 安全上限（默认 2× 水位线）→ 空缸；
+/// 可用空间 ≤ 水位线 → 满缸；两者之间线性过渡。
 enum PoolStatusIcon {
-    static func image(usedRatio: Double) -> NSImage {
-        let pointSize: CGFloat = 18
-        let scale: CGFloat = 2
-        let pixels = Int(pointSize * scale)   // 36
-
-        // 直接绘制 2x 位图，Retina 下保持清晰
-        let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil,
-            pixelsWide: pixels,
-            pixelsHigh: pixels,
-            bitsPerSample: 8,
-            samplesPerPixel: 4,
-            hasAlpha: true,
-            isPlanar: false,
-            colorSpaceName: .deviceRGB,
-            bytesPerRow: 0,
-            bitsPerPixel: 0
-        )!
-        rep.size = NSSize(width: pointSize, height: pointSize)
-
-        NSGraphicsContext.saveGraphicsState()
-        if let context = NSGraphicsContext(bitmapImageRep: rep) {
-            NSGraphicsContext.current = context
-            context.cgContext.scaleBy(x: scale, y: scale)
-            draw(usedRatio: usedRatio, ctx: context.cgContext)
-        }
-        NSGraphicsContext.restoreGraphicsState()
-
-        let image = NSImage(size: NSSize(width: pointSize, height: pointSize))
+    static func image(availableBytes: Int64, waterlineBytes: Int64) -> NSImage {
+        let image = NSImage(size: NSSize(width: 18, height: 18))
         image.isTemplate = true
-        image.addRepresentation(rep)
+        image.lockFocus()
+        if let ctx = NSGraphicsContext.current?.cgContext {
+            draw(level: level(availableBytes: availableBytes, waterlineBytes: waterlineBytes), ctx: ctx)
+        }
+        image.unlockFocus()
         return image
     }
 
+    /// 方案 B 映射：可用空间在 [水位线, 2×水位线] 之间时，水位 1→0
+    private static func level(availableBytes: Int64, waterlineBytes: Int64) -> Double {
+        let waterline = Double(max(waterlineBytes, 0))
+        let ceiling = max(waterline * 2, 1)
+        let available = Double(max(availableBytes, 0))
+        if available >= ceiling { return 0 }
+        if available <= waterline { return 1 }
+        return (ceiling - available) / (ceiling - waterline)
+    }
+
     /// 在 18pt 坐标系内绘制；几何对齐整数像素网格，统一 1pt 描边
-    private static func draw(usedRatio: Double, ctx: CGContext) {
-        let ratio = CGFloat(min(max(usedRatio, 0), 1))
+    private static func draw(level: Double, ctx: CGContext) {
+        let ratio = CGFloat(min(max(level, 0), 1))
         let rect = CGRect(x: 3, y: 4, width: 12, height: 10)
         let radius: CGFloat = 1.5
 
