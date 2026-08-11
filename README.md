@@ -77,4 +77,4 @@ APFS 克隆文件（`cp -c` / Xcode 测试快照）的 inode 与资源标识不�
 
 ## License
 
-本项目以 [MIT License](LICENSE) 发布。Copyright © 2026 xingyu wang.
+本项目以 [Apache License 2.0](LICENSE) 发布。Copyright © 2026 xingyu wang.
