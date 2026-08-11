@@ -5,10 +5,10 @@ import Foundation
 struct ScanCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "scan",
-        abstract: "扫描各配方并输出大小与可释放量"
+        abstract: CLILocalized.string("scan.abstract")
     )
 
-    @Flag(name: .long, help: "输出 JSON")
+    @Flag(name: .long, help: ArgumentHelp(CLILocalized.string("flag.json")))
     var json = false
 
     func run() throws {
@@ -22,9 +22,9 @@ struct ScanCommand: ParsableCommand {
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data("\n".utf8))
         } else {
-            print("可用: \(result.volume.availableBytes) 字节")
+            print(CLILocalized.string("scan.available", result.volume.availableBytes))
             for item in result.items.sorted(by: { $0.reclaimableBytes > $1.reclaimableBytes }) {
-                print("\(item.name): 可释放 \(item.reclaimableBytes) 字节 (\(item.safety.rawValue))")
+                print(CLILocalized.string("scan.item", item.name, item.reclaimableBytes, item.safety.rawValue))
             }
         }
     }
