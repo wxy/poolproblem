@@ -74,3 +74,7 @@ APFS 克隆文件（`cp -c` / Xcode 测试快照）的 inode 与资源标识不�
 
 - 设计：[docs/superpowers/specs/2026-08-09-the-pool-problem-design.md](docs/superpowers/specs/2026-08-09-the-pool-problem-design.md)
 - 实现计划：[docs/superpowers/plans/2026-08-09-core-cli.md](docs/superpowers/plans/2026-08-09-core-cli.md)
+
+## License
+
+本项目以 [MIT License](LICENSE) 发布。Copyright © 2026 xingyu wang.
