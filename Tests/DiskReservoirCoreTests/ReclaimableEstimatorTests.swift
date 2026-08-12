@@ -35,6 +35,18 @@ import Foundation
     #expect(updated.first?.reclaimableBytes == 1000)
 }
 
+@Test func applyKeepsReclaimableWhenNoRecords() {
+    // 轻量测量的目录（如废纸篓）没有逐文件记录，可回收量应保留扫描值而不是归零
+    let item = ScanItem(
+        id: "trash", recipeID: "trash", name: "废纸篓", path: "/tmp/trash",
+        category: .common, safety: .userConfirm, disposition: .none,
+        sizeBytes: 5_000, allocatedBytes: 5_000, reclaimableBytes: 5_000,
+        fileCount: 100, lastModified: nil
+    )
+    let updated = ReclaimableEstimator().apply(to: [item], records: [])
+    #expect(updated.first?.reclaimableBytes == 5_000)
+}
+
 @Test func hardLinksShareInodeAndDedup() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-clone-\(UUID().uuidString)", isDirectory: true)

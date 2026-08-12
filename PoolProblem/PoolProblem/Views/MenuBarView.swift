@@ -29,7 +29,6 @@ struct MenuBarView: View {
                 gaugeImage: state.poolGaugeImage
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onHover { _ in NSCursor.arrow.set() }
 
             HStack(alignment: .top, spacing: 0) {
                 Spacer(minLength: 0)
@@ -64,14 +63,14 @@ struct MenuBarView: View {
                 .position(x: 480, y: 515)
                 .allowsHitTesting(false)
 
+            // 点击区只覆盖出水管本身及上方的"排水"标签（窗口坐标约 x 388–488 / y 480–530），
+            // 避免整条宽透明层盖住右侧面板文本、让大片非交互区域显示手型。
             Color.clear
                 .contentShape(Rectangle())
-                .frame(width: 380, height: 60)
-                .position(x: 480, y: 515)
+                .frame(width: 100, height: 50)
+                .position(x: 438, y: 505)
                 .onTapGesture { runSmartClean() }
-                .onHover { hovering in
-                    hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                }
+                .cursorPointingHand(enabled: !state.isScanning)
                 .disabled(state.isScanning)
                 .help(Localized.string("outlet.click_to_clean"))
 
@@ -92,9 +91,7 @@ struct MenuBarView: View {
                         }
                         .buttonStyle(PressableButtonStyle())
                         .focusEffectDisabled()
-                            .onHover { hovering in
-                                hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                            }
+                        .cursorPointingHand()
                     }
                     .padding(12)
 
@@ -102,7 +99,9 @@ struct MenuBarView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .background(Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.97))
-                .transition(.scale(scale: 0.98).combined(with: .opacity))
+                // 设置面板含 AppKit 原生控件（Slider/SegmentedControl），
+                // 缩放过渡会在动画中提出过小宽度导致约束冲突，改用透明度+轻位移
+                .transition(.opacity.combined(with: .offset(y: 6)))
                 .zIndex(10)
             }
 
@@ -120,6 +119,7 @@ struct MenuBarView: View {
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
                 .zIndex(13)
             }
+
         }
         .frame(width: 700, height: 560)
         .onHover { hovering in
@@ -146,7 +146,9 @@ struct MenuBarView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: "The Pool Problem")
                         .font(.headline)
-                    Text(state.lastScanAt.map { Localized.string("header.updated_at", $0.formatted(date: .omitted, time: .shortened)) } ?? Localized.string("header.not_scanned"))
+                    Text(state.isScanning
+                         ? Localized.string("refresh.scanning")
+                         : (state.lastScanAt.map { Localized.string("header.updated_at", $0.formatted(date: .omitted, time: .shortened)) } ?? Localized.string("header.not_scanned")))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -291,9 +293,7 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
-                .onHover { hovering in
-                    hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                }
+                .cursorPointingHand()
             }
 
             Divider()
@@ -321,9 +321,7 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
-                .onHover { hovering in
-                    hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                }
+                .cursorPointingHand()
                 if state.trashExpanded {
                     VStack(alignment: .leading, spacing: 3) {
                         if !state.ourTrashNames.isEmpty {
@@ -360,9 +358,7 @@ struct MenuBarView: View {
                     }
                     .buttonStyle(.plain)
                     .focusEffectDisabled()
-                    .onHover { hovering in
-                        hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                    }
+                    .cursorPointingHand()
                 }
             }
             .padding(.top, 2)
@@ -403,13 +399,18 @@ struct MenuBarView: View {
             }
             .buttonStyle(PressableButtonStyle())
             .focusEffectDisabled()
-            .onHover { hovering in
-                hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-            }
-            .help(Localized.string("refresh.tooltip"))
+            .cursorPointingHand(enabled: !state.isScanning)
+            .help(state.isScanning
+                  ? Localized.string("refresh.scanning")
+                  : Localized.string("refresh.tooltip"))
             .disabled(state.isScanning)
+            .opacity(state.isScanning ? 0.4 : 1)
             .onChange(of: state.isScanning) { _, scanning in
                 spinning = scanning
+            }
+            // 弹窗可能在扫描开始后才打开，onChange 不会触发；出现时同步一次当前状态
+            .onAppear {
+                spinning = state.isScanning
             }
             Button {
                 withAnimation(overlaySpring) { showSettings = true }
@@ -418,9 +419,7 @@ struct MenuBarView: View {
             }
             .buttonStyle(PressableButtonStyle())
             .focusEffectDisabled()
-            .onHover { hovering in
-                hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-            }
+            .cursorPointingHand()
             Button {
                 NSApplication.shared.terminate(nil)
             } label: {
@@ -428,9 +427,7 @@ struct MenuBarView: View {
             }
             .buttonStyle(PressableButtonStyle())
             .focusEffectDisabled()
-            .onHover { hovering in
-                hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-            }
+            .cursorPointingHand()
             .help(Localized.string("quit.tooltip"))
         }
     }
@@ -489,6 +486,7 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
+                .cursorPointingHand()
             }
 
             Text(explanation(for: item))
@@ -518,9 +516,7 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
-                .onHover { hovering in
-                    hovering ? NSCursor.pointingHand.set() : NSCursor.arrow.set()
-                }
+                .cursorPointingHand()
                 Spacer()
             }
 
@@ -541,15 +537,24 @@ struct MenuBarView: View {
                     Button(Localized.string("detail.unkeep")) {
                         service.unkeepItem(item.id)
                     }
+                    .buttonStyle(PressableButtonStyle())
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
                 } else {
                     Button(Localized.string("detail.keep")) {
                         service.keepItem(item)
                     }
+                    .buttonStyle(PressableButtonStyle())
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
                 }
                 Spacer()
                 Button(Localized.string("common.close")) {
                     withAnimation(overlaySpring) { state.detailItem = nil }
                 }
+                .buttonStyle(PressableButtonStyle())
+                .focusEffectDisabled()
+                .cursorPointingHand()
             }
         }
         .padding(16)
@@ -578,6 +583,7 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
+                .cursorPointingHand()
             }
 
             Text(body)
@@ -589,6 +595,9 @@ struct MenuBarView: View {
                 Button(Localized.string("common.close")) {
                     withAnimation(overlaySpring) { showNonCleanableInfo = false }
                 }
+                .buttonStyle(PressableButtonStyle())
+                .focusEffectDisabled()
+                .cursorPointingHand()
             }
         }
         .padding(16)
@@ -669,6 +678,21 @@ private struct PressableButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.93 : 1)
             .opacity(configuration.isPressed ? 0.75 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.9), value: configuration.isPressed)
+    }
+}
+
+/// 可点击区域的统一光标声明：每个组件自己声明“我是可点击的”。
+///
+/// 使用 SwiftUI 原生 `.pointerStyle(.link)`（等价 AppKit cursor rect，由系统在
+/// 每次鼠标移动时按命中区域刷新光标，进出不会因 hover 事件丢失而卡住）。
+/// 该 API 需要 macOS 15+；macOS 14 没有可靠的 per-view 光标机制，干脆不设置，
+/// 避免旧版 `.onHover` + `NSCursor.set()` 的手型卡死 bug。
+extension View {
+    @ViewBuilder
+    func cursorPointingHand(enabled: Bool = true) -> some View {
+        if #available(macOS 15.0, *) {
+            pointerStyle(enabled ? .link : .default)
+        }
     }
 }
 

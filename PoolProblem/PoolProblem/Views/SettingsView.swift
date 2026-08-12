@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import DiskReservoirCore
 
 struct SettingsView: View {
@@ -64,6 +65,7 @@ struct SettingsView: View {
                             Button(Localized.string("common.remove")) {
                                 config.whitelistPaths.removeAll { $0 == path }
                             }
+                            .cursorPointingHand()
                         }
                     }
                     HStack {
@@ -77,6 +79,7 @@ struct SettingsView: View {
                             newWhitelistPath = ""
                         }
                         .disabled(newWhitelistPath.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .cursorPointingHand(enabled: !newWhitelistPath.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 }
             }
@@ -90,12 +93,14 @@ struct SettingsView: View {
                     Spacer()
                     if !hasFullDiskAccess {
                         Button(Localized.string("settings.open_settings")) { PermissionService.openSystemSettings() }
+                            .cursorPointingHand()
                         Button(Localized.string("settings.recheck")) {
                             Task {
                                 PermissionService.resetCache()
                                 hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
                             }
                         }
+                        .cursorPointingHand()
                     }
                 }
             }
@@ -114,6 +119,7 @@ struct SettingsView: View {
                             Button(Localized.string("common.remove")) {
                                 service.unkeepItem(entry.id)
                             }
+                            .cursorPointingHand()
                         }
                     }
                 }
@@ -131,6 +137,11 @@ struct SettingsView: View {
         .onAppear {
             config = service.loadConfig()
             expertMode = UserDefaults.standard.bool(forKey: "expertMode")
+            Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
+        }
+        // 从系统设置返回（应用被激活）时自动重新检测权限
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
         }
         .onChange(of: expertMode) { _, newValue in
             UserDefaults.standard.set(newValue, forKey: "expertMode")

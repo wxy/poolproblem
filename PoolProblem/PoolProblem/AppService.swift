@@ -18,7 +18,16 @@ final class AppService {
     }
 
     func start() {
-        Task { _ = await NotificationCenterService.shared.requestAuthorization() }
+        Task {
+            _ = await NotificationCenterService.shared.requestAuthorization()
+            if !(await PermissionService.hasFullDiskAccess()) {
+                NotificationCenterService.shared.post(
+                    .permission,
+                    title: Localized.string("notify.permission_title"),
+                    body: Localized.string("notify.permission_body")
+                )
+            }
+        }
         Task { await loadLatestState() }
         Task { await scanNow() }
         timer?.invalidate()
@@ -86,7 +95,36 @@ final class AppService {
             state.cleanedItemIDs = []
         }
         refreshGaugeImage()
+        #if DEBUG
+        debugLogPermission()
+        #endif
     }
+
+    #if DEBUG
+    /// 诊断：记录受保护目录的可读性，定位废纸篓检测为 0 的问题
+    private func debugLogPermission() {
+        let fm = FileManager.default
+        let home = NSHomeDirectory()
+        let trash = home + "/.Trash"
+        let containers = home + "/Library/Containers"
+        let tcc = home + "/Library/Application Support/com.apple.TCC/TCC.db"
+        let safari = home + "/Library/Safari"
+        let trashReadable = fm.isReadableFile(atPath: trash)
+        // 只做轻量探测（避免全量遍历几十万文件的废纸篓拖慢扫描）
+        var contentsCount = -1
+        if let list = try? fm.contentsOfDirectory(atPath: trash) { contentsCount = list.count }
+        let containersOK = (try? fm.contentsOfDirectory(atPath: containers)) != nil
+        let posixCount = POSIXDirectoryWalker.firstLevelCount(path: trash)
+        var safariCount = -1
+        if let en = fm.enumerator(atPath: safari) { safariCount = en.allObjects.count }
+        DebugLog.write(
+            "perm: home=\(home) tccReadable=\(fm.contents(atPath: tcc) != nil) "
+            + "containersOK=\(containersOK) trashReadable=\(trashReadable) "
+            + "trashContents=\(contentsCount) posixCount=\(posixCount.map(String.init) ?? "nil") "
+            + "safariEnum=\(safariCount)"
+        )
+    }
+    #endif
 
     /// 数据变化后预生成 E 字型标尺位图（避免弹窗打开时执行重活）
     private func refreshGaugeImage() {
@@ -141,8 +179,11 @@ final class AppService {
         }
         state.ourTrashNames = Array(names.prefix(20))
         state.ourTrashBytes = ourBytes
-        let trashItem = state.items.first { $0.recipeID == "trash" }
-        state.trashOthersBytes = max(0, (trashItem?.reclaimableBytes ?? 0) - ourBytes)
+        // 废纸篓可能同时包含本机 ~/.Trash 与 iCloud Drive 废纸篓，合并计算
+        let totalTrashBytes = state.items
+            .filter { $0.recipeID == "trash" }
+            .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
+        state.trashOthersBytes = max(0, totalTrashBytes - ourBytes)
         state.keptItemIDs = loadConfig().keptItemIDs
         let sorted = snapshots.sorted { $0.volume.timestamp < $1.volume.timestamp }
         state.availableHistory = sorted.map { $0.volume.availableBytes }
@@ -201,6 +242,8 @@ final class AppService {
         if !dryRun {
             state.isCleaning = true
             state.cleanedItemIDs = []
+            // 全量扫描期间没有逐项回调，先闪动预计第一个处理的小项，避免毫无反馈
+            state.deletingItemID = firstPlannedItem()?.id
         }
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? DiskReservoirCore.Scanner(cloneRatios: cloneRatios).scan(
@@ -285,9 +328,29 @@ final class AppService {
         return outcome
     }
 
+    /// 预计手动清理第一个处理的项目：按可清理量从小到大，
+    /// 与 Cleaner 的新顺序一致（排除废纸篓、保留项、白名单及"需退出/需确认"项）
+    private func firstPlannedItem() -> ScanItem? {
+        let config = loadConfig()
+        return state.items
+            .filter {
+                $0.reclaimableBytes > 0
+                    && $0.recipeID != "trash"
+                    && $0.safety == .safeWhileRunning
+                    && !config.whitelistPaths.contains($0.path)
+                    && !config.keptItemIDs.contains($0.id)
+            }
+            .sorted { $0.reclaimableBytes < $1.reclaimableBytes }
+            .first
+    }
+
     /// 删除移入回收站时，实时增长垃圾箱图层
     private func growTrashItem(by bytes: Int64) {
-        guard let index = state.items.firstIndex(where: { $0.recipeID == "trash" }) else { return }
+        // 应用清理只会进入本机 ~/.Trash，优先增长本地废纸篓条目
+        let localTrash = NSHomeDirectory() + "/.Trash"
+        guard let index = state.items.firstIndex(where: { $0.recipeID == "trash" && $0.path == localTrash })
+            ?? state.items.firstIndex(where: { $0.recipeID == "trash" })
+        else { return }
         let item = state.items[index]
         let updated = ScanItem(
             id: item.id,
@@ -355,3 +418,21 @@ final class AppService {
         }
     }
 }
+
+#if DEBUG
+/// 诊断日志（仅 Debug 构建）：写入 /tmp/poolproblem-perm.log
+enum DebugLog {
+    static func write(_ text: String) {
+        let line = "[\(Date())] \(text)\n"
+        guard let data = line.data(using: .utf8) else { return }
+        let url = URL(fileURLWithPath: "/tmp/poolproblem-perm.log")
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile()
+            handle.write(data)
+            try? handle.close()
+        } else {
+            try? data.write(to: url)
+        }
+    }
+}
+#endif

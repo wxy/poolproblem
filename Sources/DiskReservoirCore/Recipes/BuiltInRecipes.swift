@@ -157,7 +157,13 @@ enum BuiltInRecipes {
             minimumSizeMB: 10,
             processName: nil,
             resolvePaths: { paths in
-                [paths.homeDirectory + "/.Trash"]
+                // 本机废纸篓 + iCloud Drive 废纸篓（启用"桌面与文稿"同步时，
+                // 桌面上删除的文件会进 ~/Library/Mobile Documents/.Trash，
+                // Finder 的废纸篓会把两者合并展示）
+                [
+                    paths.homeDirectory + "/.Trash",
+                    paths.homeDirectory + "/Library/Mobile Documents/.Trash",
+                ]
             }
         ),
     ]

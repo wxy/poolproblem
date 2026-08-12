@@ -43,7 +43,7 @@ enum PoolStatusIcon {
         walls.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
 
         // 闭合缸体（含顶线）用于裁剪水体
-        let tankClosed = walls.mutableCopy() as! CGMutablePath
+        guard let tankClosed = walls.mutableCopy() else { return }
         tankClosed.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         tankClosed.closeSubpath()
 

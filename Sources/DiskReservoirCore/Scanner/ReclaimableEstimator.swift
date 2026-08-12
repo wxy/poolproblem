@@ -35,7 +35,9 @@ public struct ReclaimableEstimator: Sendable {
                 disposition: item.disposition,
                 sizeBytes: item.sizeBytes,
                 allocatedBytes: item.allocatedBytes,
-                reclaimableBytes: estimates[item.id] ?? 0,
+                // 没有逐文件记录的项（如轻量测量的废纸篓）保留扫描到的原始可回收量，
+                // 而不是被当成 0——否则废纸篓这类目录会显示为 0KB
+                reclaimableBytes: estimates[item.id] ?? item.reclaimableBytes,
                 fileCount: item.fileCount,
                 lastModified: item.lastModified
             )
