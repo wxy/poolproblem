@@ -102,7 +102,9 @@ struct MenuBarView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .background(Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.97))
-                .transition(.scale(scale: 0.98).combined(with: .opacity))
+                // 设置面板含 AppKit 原生控件（Slider/SegmentedControl），
+                // 缩放过渡会在动画中提出过小宽度导致约束冲突，改用透明度+轻位移
+                .transition(.opacity.combined(with: .offset(y: 6)))
                 .zIndex(10)
             }
 
