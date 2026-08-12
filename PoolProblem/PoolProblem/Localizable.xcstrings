@@ -1321,13 +1321,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Full Disk Access is required to scan protected directories (e.g. ~/Library/Containers)"
+            "value" : "Full Disk Access is required to scan protected directories (e.g. ~/Library/Containers and the Trash)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要完全磁盘访问才能扫描受保护目录（如 ~/Library/Containers）"
+            "value" : "需要完全磁盘访问才能扫描受保护目录（如 ~/Library/Containers、废纸篓）"
           }
         }
       }

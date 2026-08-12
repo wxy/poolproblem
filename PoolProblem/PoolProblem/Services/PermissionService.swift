@@ -8,7 +8,10 @@ enum PermissionService {
         if let cached { return cached }
         let result = await Task.detached(priority: .userInitiated) {
             let containers = NSHomeDirectory() + "/Library/Containers"
-            return (try? FileManager.default.contentsOfDirectory(atPath: containers)) != nil
+            let trash = NSHomeDirectory() + "/.Trash"
+            let containersOK = (try? FileManager.default.contentsOfDirectory(atPath: containers)) != nil
+            let trashOK = (try? FileManager.default.contentsOfDirectory(atPath: trash)) != nil
+            return containersOK && trashOK
         }.value
         cached = result
         return result
