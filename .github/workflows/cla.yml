@@ -40,13 +40,15 @@ jobs:
             existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
               --jq '[.[].body] | join("")' 2>/dev/null || true)
             if ! printf '%s' "$existing" | grep -q "cla-not-signed"; then
+              body=$(printf '%s\n' \
+                '<!-- cla-not-signed -->' \
+                '## ⚠️ CLA 未签署 / CLA not signed' \
+                '' \
+                '感谢你的贡献！合并前请先阅读并签署[贡献者许可协议](https://github.com/'"${GITHUB_REPOSITORY}"'/blob/main/CLA.md)：' \
+                '请在本 PR 中把你的 GitHub 用户名 **'"${AUTHOR}"'** 添加到 [.github/CLA_SIGNERS](https://github.com/'"${GITHUB_REPOSITORY}"'/blob/main/.github/CLA_SIGNERS)（每行一个用户名）。' \
+                '' \
+                'Thanks for your contribution! Before merging, please read and sign the [Contributor License Agreement](https://github.com/'"${GITHUB_REPOSITORY}"'/blob/main/CLA.md): add your GitHub username **'"${AUTHOR}"'** to [.github/CLA_SIGNERS](https://github.com/'"${GITHUB_REPOSITORY}"'/blob/main/.github/CLA_SIGNERS) (one per line) in this Pull Request.')
               gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" \
-                -f body="<!-- cla-not-signed -->
-## ⚠️ CLA 未签署 / CLA not signed
-
-感谢你的贡献！合并前请先阅读并签署[贡献者许可协议](https://github.com/${GITHUB_REPOSITORY}/blob/main/CLA.md)：
-请在本 PR 中把你的 GitHub 用户名 **$AUTHOR** 添加到 [.github/CLA_SIGNERS](https://github.com/${GITHUB_REPOSITORY}/blob/main/.github/CLA_SIGNERS)（每行一个用户名）。
-
-Thanks for your contribution! Before merging, please read and sign the [Contributor License Agreement](https://github.com/${GITHUB_REPOSITORY}/blob/main/CLA.md): add your GitHub username **$AUTHOR** to [.github/CLA_SIGNERS](https://github.com/${GITHUB_REPOSITORY}/blob/main/.github/CLA_SIGNERS) (one per line) in this Pull Request." > /dev/null
+                -f body="$body" > /dev/null
             fi
           fi
