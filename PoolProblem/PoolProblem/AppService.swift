@@ -104,16 +104,24 @@ final class AppService {
     /// 诊断：记录受保护目录的可读性，定位废纸篓检测为 0 的问题
     private func debugLogPermission() {
         let fm = FileManager.default
-        let trash = NSHomeDirectory() + "/.Trash"
-        let containers = NSHomeDirectory() + "/Library/Containers"
+        let home = NSHomeDirectory()
+        let trash = home + "/.Trash"
+        let containers = home + "/Library/Containers"
+        let tcc = home + "/Library/Application Support/com.apple.TCC/TCC.db"
+        let safari = home + "/Library/Safari"
         let trashReadable = fm.isReadableFile(atPath: trash)
-        var enumeratorCount = -1
-        if let en = fm.enumerator(atPath: trash) {
-            enumeratorCount = en.allObjects.count
-        }
+        // 只做轻量探测（避免全量遍历几十万文件的废纸篓拖慢扫描）
+        var contentsCount = -1
+        if let list = try? fm.contentsOfDirectory(atPath: trash) { contentsCount = list.count }
         let containersOK = (try? fm.contentsOfDirectory(atPath: containers)) != nil
+        let posixCount = POSIXDirectoryWalker.firstLevelCount(path: trash)
+        var safariCount = -1
+        if let en = fm.enumerator(atPath: safari) { safariCount = en.allObjects.count }
         DebugLog.write(
-            "perm: containersOK=\(containersOK) trashReadable=\(trashReadable) trashEnumCount=\(enumeratorCount)"
+            "perm: home=\(home) tccReadable=\(fm.contents(atPath: tcc) != nil) "
+            + "containersOK=\(containersOK) trashReadable=\(trashReadable) "
+            + "trashContents=\(contentsCount) posixCount=\(posixCount.map(String.init) ?? "nil") "
+            + "safariEnum=\(safariCount)"
         )
     }
     #endif
@@ -171,8 +179,11 @@ final class AppService {
         }
         state.ourTrashNames = Array(names.prefix(20))
         state.ourTrashBytes = ourBytes
-        let trashItem = state.items.first { $0.recipeID == "trash" }
-        state.trashOthersBytes = max(0, (trashItem?.reclaimableBytes ?? 0) - ourBytes)
+        // 废纸篓可能同时包含本机 ~/.Trash 与 iCloud Drive 废纸篓，合并计算
+        let totalTrashBytes = state.items
+            .filter { $0.recipeID == "trash" }
+            .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
+        state.trashOthersBytes = max(0, totalTrashBytes - ourBytes)
         state.keptItemIDs = loadConfig().keptItemIDs
         let sorted = snapshots.sorted { $0.volume.timestamp < $1.volume.timestamp }
         state.availableHistory = sorted.map { $0.volume.availableBytes }
@@ -231,6 +242,8 @@ final class AppService {
         if !dryRun {
             state.isCleaning = true
             state.cleanedItemIDs = []
+            // 全量扫描期间没有逐项回调，先闪动预计第一个处理的小项，避免毫无反馈
+            state.deletingItemID = firstPlannedItem()?.id
         }
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? DiskReservoirCore.Scanner(cloneRatios: cloneRatios).scan(
@@ -315,9 +328,29 @@ final class AppService {
         return outcome
     }
 
+    /// 预计手动清理第一个处理的项目：按可清理量从小到大，
+    /// 与 Cleaner 的新顺序一致（排除废纸篓、保留项、白名单及"需退出/需确认"项）
+    private func firstPlannedItem() -> ScanItem? {
+        let config = loadConfig()
+        return state.items
+            .filter {
+                $0.reclaimableBytes > 0
+                    && $0.recipeID != "trash"
+                    && $0.safety == .safeWhileRunning
+                    && !config.whitelistPaths.contains($0.path)
+                    && !config.keptItemIDs.contains($0.id)
+            }
+            .sorted { $0.reclaimableBytes < $1.reclaimableBytes }
+            .first
+    }
+
     /// 删除移入回收站时，实时增长垃圾箱图层
     private func growTrashItem(by bytes: Int64) {
-        guard let index = state.items.firstIndex(where: { $0.recipeID == "trash" }) else { return }
+        // 应用清理只会进入本机 ~/.Trash，优先增长本地废纸篓条目
+        let localTrash = NSHomeDirectory() + "/.Trash"
+        guard let index = state.items.firstIndex(where: { $0.recipeID == "trash" && $0.path == localTrash })
+            ?? state.items.firstIndex(where: { $0.recipeID == "trash" })
+        else { return }
         let item = state.items[index]
         let updated = ScanItem(
             id: item.id,

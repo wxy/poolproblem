@@ -158,3 +158,51 @@ final class CaptureBox: @unchecked Sendable {
     #expect(capture.will == ["cb"])
     #expect(capture.cleaned == ["cb"])
 }
+
+@Test func cleanerProcessesSmallItemsFirst() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-clean5-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let paths = StoragePaths(baseURL: dir)
+    let logStore = CleanLogStore(paths: paths)
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    func item(_ id: String, bytes: Int64, path: String) -> ScanItem {
+        ScanItem(
+            id: id, recipeID: "library-caches", name: id, path: path,
+            category: .common, safety: .safeWhileRunning, disposition: .deletePermanently,
+            sizeBytes: bytes, allocatedBytes: bytes, reclaimableBytes: bytes,
+            fileCount: 1, lastModified: now.addingTimeInterval(-40 * 86_400)
+        )
+    }
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000_000, availableBytes: 10_000_000, timestamp: now),
+        items: [
+            item("big", bytes: 5_000_000, path: "/tmp/big"),
+            item("small", bytes: 500_000, path: "/tmp/small"),
+        ],
+        records: [],
+        volumeURL: URL(fileURLWithPath: "/")
+    )
+    let box = ReaderBox()
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: MockDeleter(),
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: logStore,
+        availableBytesReader: { _ in
+            box.calls += 1
+            return box.calls == 1 ? 20_000_000 : 60_000_000
+        },
+        now: { now }
+    )
+    let capture = CaptureBox()
+    _ = try cleaner.run(
+        scan: scan,
+        config: .default,
+        waterlineBytes: 30_000_000,
+        onItemWillDelete: { capture.will.append($0) },
+        onItemCleaned: { capture.cleaned.append($0) }
+    )
+    #expect(capture.will == ["small", "big"])
+    #expect(capture.cleaned == ["small", "big"])
+}

@@ -65,6 +65,7 @@ struct SettingsView: View {
                             Button(Localized.string("common.remove")) {
                                 config.whitelistPaths.removeAll { $0 == path }
                             }
+                            .cursorPointingHand()
                         }
                     }
                     HStack {
@@ -78,6 +79,7 @@ struct SettingsView: View {
                             newWhitelistPath = ""
                         }
                         .disabled(newWhitelistPath.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .cursorPointingHand(enabled: !newWhitelistPath.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 }
             }
@@ -91,12 +93,14 @@ struct SettingsView: View {
                     Spacer()
                     if !hasFullDiskAccess {
                         Button(Localized.string("settings.open_settings")) { PermissionService.openSystemSettings() }
+                            .cursorPointingHand()
                         Button(Localized.string("settings.recheck")) {
                             Task {
                                 PermissionService.resetCache()
                                 hasFullDiskAccess = await PermissionService.hasFullDiskAccess()
                             }
                         }
+                        .cursorPointingHand()
                     }
                 }
             }
@@ -115,6 +119,7 @@ struct SettingsView: View {
                             Button(Localized.string("common.remove")) {
                                 service.unkeepItem(entry.id)
                             }
+                            .cursorPointingHand()
                         }
                     }
                 }

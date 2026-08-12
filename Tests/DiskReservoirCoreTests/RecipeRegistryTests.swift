@@ -18,6 +18,14 @@ import Testing
     #expect(resolved == ["/Users/tester/Library/Developer/XCTestDevices"])
 }
 
+@Test func trashRecipeCoversLocalAndICloudTrash() {
+    let recipe = RecipeRegistry.builtIn().first { $0.id == "trash" }!
+    let paths = StoragePaths(baseURL: nil, homeDirectory: "/Users/tester")
+    let resolved = recipe.resolvePaths(paths)
+    #expect(resolved.contains("/Users/tester/.Trash"))
+    #expect(resolved.contains("/Users/tester/Library/Mobile Documents/.Trash"))
+}
+
 @Test func everyRecipeHasDistinctID() {
     let ids = RecipeRegistry.builtIn().map(\.id)
     #expect(Set(ids).count == ids.count)

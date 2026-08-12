@@ -38,7 +38,13 @@ public struct Scanner: Sendable {
                 guard FileManager.default.fileExists(atPath: path) else { continue }
                 let url = URL(fileURLWithPath: path, isDirectory: true)
                 let itemID = "\(recipe.id):\(path)"
-                let (size, allocated, count, modified, files) = try measureDirectory(url, itemID: itemID)
+                let (size, allocated, count, modified, files) = try measureDirectory(
+                    url,
+                    itemID: itemID,
+                    // 不可清理目录（如废纸篓）只展示大小，不需要逐文件明细；
+                    // 用轻量 POSIX 汇总，避免几十万文件的目录把扫描拖到分钟级
+                    lightWeight: recipe.disposition == .none
+                )
                 items.append(ScanItem(
                     id: itemID,
                     recipeID: recipe.id,
@@ -88,8 +94,16 @@ public struct Scanner: Sendable {
     }
 
     private func measureDirectory(
-        _ url: URL, itemID: String
+        _ url: URL,
+        itemID: String,
+        lightWeight: Bool = false
     ) throws -> (size: Int64, allocated: Int64, count: Int, modified: Date?, files: [FileRecord]) {
+        if lightWeight {
+            if let posix = POSIXDirectoryWalker.walk(url: url, itemID: itemID, includeRecords: false) {
+                return (posix.sizeBytes, posix.allocatedBytes, posix.fileCount, posix.newest, [])
+            }
+            // POSIX 打不开（如缺少权限）时回落到 FileManager 路径，结果为空也是安全值
+        }
         let keys: Set<URLResourceKey> = [
             .isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey,
             .fileSizeKey, .totalFileAllocatedSizeKey, .contentModificationDateKey,
@@ -129,6 +143,12 @@ public struct Scanner: Sendable {
                     newest = date
                 }
             }
+        }
+        // FileManager 对 ~/.Trash 等受保护目录存在已知问题：即使拥有完全磁盘访问，
+        // 枚举也会静默返回空列表。此时改用 POSIX 枚举兜底（同样受 TCC 约束，
+        // 无权限时 opendir 会失败并保持原结果）。
+        if count == 0, let posix = POSIXDirectoryWalker.walk(url: url, itemID: itemID) {
+            return (posix.sizeBytes, posix.allocatedBytes, posix.fileCount, posix.newest, posix.files)
         }
         return (size, allocated, count, newest, files)
     }

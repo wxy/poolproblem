@@ -190,13 +190,10 @@ struct PoolTankView: View {
         }
         for (index, pipe) in pipes.enumerated() {
             let name: String
-            let bytes: Int64
             if index < inflowLabels.count {
                 name = inflowLabels[index].0
-                bytes = inflowLabels[index].1
             } else {
                 name = Localized.string("pool.inflow")
-                bytes = 0
             }
 
             // 水平管段（右侧 → 左侧）
@@ -249,24 +246,11 @@ struct PoolTankView: View {
                 size: pipeDiameter + 10
             )
 
-            // 两个标签：名称在管子上方，增速标签贴在管身上
+            // 单一标签：项目名称贴在水平管身上（增速标签已按设计移除）
             let midX = (pipe.xStart + pipe.xElbow) / 2
             drawBadge(
                 context: &context,
                 text: name,
-                center: CGPoint(x: midX, y: pipe.yTop - 16)
-            )
-            let rateText: String
-            if bytes > 0 {
-                rateText = Localized.string("pool.rate_positive", Format.bytes(bytes))
-            } else if bytes < 0 {
-                rateText = Localized.string("pool.rate_negative", Format.bytes(-bytes))
-            } else {
-                rateText = Localized.string("pool.rate_stable")
-            }
-            drawBadge(
-                context: &context,
-                text: rateText,
                 center: CGPoint(x: midX, y: pipe.yTop)
             )
 
@@ -422,8 +406,13 @@ struct PoolTankView: View {
             context.stroke(still, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
         }
 
-        // 7) 天空主读数（可用空间）：固定在水池区上方，磁盘快满时浮在水面上
-        drawReadout(context: &context, size: size, surfaceY: surfaceY, dark: dark)
+        // 7) 天空主读数（可用空间 + 可清理空间）：固定在水池区上方、进水管之上的留白区
+        drawReadout(
+            context: &context,
+            surfaceY: surfaceY,
+            cleanableBytes: layers.reduce(Int64(0)) { $0 + $1.bytes },
+            dark: dark
+        )
 
         // 水池外框（可见窗口的边界）
         context.stroke(
@@ -451,23 +440,52 @@ struct PoolTankView: View {
         context.draw(resolved, at: point, anchor: anchor)
     }
 
-    /// 天空主读数：可用空间（空气 = 可用空间）；磁盘快满时上浮到水面之上
-    private func drawReadout(context: inout GraphicsContext, size: CGSize, surfaceY: CGFloat, dark: Bool) {
-        let centerX = (size.width - 310) / 2
-        var valueY: CGFloat = 76
-        if surfaceY < valueY + 18 {
-            valueY = max(48, surfaceY - 14)
-        }
+    /// 天空主读数：可用空间（空气）+ 可清理空间（水面以上的绿色水体），
+    /// 并排固定在进水管上方的留白区；磁盘快满时整体上浮到水面之上
+    private func drawReadout(
+        context: inout GraphicsContext,
+        surfaceY: CGFloat,
+        cleanableBytes: Int64,
+        dark: Bool
+    ) {
         let shadowColor = dark ? Color.black.opacity(0.5) : Color.white.opacity(0.55)
         let labelColor = dark ? Color.white.opacity(0.65) : Color(red: 0.25, green: 0.36, blue: 0.44)
         let valueColor = dark ? Color.white : Color(red: 0.07, green: 0.17, blue: 0.24)
-        let label = Localized.string("pool.available_label")
-        let value = Format.bytes(availableBytes)
-        // 柔和阴影：先画一遍偏移的浅色/深色文本
-        drawText(context: &context, text: label, at: CGPoint(x: centerX, y: valueY - 24 + 1), color: shadowColor, size: 10, weight: .medium)
-        drawText(context: &context, text: label, at: CGPoint(x: centerX, y: valueY - 24), color: labelColor, size: 10, weight: .medium)
-        drawText(context: &context, text: value, at: CGPoint(x: centerX, y: valueY + 1), color: shadowColor, size: 24, weight: .heavy)
-        drawText(context: &context, text: value, at: CGPoint(x: centerX, y: valueY), color: valueColor, size: 24, weight: .heavy)
+        let cleanableColor = dark
+            ? Color(red: 0.45, green: 0.85, blue: 0.62)
+            : Color(red: 0.08, green: 0.50, blue: 0.28)
+
+        var valueY: CGFloat = 72
+        if surfaceY < valueY + 18 {
+            valueY = max(48, surfaceY - 14)
+        }
+        let items: [(label: String, value: String, color: Color, centerX: CGFloat)] = [
+            (Localized.string("pool.available_label"), Format.bytes(availableBytes), valueColor, 108),
+            (Localized.string("pool.cleanable_label"), Format.bytes(cleanableBytes), cleanableColor, 282),
+        ]
+        for item in items {
+            // 柔和阴影：先画一遍偏移的浅色/深色文本
+            drawText(
+                context: &context, text: item.label,
+                at: CGPoint(x: item.centerX, y: valueY - 24 + 1),
+                color: shadowColor, size: 10, weight: .medium
+            )
+            drawText(
+                context: &context, text: item.label,
+                at: CGPoint(x: item.centerX, y: valueY - 24),
+                color: labelColor, size: 10, weight: .medium
+            )
+            drawText(
+                context: &context, text: item.value,
+                at: CGPoint(x: item.centerX, y: valueY + 1),
+                color: shadowColor, size: 22, weight: .heavy
+            )
+            drawText(
+                context: &context, text: item.value,
+                at: CGPoint(x: item.centerX, y: valueY),
+                color: item.color, size: 22, weight: .heavy
+            )
+        }
     }
 
     private func fillLayer(

@@ -64,7 +64,9 @@ public struct Cleaner: Sendable {
         let availableBefore = availableBytesReader(scan.volumeURL)
         let candidates = scan.items
             .filter { !config.whitelistPaths.contains($0.path) }
-            .sorted { ($0.lastModified ?? .distantPast) < ($1.lastModified ?? .distantPast) }
+            // 小项目优先：浅目录处理快，能尽早看到清理进度；
+            // 大而深的目录（如 XCTestDevices 快照）排到后面
+            .sorted { $0.reclaimableBytes < $1.reclaimableBytes }
         var entries: [CleanLogEntry] = []
         var freedTotal: Int64 = 0
         var below = true
