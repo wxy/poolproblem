@@ -18,7 +18,16 @@ final class AppService {
     }
 
     func start() {
-        Task { _ = await NotificationCenterService.shared.requestAuthorization() }
+        Task {
+            _ = await NotificationCenterService.shared.requestAuthorization()
+            if !(await PermissionService.hasFullDiskAccess()) {
+                NotificationCenterService.shared.post(
+                    .permission,
+                    title: Localized.string("notify.permission_title"),
+                    body: Localized.string("notify.permission_body")
+                )
+            }
+        }
         Task { await loadLatestState() }
         Task { await scanNow() }
         timer?.invalidate()

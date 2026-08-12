@@ -580,6 +580,38 @@
         }
       }
     },
+    "notify.permission_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protected locations (the Trash, ~/Library/Containers) cannot be read. Please enable Full Disk Access: System Settings → Privacy & Security → Full Disk Access → enable The Pool Problem."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "受保护目录（废纸篓、~/Library/Containers 等）无法读取。请在 系统设置 → 隐私与安全性 → 完全磁盘访问 中勾选本应用后重启。"
+          }
+        }
+      }
+    },
+    "notify.permission_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Disk Access needed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要完全磁盘访问"
+          }
+        }
+      }
+    },
     "notify.low_space_body" : {
       "localizations" : {
         "en" : {
