@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import DiskReservoirCore
 
 struct SettingsView: View {
@@ -131,6 +132,11 @@ struct SettingsView: View {
         .onAppear {
             config = service.loadConfig()
             expertMode = UserDefaults.standard.bool(forKey: "expertMode")
+            Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
+        }
+        // 从系统设置返回（应用被激活）时自动重新检测权限
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
         }
         .onChange(of: expertMode) { _, newValue in
             UserDefaults.standard.set(newValue, forKey: "expertMode")

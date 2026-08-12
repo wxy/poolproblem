@@ -95,7 +95,28 @@ final class AppService {
             state.cleanedItemIDs = []
         }
         refreshGaugeImage()
+        #if DEBUG
+        debugLogPermission()
+        #endif
     }
+
+    #if DEBUG
+    /// 诊断：记录受保护目录的可读性，定位废纸篓检测为 0 的问题
+    private func debugLogPermission() {
+        let fm = FileManager.default
+        let trash = NSHomeDirectory() + "/.Trash"
+        let containers = NSHomeDirectory() + "/Library/Containers"
+        let trashReadable = fm.isReadableFile(atPath: trash)
+        var enumeratorCount = -1
+        if let en = fm.enumerator(atPath: trash) {
+            enumeratorCount = en.allObjects.count
+        }
+        let containersOK = (try? fm.contentsOfDirectory(atPath: containers)) != nil
+        DebugLog.write(
+            "perm: containersOK=\(containersOK) trashReadable=\(trashReadable) trashEnumCount=\(enumeratorCount)"
+        )
+    }
+    #endif
 
     /// 数据变化后预生成 E 字型标尺位图（避免弹窗打开时执行重活）
     private func refreshGaugeImage() {
@@ -364,3 +385,21 @@ final class AppService {
         }
     }
 }
+
+#if DEBUG
+/// 诊断日志（仅 Debug 构建）：写入 /tmp/poolproblem-perm.log
+enum DebugLog {
+    static func write(_ text: String) {
+        let line = "[\(Date())] \(text)\n"
+        guard let data = line.data(using: .utf8) else { return }
+        let url = URL(fileURLWithPath: "/tmp/poolproblem-perm.log")
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile()
+            handle.write(data)
+            try? handle.close()
+        } else {
+            try? data.write(to: url)
+        }
+    }
+}
+#endif
