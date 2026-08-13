@@ -6,7 +6,7 @@
 
 The Pool Problem is a disk attribution and governance tool for developers. It treats your disk as the classic cistern problem — measuring the inflow from every source of regenerable waste (Xcode build products, simulator snapshots, package-manager caches, and more), predicting when the disk will fill up, tracking why space returns after a cleanup, and governing at the source so free space stays at a healthy waterline.
 
-The Pool Problem 是面向开发者的磁盘“归因与治理”工具：把磁盘当作一道经典的蓄水池问题——测量各产废源（Xcode 构建产物、模拟器快照、包管理器缓存等）的流速，预测磁盘何时会满，追踪清理后空间为何回涨，并在源头治理，让可用空间稳定在健康水位。
+> The Pool Problem 是面向开发者的磁盘“归因与治理”工具：把磁盘当作一道经典的蓄水池问题——测量各产废源（Xcode 构建产物、模拟器快照、包管理器缓存等）的流速，预测磁盘何时会满，追踪清理后空间为何回涨，并在源头治理，让可用空间稳定在健康水位。
 
 <p align="center"><img src="assets/readme/section-features.svg" width="100%" alt="Features · 功能特性"></p>
 
@@ -40,7 +40,7 @@ The Pool Problem 是面向开发者的磁盘“归因与治理”工具：把磁
 
 Download the latest release from the button above, or browse every version on [GitHub Releases](https://github.com/wxy/poolproblem/releases/latest).
 
-从上方按钮下载最新版，或在 [GitHub Releases](https://github.com/wxy/poolproblem/releases/latest) 查看全部版本。
+> 从上方按钮下载最新版，或在 [GitHub Releases](https://github.com/wxy/poolproblem/releases/latest) 查看全部版本。
 
 1. The DMG is **Apple-notarized** (Developer ID signature + Hardened Runtime), so it can be opened directly.
 
@@ -54,7 +54,7 @@ Download the latest release from the button above, or browse every version on [G
 
 Build and run the menu-bar app (Xcode project at `PoolProblem/PoolProblem.xcodeproj`):
 
-构建并运行菜单栏 App（Xcode 工程在 `PoolProblem/PoolProblem.xcodeproj`）：
+> 构建并运行菜单栏 App（Xcode 工程在 `PoolProblem/PoolProblem.xcodeproj`）：
 
 ```bash
 xcodebuild -project PoolProblem/PoolProblem.xcodeproj -scheme PoolProblem -configuration Debug -derivedDataPath .build/xcode-derived build
@@ -63,7 +63,7 @@ open .build/xcode-derived/Build/Products/Debug/PoolProblem.app
 
 Build and test the CLI:
 
-构建并测试 CLI：
+> 构建并测试 CLI：
 
 ```bash
 swift build        # build (first run fetches swift-argument-parser)
@@ -72,7 +72,7 @@ swift test         # run all tests
 
 A reservoir water-level icon appears in the menu bar, updating in real time with disk usage:
 
-菜单栏出现蓄水池水位图标（水位随磁盘占用实时变化）：
+> 菜单栏出现蓄水池水位图标（水位随磁盘占用实时变化）：
 
 - Click the panel for the free-space primary reading, fill prediction, cleanable items with safety badges, and one-tap smart cleanup (preview first, then confirm).
 
@@ -92,7 +92,7 @@ A reservoir water-level icon appears in the menu bar, updating in real time with
 
 On first launch, grant **Full Disk Access** in System Settings → Privacy & Security so protected directories such as `~/Library/Containers` can be scanned.
 
-首次使用请到 系统设置 → 隐私与安全性 → 完全磁盘访问 授权，才能扫描 `~/Library/Containers` 等受保护目录。
+> 首次使用请到 系统设置 → 隐私与安全性 → 完全磁盘访问 授权，才能扫描 `~/Library/Containers` 等受保护目录。
 
 <p align="center"><img src="assets/readme/section-cli-usage.svg" width="100%" alt="CLI Usage · CLI 用法"></p>
 
@@ -107,7 +107,7 @@ poolproblem status             # waterline, fill prediction, recent cleanups
 
 Data directory resolution order: `POOLPROBLEM_DATA_DIR` → App Group container → `~/Library/Application Support/PoolProblem`. Tests point `POOLPROBLEM_DATA_DIR` at a temporary directory for isolation.
 
-数据目录解析顺序：环境变量 `POOLPROBLEM_DATA_DIR` → App Group 容器 → `~/Library/Application Support/PoolProblem`。测试通过 `POOLPROBLEM_DATA_DIR` 指向临时目录隔离。
+> 数据目录解析顺序：环境变量 `POOLPROBLEM_DATA_DIR` → App Group 容器 → `~/Library/Application Support/PoolProblem`。测试通过 `POOLPROBLEM_DATA_DIR` 指向临时目录隔离。
 
 <p align="center"><img src="assets/readme/section-architecture.svg" width="100%" alt="Architecture · 架构"></p>
 
@@ -129,25 +129,25 @@ poolproblem/
 
 The app, CLI, and a future widget share one core library and one snapshot store; a file lock keeps the app and CLI from writing or cleaning concurrently.
 
-App、CLI 与未来小组件共用同一核心库与快照库；文件锁避免 App 与 CLI 同时写入或清理。
+> App、CLI 与未来小组件共用同一核心库与快照库；文件锁避免 App 与 CLI 同时写入或清理。
 
 **Data flow · 数据流**
 
 Launch / login item → permission check and onboarding (Full Disk Access) → scheduled scan → snapshot written to the shared container → growth detection / flow computation → notify or clean by rule → refresh the menu bar.
 
-启动 / 开机自启 → 权限检查与引导（完全磁盘访问）→ 定时扫描 → 快照写入共享容器 → 增长检测 / 流速计算 → 需要时通知或按规则清理 → 菜单栏刷新。
+> 启动 / 开机自启 → 权限检查与引导（完全磁盘访问）→ 定时扫描 → 快照写入共享容器 → 增长检测 / 流速计算 → 需要时通知或按规则清理 → 菜单栏刷新。
 
 <p align="center"><img src="assets/readme/section-privacy.svg" width="100%" alt="Privacy · 隐私"></p>
 
 The app ships without App Sandbox (required for system-level cleanup) and keeps everything local: configuration in UserDefaults, snapshots and logs in `~/Library/Application Support/PoolProblem` or the App Group container. Nothing is uploaded; everything stays on your Mac.
 
-App 未启用 App Sandbox（系统级清理所需），数据全部保存在本地：配置在 UserDefaults，快照与日志在 `~/Library/Application Support/PoolProblem` 或 App Group 容器中。不会上传任何数据。
+> App 未启用 App Sandbox（系统级清理所需），数据全部保存在本地：配置在 UserDefaults，快照与日志在 `~/Library/Application Support/PoolProblem` 或 App Group 容器中。不会上传任何数据。
 
 <p align="center"><img src="assets/readme/section-honest-metering.svg" width="100%" alt="Honest Metering · 诚实计量"></p>
 
 APFS clone files (`cp -c`, Xcode test snapshots) share physical blocks but not inodes, so the real reclaimable space cannot be measured exactly through public APIs before deletion. Therefore:
 
-APFS 克隆文件（`cp -c` / Xcode 测试快照）的 inode 与资源标识不共享，但物理块共享——删除前无法用公开 API 精确测量真实可释放空间。因此：
+> APFS 克隆文件（`cp -c` / Xcode 测试快照）的 inode 与资源标识不共享，但物理块共享——删除前无法用公开 API 精确测量真实可释放空间。因此：
 
 - `reclaimableBytes` deduplicates hard links (same inode), making it an upper bound for clone-heavy directories.
 
@@ -185,14 +185,14 @@ APFS 克隆文件（`cp -c` / Xcode 测试快照）的 inode 与资源标识不�
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [CLA.md](CLA.md) first.
 
-欢迎贡献！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [CLA.md](CLA.md)。
+> 欢迎贡献！请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [CLA.md](CLA.md)。
 
 Before submitting a Pull Request, add your GitHub username to `.github/CLA_SIGNERS` — this counts as signing the Contributor License Agreement, and CI enforces the `CLA` status check.
 
-提交 Pull Request 前，请将你的 GitHub 用户名添加到 `.github/CLA_SIGNERS`，即视为签署贡献者许可协议；CI 的 `CLA` 状态检查会强制校验。
+> 提交 Pull Request 前，请将你的 GitHub 用户名添加到 `.github/CLA_SIGNERS`，即视为签署贡献者许可协议；CI 的 `CLA` 状态检查会强制校验。
 
 <p align="center"><img src="assets/readme/section-license.svg" width="100%" alt="License · 许可证"></p>
 
 Released under the [Apache License 2.0](LICENSE). Copyright © 2026 xingyu wang.
 
-本项目以 [Apache License 2.0](LICENSE) 发布。Copyright © 2026 xingyu wang。
+> 本项目以 [Apache License 2.0](LICENSE) 发布。Copyright © 2026 xingyu wang。
