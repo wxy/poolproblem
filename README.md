@@ -34,7 +34,7 @@ The Pool Problem is a disk attribution and governance tool for developers. It tr
 
 - macOS 14 or later.
 
-    macOS 14 及以上。
+    > macOS 14 及以上。
 
 <p align="center"><img src="assets/readme/section-installation.svg" width="100%" alt="Installation · 安装"></p>
 
@@ -44,11 +44,11 @@ Download the latest release from the button above, or browse every version on [G
 
 1. The DMG is **Apple-notarized** (Developer ID signature + Hardened Runtime), so it can be opened directly.
 
-    DMG 已通过 **Apple 公证**（Developer ID 签名 + Hardened Runtime），下载后可直接打开。
+    > DMG 已通过 **Apple 公证**（Developer ID 签名 + Hardened Runtime），下载后可直接打开。
 
 2. Open the DMG and drag `PoolProblem.app` into Applications.
 
-    打开 DMG，把 `PoolProblem.app` 拖入 Applications 即可。
+    > 打开 DMG，把 `PoolProblem.app` 拖入 Applications 即可。
 
 <p align="center"><img src="assets/readme/section-getting-started.svg" width="100%" alt="Getting Started · 快速开始"></p>
 
@@ -76,19 +76,19 @@ A reservoir water-level icon appears in the menu bar, updating in real time with
 
 - Click the panel for the free-space primary reading, fill prediction, cleanable items with safety badges, and one-tap smart cleanup (preview first, then confirm).
 
-    点击弹出面板：可用空间主读数、满盘预测、可清理项列表（含安全级别徽标）、一键“智能清理”（先预览后确认）。
+    > 点击弹出面板：可用空间主读数、满盘预测、可清理项列表（含安全级别徽标）、一键“智能清理”（先预览后确认）。
 
 - Settings: target waterline (default 30 GB), novice / expert mode, recipe toggles and retention days, whitelist, Full Disk Access status and onboarding, launch at login.
 
-    设置：目标水位（默认 30GB）、傻瓜 / 专家模式、配方开关与保留天数、白名单、完全磁盘访问状态与引导、开机自启。
+    > 设置：目标水位（默认 30GB）、傻瓜 / 专家模式、配方开关与保留天数、白名单、完全磁盘访问状态与引导、开机自启。
 
 - Notifications: low space (< 20 GB), abnormal growth, action needed (for example, quit Simulator), cleanup summary.
 
-    通知：空间紧张（<20GB）、异常增长、需要操作（如退出 Simulator）、清理摘要。
+    > 通知：空间紧张（<20GB）、异常增长、需要操作（如退出 Simulator）、清理摘要。
 
 - Automatic scans every 30 minutes; snapshots are saved to `~/Library/Application Support/PoolProblem` or the App Group container.
 
-    每 30 分钟自动扫描并保存快照（`~/Library/Application Support/PoolProblem` 或 App Group 容器）。
+    > 每 30 分钟自动扫描并保存快照（`~/Library/Application Support/PoolProblem` 或 App Group 容器）。
 
 On first launch, grant **Full Disk Access** in System Settings → Privacy & Security so protected directories such as `~/Library/Containers` can be scanned.
 
@@ -151,35 +151,35 @@ APFS clone files (`cp -c`, Xcode test snapshots) share physical blocks but not i
 
 - `reclaimableBytes` deduplicates hard links (same inode), making it an upper bound for clone-heavy directories.
 
-    `reclaimableBytes` 基于硬链接去重（inode 相同才去重），对克隆密集型目录是上界。
+    > `reclaimableBytes` 基于硬链接去重（inode 相同才去重），对克隆密集型目录是上界。
 
 - `clean` reports both the estimate (`freedBytes`) and the measured result (`actualFreedBytes`); trust the measured number.
 
-    `clean` 输出同时报告估算释放（`freedBytes`）与量规实测（`actualFreedBytes`），以实测为准。
+    > `clean` 输出同时报告估算释放（`freedBytes`）与量规实测（`actualFreedBytes`），以实测为准。
 
 <p align="center"><img src="assets/readme/section-roadmap.svg" width="100%" alt="Roadmap · 未来计划"></p>
 
 - M4: macOS desktop widget (paused).
 
-    M4：macOS 桌面小组件（暂缓）。
+    > M4：macOS 桌面小组件（暂缓）。
 
 - App icon polish.
 
-    应用图标打磨。
+    > 应用图标打磨。
 
 - FSEvents source governance, plus an MCP server for AI agents.
 
-    FSEvents 源头治理，以及供 AI Agent 调用的 MCP server。
+    > FSEvents 源头治理，以及供 AI Agent 调用的 MCP server。
 
 <p align="center"><img src="assets/readme/section-design-docs.svg" width="100%" alt="Design Docs · 设计文档"></p>
 
 - Design spec: [docs/superpowers/specs/2026-08-09-the-pool-problem-design.md](docs/superpowers/specs/2026-08-09-the-pool-problem-design.md)
 
-    设计：[docs/superpowers/specs/2026-08-09-the-pool-problem-design.md](docs/superpowers/specs/2026-08-09-the-pool-problem-design.md)
+    > 设计：[docs/superpowers/specs/2026-08-09-the-pool-problem-design.md](docs/superpowers/specs/2026-08-09-the-pool-problem-design.md)
 
 - Implementation plan: [docs/superpowers/plans/2026-08-09-core-cli.md](docs/superpowers/plans/2026-08-09-core-cli.md)
 
-    实现计划：[docs/superpowers/plans/2026-08-09-core-cli.md](docs/superpowers/plans/2026-08-09-core-cli.md)
+    > 实现计划：[docs/superpowers/plans/2026-08-09-core-cli.md](docs/superpowers/plans/2026-08-09-core-cli.md)
 
 <p align="center"><img src="assets/readme/section-contributing.svg" width="100%" alt="Contributing · 贡献"></p>
 
