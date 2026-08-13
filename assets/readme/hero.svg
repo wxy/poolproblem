@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="480" viewBox="0 0 1280 480" role="img" aria-labelledby="heroTitle heroDesc">
+  <title id="heroTitle">The Pool Problem — 蓄水池问题</title>
+  <desc id="heroDesc">浅色 hero：左侧产品名与中英双语标语，右侧蓄水池矢量插画（进水管、水位、量规、出水管）。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F8F4EA"/>
+      <stop offset="1" stop-color="#F1EBDD"/>
+    </linearGradient>
+    <pattern id="grid" width="34" height="34" patternUnits="userSpaceOnUse">
+      <path d="M34 0H0V34" fill="none" stroke="#2B2620" stroke-opacity="0.045"/>
+    </pattern>
+    <radialGradient id="warmGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F0C75F" stop-opacity="0.35"/>
+      <stop offset="0.55" stop-color="#F0C75F" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#F0C75F" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="waterGrad" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#D98E2B"/>
+      <stop offset="1" stop-color="#F0C75F"/>
+    </linearGradient>
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="480" fill="url(#bg)"/>
+  <rect width="1280" height="480" fill="url(#grid)"/>
+  <circle cx="980" cy="252" r="300" fill="url(#warmGlow)"/>
+  <line x1="512" y1="44" x2="512" y2="438" stroke="#2B2620" stroke-opacity="0.10"/>
+
+  <circle cx="742" cy="150" r="48" fill="#F0C75F" opacity="0.3" filter="url(#softGlow)"/>
+  <circle cx="742" cy="150" r="22" fill="#F0C75F" opacity="0.55"/>
+  <circle cx="742" cy="150" r="14" fill="#F6C85F" stroke="#2B2620" stroke-width="3.5"/>
+  <circle cx="742" cy="150" r="5" fill="#FFF9E8"/>
+
+  <rect x="850" y="150" width="280" height="212" rx="26" fill="#FFF9E8" stroke="#2B2620" stroke-width="4"/>
+  <path d="M860 356 L860 276 Q860 250 886 250 L1094 250 Q1120 250 1120 276 L1120 356 Q1120 358 1118 358 L862 358 Q860 358 860 356 Z" fill="url(#waterGrad)"/>
+  <path d="M860 254 C878 246 896 262 914 254 C932 246 950 262 968 254 C986 246 1004 262 1022 254 C1040 246 1058 262 1076 254 C1094 246 1108 260 1120 253" fill="none" stroke="#E8954C" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+
+  <circle cx="920" cy="320" r="5" fill="#FFF9E8" opacity="0.55"/>
+  <circle cx="980" cy="298" r="4" fill="#FFF9E8" opacity="0.55"/>
+  <circle cx="1038" cy="330" r="6" fill="#FFF9E8" opacity="0.55"/>
+
+  <line x1="660" y1="176" x2="850" y2="176" stroke="#2B2620" stroke-width="10" stroke-linecap="round"/>
+  <path d="M676 170 L684 176 L676 182 Z" fill="#E8954C"/>
+  <path d="M700 170 L708 176 L700 182 Z" fill="#E8954C"/>
+  <circle cx="726" cy="176" r="15" fill="#F0C75F" stroke="#2B2620" stroke-width="3"/>
+  <line x1="717" y1="165" x2="735" y2="187" stroke="#2B2620" stroke-width="3" stroke-linecap="round"/>
+
+  <path d="M985 362 V404 H1180" fill="none" stroke="#2B2620" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="1018" cy="404" r="15" fill="#F0C75F" stroke="#2B2620" stroke-width="3"/>
+  <circle cx="1180" cy="424" r="4" fill="#E8954C" opacity="0.8"/>
+  <circle cx="1187" cy="436" r="3" fill="#E8954C" opacity="0.6"/>
+
+  <rect x="1142" y="170" width="34" height="170" rx="10" fill="#FFF9E8" stroke="#2B2620" stroke-width="3"/>
+  <rect x="1144" y="272" width="30" height="66" rx="5" fill="#E8954C" opacity="0.85"/>
+  <line x1="1146" y1="196" x2="1172" y2="196" stroke="#2B2620" stroke-width="2.5"/>
+  <line x1="1146" y1="232" x2="1172" y2="232" stroke="#2B2620" stroke-width="2.5"/>
+  <line x1="1146" y1="268" x2="1172" y2="268" stroke="#2B2620" stroke-width="2.5"/>
+  <line x1="1146" y1="304" x2="1172" y2="304" stroke="#2B2620" stroke-width="2.5"/>
+  <line x1="1146" y1="340" x2="1172" y2="340" stroke="#2B2620" stroke-width="2.5"/>
+
+  <path d="M1212 88 L1213.6 93.4 L1219 95 L1213.6 96.6 L1212 102 L1210.4 96.6 L1205 95 L1210.4 93.4 Z" fill="#E8954C"/>
+  <path d="M1162 116 L1163.6 121.4 L1169 123 L1163.6 124.6 L1162 130 L1160.4 124.6 L1155 123 L1160.4 121.4 Z" fill="#E8954C"/>
+  <path d="M996 108 L997.6 113.4 L1003 115 L997.6 116.6 L996 122 L994.4 116.6 L989 115 L994.4 113.4 Z" fill="#E8954C"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif">
+    <text x="54" y="52" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13.5" font-weight="700" letter-spacing="2" fill="#A97A3B">DISK RESERVOIR FOR DEVELOPERS</text>
+    <text x="52" y="118" font-size="48" font-weight="850" letter-spacing="-1.2" fill="#2B2620">The Pool Problem</text>
+    <rect x="54" y="130" width="210" height="10" rx="5" fill="#F0C75F" opacity="0.9"/>
+    <text x="56" y="168" font-size="27" font-weight="700" fill="#B26B24">蓄水池问题</text>
+    <text x="56" y="196" font-size="22" font-weight="700" fill="#B26B24">The Cistern Problem for Your Disk</text>
+    <text x="56" y="234" font-size="19" font-weight="520" fill="#6B6255">让可用空间，始终稳定在健康水位。</text>
+    <text x="56" y="262" font-size="18" fill="#6B6255">Keep free space at a healthy waterline.</text>
+    <text x="56" y="296" font-size="14.5" fill="#6B6255">测量每个产废源的流速，预测何时会满，在源头治理。</text>
+    <text x="56" y="318" font-size="14.5" fill="#6B6255">Measure the flow, predict the fill, govern at the source.</text>
+  </g>
+
+  <g font-family="ui-monospace, 'SF Mono', Menlo, monospace">
+    <circle cx="64" cy="386" r="9" fill="#E8954C" stroke="#2B2620" stroke-width="3"/>
+    <text x="82" y="391" font-size="13" font-weight="700" letter-spacing="1.5" fill="#7A6F5F">MEASURE</text>
+    <line x1="170" y1="386" x2="206" y2="386" stroke="#2B2620" stroke-width="2"/>
+    <path d="M204 380 L212 386 L204 392 Z" fill="#2B2620"/>
+    <circle cx="224" cy="386" r="9" fill="#E8A24B" stroke="#2B2620" stroke-width="3"/>
+    <text x="242" y="391" font-size="13" font-weight="700" letter-spacing="1.5" fill="#7A6F5F">PREDICT</text>
+    <line x1="326" y1="386" x2="362" y2="386" stroke="#2B2620" stroke-width="2"/>
+    <path d="M360 380 L368 386 L360 392 Z" fill="#2B2620"/>
+    <circle cx="380" cy="386" r="9" fill="#F6C85F" stroke="#2B2620" stroke-width="3"/>
+    <text x="398" y="391" font-size="13" font-weight="700" letter-spacing="1.5" fill="#7A6F5F">GUARD</text>
+  </g>
+</svg>
