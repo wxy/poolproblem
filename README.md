@@ -1,6 +1,8 @@
 <p align="center"><img src="assets/readme/hero.svg" width="100%" alt="The Pool Problem — 蓄水池问题"></p>
 
-<p align="center"><img src="assets/readme/icon-rounded.png" width="96" height="96" alt="The Pool Problem App Icon"></p>
+<p align="center"><img src="assets/readme/icon-rounded.png" width="96" height="96" alt="The Pool Problem App Icon">&nbsp;<img src="assets/readme/download-button.svg" width="420" height="96" alt="Download v1.0.0 · GitHub Releases"></p>
+
+<p align="center"><code>macOS MENU BAR · SWIFTUI · MACOS 14+</code></p>
 
 The Pool Problem is a disk attribution and governance tool for developers. It treats your disk as the classic cistern problem — measuring the inflow from every source of regenerable waste (Xcode build products, simulator snapshots, package-manager caches, and more), predicting when the disk will fill up, tracking why space returns after a cleanup, and governing at the source so free space stays at a healthy waterline.
 
@@ -36,9 +38,9 @@ The Pool Problem 是面向开发者的磁盘“归因与治理”工具：把磁
 
 <p align="center"><img src="assets/readme/section-installation.svg" width="100%" alt="Installation · 安装"></p>
 
-Download `PoolProblem-1.0.0.dmg` from [GitHub Releases](https://github.com/wxy/poolproblem/releases/latest).
+Download the latest release from the button above, or browse every version on [GitHub Releases](https://github.com/wxy/poolproblem/releases/latest).
 
-从 [GitHub Releases](https://github.com/wxy/poolproblem/releases/latest) 下载 `PoolProblem-1.0.0.dmg`。
+从上方按钮下载最新版，或在 [GitHub Releases](https://github.com/wxy/poolproblem/releases/latest) 查看全部版本。
 
 1. The DMG is **Apple-notarized** (Developer ID signature + Hardened Runtime), so it can be opened directly.
 

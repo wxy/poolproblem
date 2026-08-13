@@ -3,6 +3,10 @@
     <pattern id="g" width="34" height="34" patternUnits="userSpaceOnUse">
       <path d="M34 0H0V34" fill="none" stroke="#2B2620" stroke-opacity="0.045"/>
     </pattern>
+    <linearGradient id="wg" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#D98E2B"/>
+      <stop offset="1" stop-color="#F0C75F"/>
+    </linearGradient>
   </defs>
   <rect width="1200" height="138" rx="20" fill="#F6F2E8"/>
   <rect width="1200" height="138" rx="20" fill="url(#g)"/>
@@ -12,9 +16,9 @@
   <text x="54" y="104" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif" font-size="40" font-weight="800" fill="#2B2620">CLI Usage · CLI 用法</text>
 
   <circle cx="1062" cy="62" r="30" fill="#E8954C" opacity="0.12"/>
-  <circle cx="1062" cy="62" r="12" fill="#F0C75F" stroke="#2B2620" stroke-width="3"/>
-  <circle cx="1062" cy="62" r="4.5" fill="#FFF9E8"/>
-  <ellipse cx="1012" cy="94" rx="6" ry="2.8" fill="#D98E2B" opacity="0.55" transform="rotate(-8 1012 94)"/>
-  <ellipse cx="1026" cy="90" rx="6" ry="2.8" fill="#D98E2B" opacity="0.55" transform="rotate(-8 1026 90)"/>
-  <path d="M1138 30 L1139.6 35.4 L1145 37 L1139.6 38.6 L1138 44 L1136.4 38.6 L1131 37 L1136.4 35.4 Z" fill="#E8954C"/>
+  <rect x="1030" y="38" width="66" height="56" rx="12" fill="#FFF9E8" stroke="#2B2620" stroke-width="3"/>
+  <path d="M1034 88 L1034 78 Q1034 72 1040 72 L1086 72 Q1092 72 1092 78 L1092 88 Q1092 90 1090 90 L1036 90 Q1034 90 1034 88 Z" fill="url(#wg)"/>
+  <path d="M1034 76 C1044 70 1054 82 1064 76 C1074 70 1084 82 1092 76" fill="none" stroke="#E8954C" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="1062" cy="82" r="2.5" fill="#FFF9E8" opacity="0.6"/>
+  <path d="M1152 30 L1153.6 35.4 L1159 37 L1153.6 38.6 L1152 44 L1150.4 38.6 L1145 37 L1150.4 35.4 Z" fill="#E8954C"/>
 </svg>
