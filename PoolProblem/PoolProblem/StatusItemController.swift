@@ -40,9 +40,18 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     }
 
     private func refreshIcon() {
+        let activity: PoolStatusIcon.Activity
+        if state.isCleaning {
+            activity = .cleaning
+        } else if state.isScanning {
+            activity = .scanning
+        } else {
+            activity = .idle
+        }
         statusItem.button?.image = PoolStatusIcon.image(
             availableBytes: state.availableBytes,
-            waterlineBytes: state.waterlineBytes
+            waterlineBytes: state.waterlineBytes,
+            activity: activity
         )
     }
 

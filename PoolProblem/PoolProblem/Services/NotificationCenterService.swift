@@ -2,7 +2,7 @@ import Foundation
 import UserNotifications
 
 enum NotificationKind: String {
-    case lowSpace, growth, needsAction, weeklySummary, permission
+    case lowSpace, growth, needsAction, weeklySummary, permission, trash
 }
 
 final class NotificationCenterService {

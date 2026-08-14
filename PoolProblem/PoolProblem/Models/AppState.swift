@@ -10,6 +10,7 @@ final class AppState: ObservableObject {
     @Published var items: [ScanItem] = []
     @Published var lastScanAt: Date?
     @Published var predictionDays: Double?
+    @Published var autoCleanPlan = ""
     @Published var waterlineBytes: Int64 = 30_000_000_000
     @Published var topInflows: [(name: String, bytes: Int64)] = []
     @Published var weeklyCleanedBytes: Int64 = 0
@@ -29,6 +30,7 @@ final class AppState: ObservableObject {
     @Published var weeklyNetChangeBytes: Int64 = 0
     @Published var historyTimestamps: [Date] = []
     @Published var cleaningEvents: [(timestamp: Date, freedBytes: Int64, isManual: Bool)] = []
+    @Published var cleanLogEntries: [CleanLogEntry] = []
     @Published var pendingClean: CleanOutcome?
     @Published var cleanOutcome: CleanOutcome?
     @Published var showCleanConfirm = false

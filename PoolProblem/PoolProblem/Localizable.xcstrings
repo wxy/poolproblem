@@ -132,6 +132,22 @@
         }
       }
     },
+    "clean.auto_summary" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto cleaned %lld items, about %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已自动清理 %lld 项，约 %@"
+          }
+        }
+      }
+    },
     "clean.confirm_message" : {
       "localizations" : {
         "en" : {
@@ -304,6 +320,118 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "水位稳定，暂无自动清理计划"
+          }
+        }
+      }
+    },
+    "countdown.plan_below" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Below waterline; auto-clean will run to restore headroom"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已低于水线，将自动清理恢复空间"
+          }
+        }
+      }
+    },
+    "countdown.plan_near" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Near waterline; next scan may auto-clean about %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接近水线，下次扫描将自动清理约 %@"
+          }
+        }
+      }
+    },
+    "countdown.plan_fast_growth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is growing quickly; older subitems will be trimmed soon"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 增长较快，将清理较旧子项"
+          }
+        }
+      }
+    },
+    "countdown.plan_many_children" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has %lld subitems; older ones will be trimmed soon"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 已有 %lld 个子项，将清理较旧子项"
+          }
+        }
+      }
+    },
+    "countdown.plan_large_reclaimable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reclaimable items have accumulated about %@; a small auto-clean is planned"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可清理项已积累约 %@，计划小批量清理"
+          }
+        }
+      }
+    },
+    "countdown.plan_idle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No plan yet; auto-clean triggers near waterline, at %@ reclaimable, or when an item grows quickly"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无计划；接近水线、可清理量达 %@ 或某项快速增长时触发"
+          }
+        }
+      }
+    },
+    "countdown.plan_cleaned" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-cleaned %lld items this scan, about %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次已自动清理 %lld 项，约 %@"
           }
         }
       }
@@ -532,6 +660,166 @@
         }
       }
     },
+    "history.disposition_none" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未删除"
+          }
+        }
+      }
+    },
+    "history.disposition_permanent" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted permanently"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已彻底删除"
+          }
+        }
+      }
+    },
+    "history.disposition_trash" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved to Trash"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已移到废纸篓"
+          }
+        }
+      }
+    },
+    "history.empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cleanup records yet."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有清理记录。"
+          }
+        }
+      }
+    },
+    "history.source_auto" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动"
+          }
+        }
+      }
+    },
+    "history.source_manual" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动"
+          }
+        }
+      }
+    },
+    "history.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleanup History"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理历史"
+          }
+        }
+      }
+    },
+    "history.tooltip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleanup history"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理历史"
+          }
+        }
+      }
+    },
+    "history.undo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销"
+          }
+        }
+      }
+    },
+    "history.undo_failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't restore this cleanup entry."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未能恢复这条清理记录。"
+          }
+        }
+      }
+    },
     "info.non_cleanable_body" : {
       "localizations" : {
         "en" : {
@@ -644,6 +932,38 @@
         }
       }
     },
+    "notify.trash_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Trash is using about %@. Empty it to actually free the space."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "废纸篓目前占用约 %@，请手动清空以真正释放空间。"
+          }
+        }
+      }
+    },
+    "notify.trash_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trash is getting full"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "废纸篓已经积了不少东西"
+          }
+        }
+      }
+    },
     "outlet.cleaned_this_week" : {
       "localizations" : {
         "en" : {
@@ -704,6 +1024,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本周尚未清理"
+          }
+        }
+      }
+    },
+    "outlet.recent_logs_empty" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cleanups yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还没有清理记录"
+          }
+        }
+      }
+    },
+    "outlet.recent_logs_title" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent cleanups"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近清理"
           }
         }
       }

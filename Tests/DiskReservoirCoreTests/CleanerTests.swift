@@ -153,7 +153,7 @@ final class CaptureBox: @unchecked Sendable {
         config: .default,
         waterlineBytes: 30_000,
         onItemWillDelete: { capture.will.append($0) },
-        onItemCleaned: { capture.cleaned.append($0) }
+        onItemCleaned: { itemID, _ in capture.cleaned.append(itemID) }
     )
     #expect(capture.will == ["cb"])
     #expect(capture.cleaned == ["cb"])
@@ -201,7 +201,7 @@ final class CaptureBox: @unchecked Sendable {
         config: .default,
         waterlineBytes: 30_000_000,
         onItemWillDelete: { capture.will.append($0) },
-        onItemCleaned: { capture.cleaned.append($0) }
+        onItemCleaned: { itemID, _ in capture.cleaned.append(itemID) }
     )
     #expect(capture.will == ["small", "big"])
     #expect(capture.cleaned == ["small", "big"])

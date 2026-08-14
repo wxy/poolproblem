@@ -11,6 +11,7 @@ struct MenuBarView: View {
     @State private var showSettings = false
     @State private var spinning = false
     @State private var showNonCleanableInfo = false
+    @State private var showCleanHistory = false
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -33,14 +34,20 @@ struct MenuBarView: View {
             HStack(alignment: .top, spacing: 0) {
                 Spacer(minLength: 0)
                 rightPanel
-                    .frame(width: 310)
-                    .frame(maxHeight: .infinity, alignment: .top)
+                    .frame(width: 310, height: 470, alignment: .top)
                     .background(
                         Rectangle().fill(
                             Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.94)
                         )
                     )
             }
+
+            // 右侧白色面板下方：单独铺一块黑色区域，排水管叠在这块区域上
+            Rectangle()
+                .fill(Color.black)
+                .frame(width: 310, height: 90)
+                .position(x: 545, y: 515)
+                .allowsHitTesting(false)
 
             // 水池右缘池壁：内侧受光高光 + 深色壁体（出水管左端盖对齐壁体右缘 x=392）
             ZStack {
@@ -120,6 +127,12 @@ struct MenuBarView: View {
                 .zIndex(13)
             }
 
+            if showCleanHistory {
+                cleanHistoryOverlay
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
+                    .zIndex(13)
+            }
+
         }
         .frame(width: 700, height: 560)
         .onHover { hovering in
@@ -141,7 +154,8 @@ struct MenuBarView: View {
     }
 
     private var rightPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(verbatim: "The Pool Problem")
@@ -168,14 +182,14 @@ struct MenuBarView: View {
 
             countdown
 
-            if let summary = state.lastCleanSummary {
-                Text(summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let summary = state.lastCleanSummary {
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-
+            .padding(14)
         }
-        .padding(14)
     }
 
     private var summary: some View {
@@ -283,6 +297,7 @@ struct MenuBarView: View {
                             .frame(width: 10)
                         safetyMark(layer)
                     }
+                    .frame(height: 22)
                     .opacity(state.deletingItemID == layer.itemID ? 0.35 : 1)
                     .animation(
                         state.deletingItemID == layer.itemID
@@ -375,6 +390,8 @@ struct MenuBarView: View {
                 } else {
                     Text(Localized.string("countdown.days", Int(days.rounded())))
                 }
+            } else if !state.autoCleanPlan.isEmpty {
+                Text(state.autoCleanPlan)
             } else {
                 Text(Localized.string("countdown.stable"))
             }
@@ -420,6 +437,15 @@ struct MenuBarView: View {
             .buttonStyle(PressableButtonStyle())
             .focusEffectDisabled()
             .cursorPointingHand()
+            Button {
+                withAnimation(overlaySpring) { showCleanHistory = true }
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+            }
+            .buttonStyle(PressableButtonStyle())
+            .focusEffectDisabled()
+            .cursorPointingHand()
+            .help(Localized.string("history.tooltip"))
             Button {
                 NSApplication.shared.terminate(nil)
             } label: {
@@ -612,6 +638,175 @@ struct MenuBarView: View {
         .background(Color.black.opacity(0.15))
     }
 
+    private var cleanHistoryOverlay: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(Localized.string("history.title"))
+                    .font(.headline)
+                Spacer()
+                Button {
+                    withAnimation(overlaySpring) { showCleanHistory = false }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+            }
+
+            Divider()
+
+            if state.cleanLogEntries.isEmpty {
+                Text(Localized.string("history.empty"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                let groups = cleanupHistoryGroups(state.cleanLogEntries)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(groups) { group in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Text(group.timestamp.formatted(date: .abbreviated, time: .shortened))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                    Text(historySourceText(group.source))
+                                        .font(.caption2)
+                                        .foregroundStyle(group.source == .auto ? Color.green : Color.orange)
+                                    Spacer()
+                                    Text(Format.bytes(group.freedBytes))
+                                        .font(.caption)
+                                        .monospacedDigit()
+                                        .foregroundStyle(.secondary)
+                                }
+                                ForEach(group.entries) { entry in
+                                    cleanHistoryItemRow(entry)
+                                }
+                            }
+                            Divider()
+                        }
+                    }
+                }
+                .frame(maxHeight: 380)
+            }
+
+            HStack {
+                Spacer()
+                Button(Localized.string("common.close")) {
+                    withAnimation(overlaySpring) { showCleanHistory = false }
+                }
+                .buttonStyle(PressableButtonStyle())
+                .focusEffectDisabled()
+                .cursorPointingHand()
+            }
+        }
+        .padding(14)
+        .frame(width: 440)
+        .background(
+            Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.97),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.15))
+    }
+
+    private func cleanHistoryItemRow(_ entry: CleanLogEntry) -> some View {
+        HStack(spacing: 8) {
+            Text(historyNames(entry))
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Text(Format.bytes(entry.freedBytes))
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            if service.canUndo(entry) {
+                Button {
+                    Task { _ = await service.undoCleanup(entry) }
+                } label: {
+                    Label(Localized.string("history.undo"), systemImage: "arrow.uturn.backward")
+                        .font(.caption2)
+                }
+                .buttonStyle(.borderless)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+            }
+        }
+    }
+
+    private func historyNames(_ entry: CleanLogEntry) -> String {
+        if !entry.itemNames.isEmpty {
+            return entry.itemNames.joined(separator: ", ")
+        }
+        return entry.itemIDs
+            .map(historyItemName)
+            .joined(separator: ", ")
+    }
+
+    private func cleanupHistoryGroups(_ entries: [CleanLogEntry]) -> [CleanupHistoryGroup] {
+        var groups: [String: CleanupHistoryGroup] = [:]
+        var order: [String] = []
+        for entry in entries {
+            let key = historyGroupKey(entry)
+            if var group = groups[key] {
+                group.entries.append(entry)
+                groups[key] = group
+            } else {
+                order.append(key)
+                groups[key] = CleanupHistoryGroup(
+                    id: entry.batchID ?? UUID(),
+                    timestamp: entry.timestamp,
+                    source: entry.source,
+                    entries: [entry]
+                )
+            }
+        }
+        return order.compactMap { key in
+            guard let group = groups[key] else { return nil }
+            return CleanupHistoryGroup(
+                id: group.id,
+                timestamp: group.timestamp,
+                source: group.source,
+                entries: group.entries.sorted { $0.timestamp < $1.timestamp }
+            )
+        }
+    }
+
+    private func historyGroupKey(_ entry: CleanLogEntry) -> String {
+        if let batchID = entry.batchID {
+            return "batch-\(batchID.uuidString)"
+        }
+        return "legacy-\(entry.source.rawValue)-\(Int(entry.timestamp.timeIntervalSince1970))"
+    }
+
+    private func historyItemName(_ itemID: String) -> String {
+        let path = itemID.split(separator: ":", maxSplits: 1).last.map(String.init) ?? itemID
+        return path.split(separator: "/").last.map(String.init) ?? itemID
+    }
+
+    private func historySourceText(_ source: CleanSource) -> String {
+        switch source {
+        case .auto:
+            return Localized.string("history.source_auto")
+        case .manual:
+            return Localized.string("history.source_manual")
+        }
+    }
+
+    private func historyDispositionText(_ entry: CleanLogEntry) -> String {
+        switch entry.disposition {
+        case .trash:
+            return Localized.string("history.disposition_trash")
+        case .deletePermanently:
+            return Localized.string("history.disposition_permanent")
+        case .none:
+            return Localized.string("history.disposition_none")
+        }
+    }
+
     private func explanation(for item: ScanItem) -> String {
         switch item.category {
         case .xcode:
@@ -665,6 +860,17 @@ struct MenuBarView: View {
         case .userConfirm:
             return Text(Localized.string("badge.user_confirm")).font(.caption2).foregroundStyle(.gray)
         }
+    }
+}
+
+private struct CleanupHistoryGroup: Identifiable {
+    let id: UUID
+    let timestamp: Date
+    let source: CleanSource
+    var entries: [CleanLogEntry]
+
+    var freedBytes: Int64 {
+        entries.reduce(Int64(0)) { $0 + $1.freedBytes }
     }
 }
 

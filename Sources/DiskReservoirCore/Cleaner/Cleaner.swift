@@ -55,7 +55,7 @@ public struct Cleaner: Sendable {
         forceClean: Bool = false,
         source: CleanSource = .manual,
         onItemWillDelete: (@Sendable (String) -> Void)? = nil,
-        onItemCleaned: (@Sendable (String) -> Void)? = nil
+        onItemCleaned: (@Sendable (String, CleanDisposition) -> Void)? = nil
     ) throws -> CleanOutcome {
         var deficit = waterlineBytes - scan.volume.availableBytes
         guard deficit > 0 else {
@@ -70,6 +70,7 @@ public struct Cleaner: Sendable {
         var entries: [CleanLogEntry] = []
         var freedTotal: Int64 = 0
         var below = true
+        let batchID = UUID()
         for item in candidates {
             guard item.reclaimableBytes > 0 else { continue }
             guard deficit > 0 else { below = false; break }
@@ -91,15 +92,22 @@ public struct Cleaner: Sendable {
             }
             guard let disposition else { continue }
             onItemWillDelete?(item.id)
-            let freed = try deleter.delete(url: URL(fileURLWithPath: item.path), disposition: disposition)
-            onItemCleaned?(item.id)
-            freedTotal += freed
-            deficit -= freed
+            let deletion = try deleter.deleteReturningResult(
+                url: URL(fileURLWithPath: item.path),
+                disposition: disposition
+            )
+            onItemCleaned?(item.id, disposition)
+            freedTotal += deletion.freedBytes
+            deficit -= deletion.freedBytes
             entries.append(CleanLogEntry(
                 id: UUID(),
                 timestamp: now(),
                 itemIDs: [item.id],
-                freedBytes: freed,
+                itemNames: [item.name],
+                originalPaths: [item.path],
+                trashPaths: disposition == .trash ? [deletion.resultingURL?.path ?? ""] : [],
+                batchID: batchID,
+                freedBytes: deletion.freedBytes,
                 disposition: disposition,
                 source: source
             ))

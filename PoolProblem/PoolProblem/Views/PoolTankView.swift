@@ -169,19 +169,13 @@ struct PoolTankView: View {
 
         // 3.5) 金属拐角水管（参照 xingyu.wang 官网 pipes：管身金属渐变+高光阴影、两端端盖、拐角连接件）
         let pipeDiameter: CGFloat = 18
-        // 进水管数量：可清理项 ≤5 → 1 根；5~10 → 2 根；>10 → 3 根（当前测试固定为 3 根）
+        // 进水管数量：每 4 个可清理项对应 1 根，最多 2 根
         let cleanableCount = cleanableItems.filter { $0.recipeID != "trash" && $0.reclaimableBytes > 0 }.count
-        let pipeCount = cleanableCount <= 5 ? 1 : (cleanableCount <= 10 ? 2 : 3)
+        let pipeCount = min(2, max(1, (cleanableCount + 3) / 4))
         let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)]
         switch pipeCount {
         case 1:
             pipes = [(390, 120, 160, 180)]
-        case 3:
-            pipes = [
-                (390, 100, 140, 200),
-                (390, 170, 230, 130),
-                (390, 230, 300, 70),
-            ]
         default:
             pipes = [
                 (390, 100, 140, 200),

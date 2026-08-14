@@ -57,8 +57,13 @@ enum JSONOutput {
                     "id": entry.id.uuidString,
                     "timestamp": ISO8601DateFormatter().string(from: entry.timestamp),
                     "itemIDs": entry.itemIDs,
+                    "itemNames": entry.itemNames,
+                    "originalPaths": entry.originalPaths,
+                    "trashPaths": entry.trashPaths,
+                    "batchID": entry.batchID?.uuidString as Any,
                     "freedBytes": entry.freedBytes,
                     "disposition": entry.disposition.rawValue,
+                    "source": entry.source.rawValue,
                 ]
             },
         ]
@@ -85,8 +90,14 @@ enum JSONOutput {
                 [
                     "id": entry.id.uuidString,
                     "timestamp": ISO8601DateFormatter().string(from: entry.timestamp),
+                    "itemIDs": entry.itemIDs,
+                    "itemNames": entry.itemNames,
+                    "originalPaths": entry.originalPaths,
+                    "trashPaths": entry.trashPaths,
+                    "batchID": entry.batchID?.uuidString as Any,
                     "freedBytes": entry.freedBytes,
                     "disposition": entry.disposition.rawValue,
+                    "source": entry.source.rawValue,
                 ]
             },
         ]
