@@ -37,7 +37,7 @@ struct MenuBarView: View {
                     .frame(width: 310, height: 470, alignment: .top)
                     .background(
                         Rectangle().fill(
-                            Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.94)
+                            Color(nsColor: .windowBackgroundColor)
                         )
                     )
             }
@@ -50,18 +50,11 @@ struct MenuBarView: View {
                 .allowsHitTesting(false)
 
             // 水池右缘池壁：内侧受光高光 + 深色壁体（出水管左端盖对齐壁体右缘 x=392）
-            ZStack {
-                Rectangle()
-                    .fill(Color.white.opacity(colorScheme == .dark ? 0.16 : 0.45))
-                    .frame(width: 1)
-                    .frame(maxHeight: .infinity)
-                    .position(x: 389.2, y: 280)
-                Rectangle()
-                    .fill(Color.black.opacity(colorScheme == .dark ? 0.85 : 0.70))
-                    .frame(width: 2)
-                    .frame(maxHeight: .infinity)
-                    .position(x: 391, y: 280)
-            }
+            Rectangle()
+                .fill(Color.white.opacity(colorScheme == .dark ? 0.32 : 0.70))
+                .frame(width: 3)
+                .frame(maxHeight: .infinity)
+                .position(x: 390, y: 280)
             .allowsHitTesting(false)
 
             // 出水管：跨在水池右缘、画在面板之上（从池里往外流水），点击触发智能清理
@@ -154,41 +147,93 @@ struct MenuBarView: View {
     }
 
     private var rightPanel: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(verbatim: "The Pool Problem")
-                        .font(.headline)
-                    Text(state.isScanning
-                         ? Localized.string("refresh.scanning")
-                         : (state.lastScanAt.map { Localized.string("header.updated_at", $0.formatted(date: .omitted, time: .shortened)) } ?? Localized.string("header.not_scanned")))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            rightPanelHeader
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    legend
+
+                    Divider()
+
+                    summary
+
+                    Divider()
+
+                    if let summary = state.lastCleanSummary {
+                        Text(summary)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if !state.autoCleanPlans.isEmpty {
+                        autoCleanPlanList
+                    } else if !state.autoCleanPlan.isEmpty {
+                        Text(state.autoCleanPlan)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                Spacer()
-                iconButtons
+                .padding(14)
             }
+        }
+    }
 
-            Divider()
-
-            legend
-
-            Divider()
-
-            summary
-
-            Divider()
-
-            countdown
-
-                if let summary = state.lastCleanSummary {
-                    Text(summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+    private var autoCleanPlanList: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ForEach(state.autoCleanPlans) { plan in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(plan.title)
+                            .font(.caption)
+                            .lineLimit(1)
+                        Spacer()
+                        if let estimatedDate = plan.estimatedDate {
+                            Text(estimatedTimeText(estimatedDate))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        } else {
+                            Text(Localized.string("countdown.plan_pending"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Rectangle()
+                                .fill(Color.secondary.opacity(0.16))
+                                .frame(height: 1)
+                            Rectangle()
+                                .fill(Color.accentColor)
+                                .frame(
+                                    width: max(1, geo.size.width * CGFloat(min(max(plan.progress, 0), 1))),
+                                    height: 1
+                                )
+                        }
+                    }
+                    .frame(height: 1)
                 }
             }
-            .padding(14)
+        }
+    }
+
+    private var rightPanelHeader: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "The Pool Problem")
+                    .font(.headline)
+                Text(state.isScanning
+                     ? Localized.string("refresh.scanning")
+                     : (state.lastScanAt.map { Localized.string("header.updated_at", $0.formatted(date: .omitted, time: .shortened)) } ?? Localized.string("header.not_scanned")))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            iconButtons
         }
     }
 
@@ -378,27 +423,6 @@ struct MenuBarView: View {
             }
             .padding(.top, 2)
         }
-    }
-
-    private var countdown: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "clock")
-                .foregroundStyle(.secondary)
-            if let days = state.predictionDays {
-                if days <= 1 {
-                    Text(Localized.string("countdown.hours", Int((days * 24).rounded())))
-                } else {
-                    Text(Localized.string("countdown.days", Int(days.rounded())))
-                }
-            } else if !state.autoCleanPlan.isEmpty {
-                Text(state.autoCleanPlan)
-            } else {
-                Text(Localized.string("countdown.stable"))
-            }
-            Spacer()
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
 
     /// 右上角图标：刷新、设置、退出
@@ -805,6 +829,20 @@ struct MenuBarView: View {
         case .none:
             return Localized.string("history.disposition_none")
         }
+    }
+
+    private func estimatedTimeText(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        let time = date.formatted(date: .omitted, time: .shortened)
+        if calendar.isDate(date, inSameDayAs: now) {
+            return Localized.string("plan.time_today", time)
+        }
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+           calendar.isDate(date, inSameDayAs: tomorrow) {
+            return Localized.string("plan.time_tomorrow", time)
+        }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 
     private func explanation(for item: ScanItem) -> String {

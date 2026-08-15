@@ -36,7 +36,10 @@ final class AppService {
             }
         }
         Task { await loadLatestState() }
-        Task { await scanNow() }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            await scanNow()
+        }
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in await self?.scanNow() }
@@ -73,7 +76,7 @@ final class AppService {
         defer { state.isScanning = false }
         let paths = self.paths
         let cloneRatios = loadConfig().cloneRatios
-        let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, Snapshot?, [Snapshot])? in
+        let work = Task.detached(priority: .utility) { () -> (ScanResult, Snapshot?, [Snapshot])? in
             guard let result = try? DiskReservoirCore.Scanner(cloneRatios: cloneRatios).scan(
                 recipes: RecipeRegistry.builtIn(),
                 homeDirectory: NSHomeDirectory()
@@ -98,7 +101,10 @@ final class AppService {
         let snapshot = Snapshot(volume: result.volume, items: result.items)
         checkGrowth(previous: previous, latest: snapshot)
         checkLowSpace(available: result.volume.availableBytes)
-        state.autoCleanPlan = upcomingAutoCleanPlan(result: result)
+        let plans = upcomingAutoCleanPlans(result: result)
+        state.autoCleanPlans = plans
+        state.autoCleanPlan = plans.first?.title
+            ?? Localized.string("countdown.plan_idle", Format.bytes(earlyProactiveTriggerBytes))
         if !state.isCleaning {
             state.cleanedItemIDs = []
         }
@@ -455,11 +461,12 @@ final class AppService {
 
     // MARK: - Proactive auto-clean
 
-    private func upcomingAutoCleanPlan(result: ScanResult) -> String {
+    private func upcomingAutoCleanPlans(result: ScanResult) -> [AutoCleanPlanItem] {
+        let now = Date()
         let waterline = waterlineBytes()
-        if result.volume.availableBytes < waterline {
-            return Localized.string("countdown.plan_below")
-        }
+        let nextScan = now.addingTimeInterval(30 * 60)
+        let oneWeek: Double = 7 * 86_400
+        var plans: [AutoCleanPlanItem] = []
 
         let safeItems = result.items.filter {
             $0.recipeID != "trash"
@@ -467,36 +474,94 @@ final class AppService {
                 && $0.reclaimableBytes > 0
         }
         let safeReclaimableBytes = safeItems.reduce(Int64(0)) { $0 + $1.reclaimableBytes }
-
-        if result.volume.availableBytes < waterline + proactiveCleanTriggerBytes {
-            return Localized.string(
-                "countdown.plan_near",
-                Format.bytes(proactiveCleanBatchBytes)
-            )
-        }
-
-        let recipe = RecipeRegistry.builtIn().first { $0.id == "xctestdevices" }
-        let prefix = "xctestdevices:"
-        let recipeGrowthRate = state.growthRates
-            .filter { $0.key.hasPrefix(prefix) }
+        let safeItemIDs = Set(safeItems.map(\.id))
+        let safeGrowthRate = state.growthRates
+            .filter { safeItemIDs.contains($0.key) && $0.value > 0 }
             .values
-            .max() ?? 0
-        if recipeGrowthRate >= fastGrowthTriggerBytesPerDay {
-            return Localized.string("countdown.plan_fast_growth", name(for: "xctestdevices"))
+            .reduce(0, +)
+
+        // 1. 水线守护 / 接近水线
+        if result.volume.availableBytes < waterline {
+            plans.append(AutoCleanPlanItem(
+                id: UUID(),
+                title: Localized.string("countdown.plan_below"),
+                estimatedDate: nextScan,
+                progress: 1
+            ))
+        } else if result.volume.availableBytes < waterline + proactiveCleanTriggerBytes {
+            let distance = Double(max(0, result.volume.availableBytes - waterline))
+            let span = Double(proactiveCleanTriggerBytes)
+            let progress = 1 - min(1, distance / span)
+            plans.append(AutoCleanPlanItem(
+                id: UUID(),
+                title: Localized.string("countdown.plan_near", Format.bytes(proactiveCleanBatchBytes)),
+                estimatedDate: nextScan,
+                progress: progress
+            ))
+        } else if let days = state.predictionDays, days <= 7 {
+            let progress = min(1, max(0.05, 1 - min(1, days / 30)))
+            plans.append(AutoCleanPlanItem(
+                id: UUID(),
+                title: Localized.string("countdown.plan_waterline_prediction"),
+                estimatedDate: now.addingTimeInterval(days * 86_400),
+                progress: progress
+            ))
         }
 
-        if let recipe, let path = recipe.resolvePaths(paths).first {
-            let childCount = POSIXDirectoryWalker.firstLevelCount(path: path) ?? 0
-            if childCount > 10 {
-                return Localized.string("countdown.plan_many_children", name(for: "xctestdevices"), childCount)
+        // 2. 可清理项库存 / 快速增长 / 子项数量
+        let fastGrowingItem = safeItems.max { left, right in
+            (state.growthRates[left.id] ?? 0) < (state.growthRates[right.id] ?? 0)
+        }
+        let fastestGrowthRate = fastGrowingItem.map { state.growthRates[$0.id] ?? 0 } ?? 0
+        if fastestGrowthRate >= fastGrowthTriggerBytesPerDay, let fastGrowingItem {
+            plans.append(AutoCleanPlanItem(
+                id: UUID(),
+                title: Localized.string("countdown.plan_fast_growth", name(for: fastGrowingItem.recipeID)),
+                estimatedDate: nextScan,
+                progress: 1
+            ))
+        } else if let manyChildrenItem = safeItems.first(where: { item in
+            (POSIXDirectoryWalker.firstLevelCount(path: item.path) ?? 0) > 10
+        }) {
+            let childCount = POSIXDirectoryWalker.firstLevelCount(path: manyChildrenItem.path) ?? 0
+                plans.append(AutoCleanPlanItem(
+                    id: UUID(),
+                    title: Localized.string("countdown.plan_many_children", name(for: manyChildrenItem.recipeID), childCount),
+                    estimatedDate: nextScan,
+                    progress: min(1, Double(childCount) / 12)
+                ))
+        }
+
+        if plans.count < 2, safeReclaimableBytes >= earlyProactiveTriggerBytes {
+            plans.append(AutoCleanPlanItem(
+                id: UUID(),
+                title: Localized.string("countdown.plan_large_reclaimable", Format.bytes(safeReclaimableBytes)),
+                estimatedDate: nextScan,
+                progress: 1
+            ))
+        }
+
+        if plans.count < 2, safeGrowthRate > 0 {
+            let remainingBytes = max(0, earlyProactiveTriggerBytes - safeReclaimableBytes)
+            let daysToThreshold = Double(remainingBytes) / safeGrowthRate
+            if daysToThreshold <= 7 {
+                let estimatedDate = now.addingTimeInterval(daysToThreshold * 86_400)
+                plans.append(AutoCleanPlanItem(
+                    id: UUID(),
+                    title: Localized.string("countdown.plan_inventory_waiting"),
+                    estimatedDate: estimatedDate,
+                    progress: min(1, Double(safeReclaimableBytes) / Double(earlyProactiveTriggerBytes))
+                ))
             }
         }
 
-        if safeReclaimableBytes >= earlyProactiveTriggerBytes {
-            return Localized.string("countdown.plan_large_reclaimable", Format.bytes(safeReclaimableBytes))
-        }
-
-        return Localized.string("countdown.plan_idle", Format.bytes(earlyProactiveTriggerBytes))
+        return plans
+            .filter { plan in
+                guard let estimatedDate = plan.estimatedDate else { return true }
+                return estimatedDate.timeIntervalSince(now) <= oneWeek
+            }
+            .prefix(2)
+            .map { $0 }
     }
 
     private func maybeAutoClean(result: ScanResult) async {
@@ -555,11 +620,8 @@ final class AppService {
                 totalCount,
                 Format.bytes(totalFreed)
             )
-            state.autoCleanPlan = Localized.string(
-                "countdown.plan_cleaned",
-                totalCount,
-                Format.bytes(totalFreed)
-            )
+            state.autoCleanPlan = ""
+            state.autoCleanPlans = []
             refreshCleanLogEntries()
         }
     }
@@ -678,35 +740,45 @@ final class AppService {
     }
 
     private func progressivePolicies(config: Config) -> [ProgressiveCleanupPolicy] {
-        guard let recipe = RecipeRegistry.builtIn().first(where: { $0.id == "xctestdevices" }) else {
-            return []
-        }
-        if let rule = config.rules.first(where: { $0.recipeID == recipe.id }), !rule.enabled {
-            return []
-        }
-        let prefix = "\(recipe.id):"
-        let recipeGrowthRate = state.growthRates
-            .filter { $0.key.hasPrefix(prefix) }
-            .values
-            .max() ?? 0
-        let fastGrowing = recipeGrowthRate >= fastGrowthTriggerBytesPerDay
-        return recipe.resolvePaths(paths).compactMap { path in
-            let parentID = "\(recipe.id):\(path)"
-            guard !config.keptItemIDs.contains(parentID),
-                  !config.whitelistPaths.contains(path) else {
-                return nil
+        var policies: [ProgressiveCleanupPolicy] = []
+        for item in state.items {
+            guard item.recipeID != "trash",
+                  item.safety == .safeWhileRunning,
+                  item.reclaimableBytes > 0,
+                  !config.whitelistPaths.contains(item.path),
+                  !config.keptItemIDs.contains(item.id) else {
+                continue
             }
-            return ProgressiveCleanupPolicy(
-                recipeID: recipe.id,
-                parentPath: path,
+            if let rule = config.rules.first(where: { $0.recipeID == item.recipeID }),
+               !rule.enabled {
+                continue
+            }
+            guard let recipe = RecipeRegistry.builtIn().first(where: { $0.id == item.recipeID }) else {
+                continue
+            }
+            guard let childCount = POSIXDirectoryWalker.firstLevelCount(path: item.path),
+                  childCount > 0 else {
+                continue
+            }
+            let growthRate = state.growthRates[item.id] ?? 0
+            let fastGrowing = growthRate >= fastGrowthTriggerBytesPerDay
+            let tooManyChildren = childCount > 10
+            guard fastGrowing || tooManyChildren else { continue }
+            let ratio = recipe.cloneProne
+                ? (config.cloneRatios[item.recipeID] ?? 0.2)
+                : 1
+            policies.append(ProgressiveCleanupPolicy(
+                recipeID: item.recipeID,
+                parentPath: item.path,
                 maxChildren: fastGrowing ? 0 : 10,
                 maxItemsPerRun: 3,
                 minimumAgeSeconds: 86_400,
                 disposition: .trash,
                 source: .auto,
-                reclaimableRatio: config.cloneRatios[recipe.id] ?? 0.2
-            )
+                reclaimableRatio: ratio
+            ))
         }
+        return policies
     }
 
     private func firstAutoPlannedItem(scan: ScanResult, config: Config) -> ScanItem? {

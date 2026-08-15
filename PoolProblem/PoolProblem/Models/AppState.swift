@@ -3,6 +3,13 @@ import Combine
 import SwiftUI
 import DiskReservoirCore
 
+struct AutoCleanPlanItem: Identifiable {
+    let id: UUID
+    let title: String
+    let estimatedDate: Date?
+    let progress: Double
+}
+
 @MainActor
 final class AppState: ObservableObject {
     @Published var availableBytes: Int64 = 0
@@ -11,6 +18,7 @@ final class AppState: ObservableObject {
     @Published var lastScanAt: Date?
     @Published var predictionDays: Double?
     @Published var autoCleanPlan = ""
+    @Published var autoCleanPlans: [AutoCleanPlanItem] = []
     @Published var waterlineBytes: Int64 = 30_000_000_000
     @Published var topInflows: [(name: String, bytes: Int64)] = []
     @Published var weeklyCleanedBytes: Int64 = 0

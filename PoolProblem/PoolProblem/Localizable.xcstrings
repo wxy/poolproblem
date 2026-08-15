@@ -277,6 +277,7 @@
       }
     },
     "countdown.days" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -293,6 +294,7 @@
       }
     },
     "countdown.hours" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -304,22 +306,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "距自动清理阈值约 %lld 小时"
-          }
-        }
-      }
-    },
-    "countdown.stable" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Water level stable, no auto-clean planned"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "水位稳定，暂无自动清理计划"
           }
         }
       }
@@ -340,18 +326,19 @@
         }
       }
     },
-    "countdown.plan_near" : {
+    "countdown.plan_cleaned" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Near waterline; next scan may auto-clean about %@"
+            "value" : "Auto-cleaned %lld items this scan, about %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "接近水线，下次扫描将自动清理约 %@"
+            "value" : "本次已自动清理 %lld 项，约 %@"
           }
         }
       }
@@ -372,18 +359,34 @@
         }
       }
     },
-    "countdown.plan_many_children" : {
+    "countdown.plan_idle" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ has %lld subitems; older ones will be trimmed soon"
+            "value" : "No auto-clean planned within the next 7 days"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 已有 %lld 个子项，将清理较旧子项"
+            "value" : "未来 7 天内暂无自动清理计划"
+          }
+        }
+      }
+    },
+    "countdown.plan_inventory_waiting" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reclaimable inventory: below threshold"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可清理项积累：尚未达到阈值"
           }
         }
       }
@@ -404,34 +407,100 @@
         }
       }
     },
-    "countdown.plan_idle" : {
+    "countdown.plan_many_children" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No plan yet; auto-clean triggers near waterline, at %@ reclaimable, or when an item grows quickly"
+            "value" : "%@ has %lld subitems; older ones will be trimmed soon"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "暂无计划；接近水线、可清理量达 %@ 或某项快速增长时触发"
+            "value" : "%@ 已有 %lld 个子项，将清理较旧子项"
           }
         }
       }
     },
-    "countdown.plan_cleaned" : {
+    "countdown.plan_near" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Auto-cleaned %lld items this scan, about %@"
+            "value" : "Near waterline; next scan may auto-clean about %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "本次已自动清理 %lld 项，约 %@"
+            "value" : "接近水线，下次扫描将自动清理约 %@"
+          }
+        }
+      }
+    },
+    "countdown.plan_pending" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待定"
+          }
+        }
+      }
+    },
+    "countdown.plan_waterline_prediction" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reaching the waterline; auto-clean will run then"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "预计达到水线后将执行自动清理"
+          }
+        }
+      }
+    },
+    "countdown.plan_waterline_waiting" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waterline guard: waiting for enough history"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "水线守护：等待足够历史数据"
+          }
+        }
+      }
+    },
+    "countdown.stable" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Water level stable, no auto-clean planned"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "水位稳定，暂无自动清理计划"
           }
         }
       }
@@ -1058,6 +1127,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近清理"
+          }
+        }
+      }
+    },
+    "plan.time_today" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天 %@"
+          }
+        }
+      }
+    },
+    "plan.time_tomorrow" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tomorrow %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明天 %@"
           }
         }
       }
