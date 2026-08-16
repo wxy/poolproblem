@@ -129,6 +129,7 @@ struct PoolTankView: View {
         }
 
         let surfaceY = yForUsed(used)
+        let waterlineY = yForUsed(Double(max(0, totalBytes - waterlineBytes)))
         let (layers, nonCleanable, trashBytes) = PoolLayers.make(
             items: cleanableItems,
             totalBytes: totalBytes,
@@ -200,7 +201,8 @@ struct PoolTankView: View {
             fillPipe(context: &context, rect: hRect, vertical: false)
 
             // 垂直管段：按给定长度，半空结束（不伸入水面）
-            let pipeEndY = pipe.yTop + pipe.verticalLen
+            // 下水管下口与水线平齐；若水线位置异常靠上，保留最小可见管长。
+            let pipeEndY = max(pipe.yTop + 20, waterlineY)
             let vRect = CGRect(
                 x: pipe.xElbow - pipeDiameter / 2,
                 y: pipe.yTop - pipeDiameter / 2,
@@ -400,10 +402,22 @@ struct PoolTankView: View {
             context.stroke(still, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
         }
 
-        // 7) 天空主读数（可用空间 + 可清理空间）：固定在水池区上方、进水管之上的留白区
-        drawReadout(
+        // 7) 右下角指标面板：放在不可清理深蓝色区域内
+        let nonCleanableTopY = yForUsed(Double(nonCleanable))
+        let nonCleanableBottomY = yForUsed(0)
+        let metricsPanelTop = min(
+            max((nonCleanableTopY + nonCleanableBottomY) / 2 - 62, nonCleanableTopY + 8),
+            nonCleanableBottomY - 132
+        )
+        let metricsPanelRect = CGRect(
+            x: 232,
+            y: metricsPanelTop,
+            width: 150,
+            height: 124
+        )
+        drawPoolMetrics(
             context: &context,
-            surfaceY: surfaceY,
+            panelRect: metricsPanelRect,
             cleanableBytes: layers.reduce(Int64(0)) { $0 + $1.bytes },
             dark: dark
         )
@@ -434,50 +448,67 @@ struct PoolTankView: View {
         context.draw(resolved, at: point, anchor: anchor)
     }
 
-    /// 天空主读数：可用空间（空气）+ 可清理空间（水面以上的绿色水体），
-    /// 并排固定在进水管上方的留白区；磁盘快满时整体上浮到水面之上
-    private func drawReadout(
+    /// 右下角指标面板：进水管向左上移动后，在 L 型右下角留出的空间展示三个关键数据。
+    private func drawPoolMetrics(
         context: inout GraphicsContext,
-        surfaceY: CGFloat,
+        panelRect: CGRect,
         cleanableBytes: Int64,
         dark: Bool
     ) {
-        let shadowColor = dark ? Color.black.opacity(0.5) : Color.white.opacity(0.55)
         let labelColor = dark ? Color.white.opacity(0.65) : Color(red: 0.25, green: 0.36, blue: 0.44)
         let valueColor = dark ? Color.white : Color(red: 0.07, green: 0.17, blue: 0.24)
         let cleanableColor = dark
             ? Color(red: 0.45, green: 0.85, blue: 0.62)
             : Color(red: 0.08, green: 0.50, blue: 0.28)
 
-        var valueY: CGFloat = 72
-        if surfaceY < valueY + 18 {
-            valueY = max(48, surfaceY - 14)
+        let panelPath = Path(roundedRect: panelRect, cornerRadius: 10)
+        context.fill(
+            panelPath,
+            with: .color(dark ? Color.black.opacity(0.62) : Color.white.opacity(0.82))
+        )
+        context.stroke(
+            panelPath,
+            with: .color(dark ? Color.white.opacity(0.18) : Color.secondary.opacity(0.4)),
+            lineWidth: 1
+        )
+
+        let distance = availableBytes - waterlineBytes
+        let distanceColor: Color
+        if distance >= 0 {
+            distanceColor = dark
+                ? Color.orange
+                : Color(red: 0.75, green: 0.28, blue: 0.12)
+        } else {
+            distanceColor = dark
+                ? Color(red: 0.45, green: 0.85, blue: 0.62)
+                : Color(red: 0.08, green: 0.50, blue: 0.28)
         }
-        let items: [(label: String, value: String, color: Color, centerX: CGFloat)] = [
-            (Localized.string("pool.available_label"), Format.bytes(availableBytes), valueColor, 108),
-            (Localized.string("pool.cleanable_label"), Format.bytes(cleanableBytes), cleanableColor, 282),
+        let distanceText = Format.signedBytes(distance)
+
+        let items: [(label: String, value: String, color: Color)] = [
+            (Localized.string("pool.available_label"), Format.bytes(availableBytes), valueColor),
+            (Localized.string("pool.cleanable_label"), Format.bytes(cleanableBytes), cleanableColor),
+            (Localized.string("pool.waterline_distance_label"), distanceText, distanceColor),
         ]
-        for item in items {
-            // 柔和阴影：先画一遍偏移的浅色/深色文本
+        let rowHeight: CGFloat = 36
+        let firstRowY = panelRect.minY + 20
+        for (index, item) in items.enumerated() {
+            let rowY = firstRowY + CGFloat(index) * rowHeight
             drawText(
                 context: &context, text: item.label,
-                at: CGPoint(x: item.centerX, y: valueY - 24 + 1),
-                color: shadowColor, size: 10, weight: .medium
-            )
-            drawText(
-                context: &context, text: item.label,
-                at: CGPoint(x: item.centerX, y: valueY - 24),
-                color: labelColor, size: 10, weight: .medium
+                at: CGPoint(x: panelRect.minX + 12, y: rowY - 10),
+                color: labelColor,
+                size: 9,
+                weight: .medium,
+                anchor: .leading
             )
             drawText(
                 context: &context, text: item.value,
-                at: CGPoint(x: item.centerX, y: valueY + 1),
-                color: shadowColor, size: 22, weight: .heavy
-            )
-            drawText(
-                context: &context, text: item.value,
-                at: CGPoint(x: item.centerX, y: valueY),
-                color: item.color, size: 22, weight: .heavy
+                at: CGPoint(x: panelRect.minX + 12, y: rowY + 7),
+                color: item.color,
+                size: 14,
+                weight: .semibold,
+                anchor: .leading
             )
         }
     }

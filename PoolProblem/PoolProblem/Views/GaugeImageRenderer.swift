@@ -21,6 +21,7 @@ enum GaugeImageRenderer {
         let span = Double(max(windowSpanBytes(availableBytes: availableBytes, cleanableItems: cleanableItems), 1))
         let canvas = Canvas { context, size in
             let waterlineUsed = Double(max(0, totalBytes - waterlineBytes))
+            let usedBytes = max(0, totalBytes - availableBytes)
             let topInset: CGFloat = 26
             let usableH = max(1, size.height - topInset)
             func yForUsed(_ value: Double) -> CGFloat {
@@ -31,7 +32,10 @@ enum GaugeImageRenderer {
                 context: &context,
                 size: size,
                 waterlineY: yForUsed(waterlineUsed),
+                availableY: yForUsed(Double(usedBytes)),
                 waterlineBytes: waterlineBytes,
+                availableBytes: availableBytes,
+                usedBytes: usedBytes,
                 total: Double(totalBytes),
                 span: span,
                 yForUsed: yForUsed
@@ -60,7 +64,10 @@ enum GaugeImageRenderer {
         context: inout GraphicsContext,
         size: CGSize,
         waterlineY: CGFloat,
+        availableY: CGFloat,
         waterlineBytes: Int64,
+        availableBytes: Int64,
+        usedBytes: Int64,
         total: Double,
         span: Double,
         yForUsed: (Double) -> CGFloat
@@ -79,38 +86,66 @@ enum GaugeImageRenderer {
         // 在独立图层里裁剪圆角底板，避免影响后续绘制
         context.drawLayer { layer in
             layer.clip(to: gaugePath)
-            layer.fill(Path(redRect), with: .color(Color(red: 0.85, green: 0.14, blue: 0.10)))
+            layer.fill(Path(redRect), with: .color(Color(white: 0.98)))
             layer.fill(Path(whiteRect), with: .color(Color(white: 0.98)))
         }
 
-        // E 形刻痕 + 整刻度数字（每 2 道 E 标一个数字）
-        // 注意：stepGB 是 GB 数，循环里必须换算成字节步进，否则会退化成天文数字次循环
+        // 两个 E 分别放在左右两列，形成镜像对角；每个 E 对面写对应容量。
+        let columnWidth = gaugeRect.width / 2
+        let leftColumn = CGRect(
+            x: gaugeRect.minX,
+            y: gaugeRect.minY,
+            width: columnWidth,
+            height: gaugeRect.height
+        )
+        let rightColumn = CGRect(
+            x: gaugeRect.midX,
+            y: gaugeRect.minY,
+            width: columnWidth,
+            height: gaugeRect.height
+        )
+
         let stepGB = gaugeStepGB(span)
         let stepBytes = stepGB * 1_000_000_000
         var value = (total / stepBytes).rounded(.down) * stepBytes
         var index = 0
-        while value >= total - span {
-            let y = yForUsed(value)
-            let inRed = y < waterlineY
-            // 靠近水位线的一行让位：E 与数字都不画，避免与水位线标记重叠
-            let nearWaterline = abs(y - waterlineY) < 10
-            if y >= gaugeRect.minY + 4 && y <= gaugeRect.maxY - 4 && !nearWaterline {
-                drawE(
-                    context: &context,
-                    at: CGPoint(x: gaugeRect.minX + 11, y: y),
-                    color: inRed ? .white : Color(white: 0.13)
-                )
-                if index % 2 == 0 {
-                    drawText(
-                        context: &context,
-                        text: "\(Int(value / 1_000_000_000))G",
-                        at: CGPoint(x: gaugeRect.maxX - 3, y: y),
-                        color: inRed ? .white : Color(white: 0.16),
-                        size: 7,
-                        anchor: .trailing
-                    )
-                }
-            }
+        let floorValue = max(0, total - span)
+        while value >= floorValue {
+            let blockTopY = yForUsed(value)
+            let nextValue = max(floorValue, value - stepBytes)
+            let blockBottomY = yForUsed(nextValue)
+            guard blockBottomY - blockTopY > 2 else { break }
+
+            let isLeft = index.isMultiple(of: 2)
+            let inRed = blockTopY < waterlineY
+            let color = inRed
+                ? Color(red: 0.85, green: 0.14, blue: 0.10)
+                : Color(white: 0.13)
+            fillLargeE(
+                context: &context,
+                rect: CGRect(
+                    x: isLeft ? leftColumn.minX : rightColumn.minX,
+                    y: blockTopY,
+                    width: columnWidth,
+                    height: blockBottomY - blockTopY
+                ),
+                color: color,
+                mirrored: !isLeft
+            )
+            drawVerticalText(
+                context: &context,
+                text: Format.bytes(Int64(value)),
+                at: CGPoint(
+                    x: isLeft ? rightColumn.midX : leftColumn.midX,
+                    y: (blockTopY + blockBottomY) / 2
+                ),
+                color: inRed
+                    ? Color(red: 0.85, green: 0.14, blue: 0.10)
+                    : Color(white: 0.16),
+                size: 7,
+                weight: .bold
+            )
+
             index += 1
             value -= stepBytes
         }
@@ -120,26 +155,76 @@ enum GaugeImageRenderer {
         boundary.move(to: CGPoint(x: gaugeRect.minX, y: waterlineY))
         boundary.addLine(to: CGPoint(x: gaugeRect.maxX, y: waterlineY))
         context.stroke(boundary, with: .color(Color.black.opacity(0.95)), lineWidth: 2.5)
+        var arrow = Path()
+        arrow.move(to: CGPoint(x: gaugeRect.maxX, y: waterlineY))
+        arrow.addLine(to: CGPoint(x: gaugeRect.maxX + 10, y: waterlineY - 3))
+        arrow.addLine(to: CGPoint(x: gaugeRect.maxX + 10, y: waterlineY + 3))
+        arrow.closeSubpath()
+        context.fill(arrow, with: .color(Color.black.opacity(0.95)))
         drawBadge(
             context: &context,
             text: Localized.string("pool.waterline", Format.bytes(waterlineBytes)),
-            center: CGPoint(x: gaugeRect.maxX + 34, y: waterlineY + 10)
+            center: CGPoint(x: gaugeRect.maxX + 32, y: waterlineY)
         )
 
         // 外框
         context.stroke(gaugePath, with: .color(Color(white: 0.12).opacity(0.9)), lineWidth: 1.5)
     }
 
-    /// 单个 E 形刻痕：竖线 + 三条横线（中短边）；尺寸放大，作为标尺主刻度
-    private static func drawE(context: inout GraphicsContext, at p: CGPoint, color: Color) {
-        var path = Path()
-        path.move(to: CGPoint(x: p.x, y: p.y - 3.6))
-        path.addLine(to: CGPoint(x: p.x, y: p.y + 3.6))
-        for dy in [-3.6, 0.0, 3.6] {
-            path.move(to: CGPoint(x: p.x, y: p.y + dy))
-            path.addLine(to: CGPoint(x: p.x + (abs(dy) < 0.1 ? 2.6 : 4.6), y: p.y + dy))
+    /// 填充一个大 E 容量分区块；mirrored 为 true 时，E 的竖线在右侧，三条横线向左延伸。
+    private static func fillLargeE(
+        context: inout GraphicsContext,
+        rect: CGRect,
+        color: Color,
+        mirrored: Bool
+    ) {
+        guard rect.height > 0 else { return }
+        let inset = rect
+        guard inset.height > 0 else { return }
+        let stemWidth = inset.width * 0.34
+        let armHeight = max(5, inset.height * 0.18)
+        let stemRect: CGRect
+        if mirrored {
+            stemRect = CGRect(
+                x: inset.maxX - stemWidth,
+                y: inset.minY,
+                width: stemWidth,
+                height: inset.height
+            )
+        } else {
+            stemRect = CGRect(
+                x: inset.minX,
+                y: inset.minY,
+                width: stemWidth,
+                height: inset.height
+            )
         }
-        context.stroke(path, with: .color(color), lineWidth: 1.4)
+        context.fill(Path(stemRect), with: .color(color))
+
+        let armYs = [
+            inset.minY,
+            inset.midY - armHeight / 2,
+            inset.maxY - armHeight,
+        ]
+        for armY in armYs {
+            let armRect: CGRect
+            if mirrored {
+                armRect = CGRect(
+                    x: inset.minX,
+                    y: armY,
+                    width: inset.width - stemWidth,
+                    height: armHeight
+                )
+            } else {
+                armRect = CGRect(
+                    x: stemRect.maxX,
+                    y: armY,
+                    width: inset.width - stemWidth,
+                    height: armHeight
+                )
+            }
+            context.fill(Path(armRect), with: .color(color))
+        }
     }
 
     /// 画布内直接绘制文本（可选锚点）
@@ -158,6 +243,27 @@ enum GaugeImageRenderer {
             .monospacedDigit()
         let resolved = context.resolve(label)
         context.draw(resolved, at: point, anchor: anchor)
+    }
+
+    /// 竖向绘制容量数字，避免在半个标尺宽度里挤不下。
+    private static func drawVerticalText(
+        context: inout GraphicsContext,
+        text: String,
+        at point: CGPoint,
+        color: Color,
+        size: CGFloat,
+        weight: Font.Weight = .bold
+    ) {
+        let label = Text(text)
+            .font(.system(size: size, weight: weight))
+            .foregroundStyle(color)
+            .monospacedDigit()
+        let resolved = context.resolve(label)
+        context.drawLayer { layer in
+            layer.translateBy(x: point.x, y: point.y)
+            layer.rotate(by: .degrees(-90))
+            layer.draw(resolved, at: .zero, anchor: .center)
+        }
     }
 
     /// 白色徽标（黑字）

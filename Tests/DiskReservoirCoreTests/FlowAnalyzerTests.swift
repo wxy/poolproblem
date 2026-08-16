@@ -76,3 +76,21 @@ private func item(_ id: String, recipe: String, name: String, category: DiskRese
     #expect(rates["g1"] != nil)
     #expect(abs((rates["g1"] ?? 0) - 200) < 1)
 }
+
+@Test func growthRatesUseActualTimeIntervals() {
+    let now = Date()
+    var snapshots: [Snapshot] = []
+    for index in 0..<6 {
+        let size = 100 + Int64(index) * 100
+        snapshots.append(Snapshot(
+            volume: VolumeInfo(
+                totalBytes: 1000,
+                availableBytes: 800,
+                timestamp: now.addingTimeInterval(Double(index) * 12 * 3600)
+            ),
+            items: [item("g2", recipe: "r", name: "N", category: .xcode, size: size)]
+        ))
+    }
+    let rates = FlowAnalyzer().growthRates(snapshots: snapshots)
+    #expect(abs((rates["g2"] ?? 0) - 200) < 1)
+}

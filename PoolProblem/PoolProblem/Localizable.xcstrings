@@ -521,6 +521,38 @@
         }
       }
     },
+    "detail.clean_now" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean this item now"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即清理此项"
+          }
+        }
+      }
+    },
+    "detail.clean_requires_quit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit the related app first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需先退出相关应用"
+          }
+        }
+      }
+    },
     "detail.keep" : {
       "localizations" : {
         "en" : {
@@ -1163,6 +1195,23 @@
         }
       }
     },
+    "pool.above_waterline" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Above %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高于水线 %@"
+          }
+        }
+      }
+    },
     "pool.available_label" : {
       "localizations" : {
         "en" : {
@@ -1175,6 +1224,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可用空间"
+          }
+        }
+      }
+    },
+    "pool.below_waterline" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Below %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低于水线 %@"
           }
         }
       }
@@ -1274,6 +1340,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "水线 %@"
+          }
+        }
+      }
+    },
+    "pool.waterline_distance_label" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waterline distance"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距水线位置"
           }
         }
       }
@@ -1395,13 +1477,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "App Caches (~/Library/Caches)"
+            "value" : "App Caches"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "应用缓存 (~/Library/Caches)"
+            "value" : "应用缓存"
           }
         }
       }

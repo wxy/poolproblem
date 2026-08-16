@@ -9,6 +9,7 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
     public let disposition: CleanDisposition
     public let source: CleanSource
     public let reclaimableRatio: Double
+    public let minimumCleanBytes: Int64
 
     public init(
         recipeID: String,
@@ -18,7 +19,8 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
         minimumAgeSeconds: TimeInterval,
         disposition: CleanDisposition,
         source: CleanSource = .auto,
-        reclaimableRatio: Double = 1
+        reclaimableRatio: Double = 1,
+        minimumCleanBytes: Int64 = 0
     ) {
         self.recipeID = recipeID
         self.parentPath = parentPath
@@ -28,6 +30,7 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
         self.disposition = disposition
         self.source = source
         self.reclaimableRatio = reclaimableRatio
+        self.minimumCleanBytes = minimumCleanBytes
     }
 }
 
@@ -94,6 +97,8 @@ public struct ProgressiveCleaner: Sendable {
     public func run(policy: ProgressiveCleanupPolicy) throws -> ProgressiveCleanupOutcome {
         let plan = try self.plan(policy: policy)
         guard !plan.candidates.isEmpty else { return .empty }
+        let estimatedTotal = plan.candidates.reduce(Int64(0)) { $0 + $1.estimatedBytes }
+        guard estimatedTotal >= policy.minimumCleanBytes else { return .empty }
 
         var entries: [CleanLogEntry] = []
         var freedBytes: Int64 = 0

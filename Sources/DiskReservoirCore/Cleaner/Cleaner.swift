@@ -54,6 +54,7 @@ public struct Cleaner: Sendable {
         waterlineBytes: Int64,
         forceClean: Bool = false,
         source: CleanSource = .manual,
+        minimumItemBytes: Int64? = nil,
         onItemWillDelete: (@Sendable (String) -> Void)? = nil,
         onItemCleaned: (@Sendable (String, CleanDisposition) -> Void)? = nil
     ) throws -> CleanOutcome {
@@ -64,6 +65,9 @@ public struct Cleaner: Sendable {
         let availableBefore = availableBytesReader(scan.volumeURL)
         let candidates = scan.items
             .filter { !config.whitelistPaths.contains($0.path) }
+            .filter { item in
+                minimumItemBytes.map { item.reclaimableBytes >= $0 } ?? true
+            }
             // 小项目优先：浅目录处理快，能尽早看到清理进度；
             // 大而深的目录（如 XCTestDevices 快照）排到后面
             .sorted { $0.reclaimableBytes < $1.reclaimableBytes }
