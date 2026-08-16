@@ -25,7 +25,7 @@ The Pool Problem is a disk attribution and governance tool for developers. It tr
 | Milestone 里程碑 | Status 状态 | Scope 范围 |
 | --- | --- | --- |
 | M1 Core · 核心库 | ✅ Done 完成 | `DiskReservoirCore` — recipe registry, clone-aware scanner, snapshot storage, flow analysis (attribution / rebound / growth alerts), fill prediction, rule evaluation, process detection, file deletion, and a waterline cleaning engine with measured `actualFreedBytes`.<br>`DiskReservoirCore`——配方库、扫描器（含硬链接去重）、快照存储、流量分析（归因 / 回涨 / 增长警报）、满盘预测、规则评估、进程检测、文件删除、水线清理引擎（含量规实测 `actualFreedBytes`）。 |
-| M2 CLI · 命令行 | ✅ Done 完成 | `poolproblem` — `scan` / `suggest` / `clean` / `status` with stable JSON output.<br>`poolproblem`——`scan` / `suggest` / `clean` / `status`，稳定 JSON 输出。 |
+| M2 CLI · 命令行 | ✅ Done 完成 | `poolproblem` — `scan` / `suggest` / `clean` / `status` / `mcp` with stable JSON and MCP tools.<br>`poolproblem`——`scan` / `suggest` / `clean` / `status` / `mcp`，稳定 JSON 输出并提供 MCP tools。 |
 | M3 App · 应用 | ✅ Done 完成 | SwiftUI menu-bar app — water-level panel (E-shaped gauge, sky-primary reading, layered levels), smart cleanup, novice / expert settings, notifications, Full Disk Access onboarding, launch at login, custom status-bar water icon, spring animations, accessibility.<br>SwiftUI 菜单栏应用——蓄水池水位面板（E 字型水位标尺、天空主读数、分层水位）、智能清理、傻瓜 / 专家设置、通知、完全磁盘访问引导、开机自启、自定义状态栏水位图标、弹簧动效与无障碍适配。 |
 | M4 Widget · 小组件 | ⏳ Paused 暂缓 | macOS desktop widget.<br>macOS 桌面小组件。 |
 | M5 Packaging · 打包 | ✅ Done 完成 | v1.1.0 — DMG + Apple notarization, distributed via GitHub Releases.<br>v1.1.0——DMG + Apple 公证，GitHub Releases 分发。 |
@@ -103,6 +103,39 @@ poolproblem suggest            # suggest cleanable items by rule
 poolproblem clean --dry-run    # preview what would be cleaned
 poolproblem clean              # clean by waterline and rules
 poolproblem status             # waterline, fill prediction, recent cleanups
+poolproblem mcp                # run as an MCP stdio server for AI agents
+```
+
+The CLI is also available as an MCP server. Start it with:
+
+> CLI 也可以作为 MCP server 供其他 AI Agent 使用：
+
+```bash
+poolproblem mcp
+```
+
+Exposed MCP tools:
+
+> 提供的 MCP tools：
+
+- `scan`
+- `suggest`
+- `clean`
+- `status`
+
+Example MCP client configuration:
+
+> MCP 客户端配置示例：
+
+```json
+{
+  "mcpServers": {
+    "poolproblem": {
+      "command": "/path/to/poolproblem",
+      "args": ["mcp"]
+    }
+  }
+}
 ```
 
 Data directory resolution order: `POOLPROBLEM_DATA_DIR` → App Group container → `~/Library/Application Support/PoolProblem`. Tests point `POOLPROBLEM_DATA_DIR` at a temporary directory for isolation.
@@ -122,7 +155,7 @@ poolproblem/
 │   ├── Flow/                    # flow rates, attribution, rebound, prediction
 │   ├── Cleaner/                 # cleaning engine, rule evaluation, ProcessGuard
 │   └── Storage/                 # data paths (App Group / Application Support)
-├── Sources/poolproblem/         # CLI: scan / suggest / clean / status
+├── Sources/poolproblem/         # CLI: scan / suggest / clean / status / mcp
 ├── PoolProblem/                 # SwiftUI menu-bar app
 └── Tests/                       # core and CLI tests
 ```
@@ -167,9 +200,9 @@ APFS clone files (`cp -c`, Xcode test snapshots) share physical blocks but not i
 
     > 应用图标打磨。
 
-- FSEvents source governance, plus an MCP server for AI agents.
+- FSEvents source governance.
 
-    > FSEvents 源头治理，以及供 AI Agent 调用的 MCP server。
+    > FSEvents 源头治理。
 
 <p align="center"><img src="assets/readme/section-design-docs.svg" width="100%" alt="Design Docs · 设计文档"></p>
 
