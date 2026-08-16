@@ -136,7 +136,7 @@ enum BuiltInRecipes {
         ),
         Recipe(
             id: "library-caches",
-            name: "应用缓存 (~/Library/Caches)",
+            name: "应用缓存",
             category: .common,
             safety: .safeWhileRunning,
             disposition: .trash,

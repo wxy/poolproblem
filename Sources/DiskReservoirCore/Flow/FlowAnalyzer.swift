@@ -138,11 +138,14 @@ public struct FlowAnalyzer: Sendable {
     /// 按 itemID 估算每个可清理项的增速（字节/天，仅正增速），基于最近 windowDays 的快照线性拟合。
     public func growthRates(snapshots: [Snapshot], windowDays: Int = 7) -> [String: Double] {
         let cutoff = Date().addingTimeInterval(-Double(windowDays) * 86_400)
-        let inWindow = snapshots.filter { $0.volume.timestamp >= cutoff }
+        let inWindow = snapshots
+            .filter { $0.volume.timestamp >= cutoff }
+            .sorted { $0.volume.timestamp < $1.volume.timestamp }
         guard inWindow.count >= 2 else { return [:] }
+        let firstTimestamp = inWindow[0].volume.timestamp.timeIntervalSinceReferenceDate
         var series: [String: [(x: Double, y: Double)]] = [:]
-        for (index, snap) in inWindow.enumerated() {
-            let t = Double(index)
+        for snap in inWindow {
+            let t = (snap.volume.timestamp.timeIntervalSinceReferenceDate - firstTimestamp) / 86_400
             for item in snap.items {
                 series[item.id, default: []].append((t, Double(item.sizeBytes)))
             }

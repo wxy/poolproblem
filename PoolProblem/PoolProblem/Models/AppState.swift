@@ -51,4 +51,9 @@ enum Format {
         if value == 0 { return String(localized: "0KB") }
         return ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
+
+    static func signedBytes(_ value: Int64) -> String {
+        let sign = value > 0 ? "+" : (value < 0 ? "-" : "")
+        return sign + bytes(abs(value))
+    }
 }

@@ -23,6 +23,26 @@ import Foundation
     #expect(abs((days ?? 0) - 29) < 1.0)
 }
 
+@Test func predictionUsesActualTimeIntervals() {
+    let now = Date()
+    let snapshots = (0..<6).map { index in
+        Snapshot(
+            volume: VolumeInfo(
+                totalBytes: 1_000_000_000_000,
+                availableBytes: 100_000_000_000 - Int64(index) * 1_000_000_000,
+                timestamp: now.addingTimeInterval(Double(index) * 12 * 3600)
+            ),
+            items: []
+        )
+    }
+    let days = FullPrediction().daysUntilFull(
+        snapshots: snapshots,
+        waterlineBytes: 30_000_000_000
+    )
+    #expect(days != nil)
+    #expect(abs((days ?? 0) - 32.5) < 1.0)
+}
+
 @Test func stableDiskReturnsNil() {
     let now = Date()
     let snapshots = (0..<5).map { day in

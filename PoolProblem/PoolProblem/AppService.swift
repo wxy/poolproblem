@@ -15,6 +15,7 @@ final class AppService {
     private let earlyProactiveTriggerBytes: Int64 = 8 * 1_000_000_000
     private let proactiveCleanBatchBytes: Int64 = 3 * 1_000_000_000
     private let fastGrowthTriggerBytesPerDay: Double = 500_000_000
+    private let autoMinimumCleanItemBytes: Int64 = 500_000_000
 
     init(state: AppState, paths: StoragePaths = StoragePaths(), automationEnabled: Bool = true) {
         self.state = state
@@ -219,13 +220,37 @@ final class AppService {
         let entries = entries ?? ((try? logStore.entries()) ?? [])
         let sortedEntries = entries.sorted { $0.timestamp < $1.timestamp }
         state.cleanLogEntries = Array(sortedEntries.suffix(100).reversed())
-        state.cleaningEvents = sortedEntries
-            .suffix(20)
+
+        var grouped: [String: (timestamp: Date, freedBytes: Int64, isManual: Bool)] = [:]
+        var order: [String] = []
+        for entry in sortedEntries {
+            let key = entry.batchID.map { "batch-\($0.uuidString)" }
+                ?? "legacy-\(entry.source.rawValue)-\(Int(entry.timestamp.timeIntervalSince1970))"
+            if grouped[key] == nil {
+                order.append(key)
+                grouped[key] = (entry.timestamp, 0, entry.source == .manual)
+            }
+            grouped[key]?.freedBytes += entry.freedBytes
+        }
+
+        let historyStart = state.historyTimestamps.first
+        let historyEnd = state.historyTimestamps.last
+        let groupedEvents = order.compactMap { key -> (Date, Int64, Bool)? in
+            guard let event = grouped[key] else { return nil }
+            if let historyStart, event.timestamp < historyStart { return nil }
+            if let historyEnd, event.timestamp > historyEnd { return nil }
+            return event
+        }
+        let visibleEvents = groupedEvents.isEmpty
+            ? order.compactMap { grouped[$0] }
+            : groupedEvents
+        state.cleaningEvents = visibleEvents
+            .suffix(120)
             .map {
                 (
-                    timestamp: $0.timestamp,
-                    freedBytes: $0.freedBytes,
-                    isManual: $0.source == .manual
+                    timestamp: $0.0,
+                    freedBytes: $0.1,
+                    isManual: $0.2
                 )
             }
     }
@@ -359,6 +384,58 @@ final class AppService {
         return outcome
     }
 
+    func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
+        guard item.safety == .safeWhileRunning, item.recipeID != "trash" else {
+            return nil
+        }
+        state.isCleaning = true
+        state.cleanedItemIDs = []
+        state.deletingItemID = item.id
+        let logStore = self.logStore
+        let work = Task.detached(priority: .userInitiated) { () -> CleanOutcome? in
+            do {
+                let deletion = try FileManagerFileDeleter().deleteReturningResult(
+                    url: URL(fileURLWithPath: item.path),
+                    disposition: .trash
+                )
+                let entry = CleanLogEntry(
+                    id: UUID(),
+                    timestamp: Date(),
+                    itemIDs: [item.id],
+                    itemNames: [item.name],
+                    originalPaths: [item.path],
+                    trashPaths: [deletion.resultingURL?.path ?? ""],
+                    batchID: UUID(),
+                    freedBytes: deletion.freedBytes,
+                    disposition: .trash,
+                    source: .manual
+                )
+                try logStore.append(entry)
+                return CleanOutcome(
+                    entries: [entry],
+                    freedBytes: deletion.freedBytes,
+                    actualFreedBytes: 0,
+                    stillBelowWaterline: false
+                )
+            } catch {
+                return nil
+            }
+        }
+        guard let outcome = await work.value else {
+            state.isCleaning = false
+            return nil
+        }
+        state.isCleaning = false
+        await scanNow(autoClean: false)
+        state.lastCleanSummary = Localized.string(
+            "clean.summary",
+            outcome.entries.count,
+            Format.bytes(outcome.freedBytes)
+        )
+        state.cleanCelebrationID += 1
+        return outcome
+    }
+
     func undoCleanup(_ entry: CleanLogEntry) async -> Bool {
         guard entry.disposition == .trash else { return false }
         let originalPaths = entry.originalPaths.isEmpty
@@ -457,6 +534,14 @@ final class AppService {
             index += 1
         }
         return candidate
+    }
+
+    nonisolated private static func progressiveBatchName(for policy: ProgressiveCleanupPolicy) -> String {
+        let sourceName = URL(fileURLWithPath: policy.parentPath).lastPathComponent
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return "PoolProblem Cleanup \(sourceName) \(formatter.string(from: Date()))"
     }
 
     // MARK: - Proactive auto-clean
@@ -593,10 +678,12 @@ final class AppService {
         }
 
         if let target {
+            let belowWaterline = result.volume.availableBytes < waterline
             if let outcome = await runAutoWaterlineClean(
                 scan: result,
                 config: config,
-                waterlineBytes: target
+                waterlineBytes: target,
+                minimumItemBytes: belowWaterline ? nil : autoMinimumCleanItemBytes
             ) {
                 totalCount += outcome.entries.count
                 totalFreed += outcome.freedBytes
@@ -629,7 +716,8 @@ final class AppService {
     private func runAutoWaterlineClean(
         scan: ScanResult,
         config: Config,
-        waterlineBytes: Int64
+        waterlineBytes: Int64,
+        minimumItemBytes: Int64? = nil
     ) async -> CleanOutcome? {
         state.isCleaning = true
         state.cleanedItemIDs = []
@@ -649,6 +737,7 @@ final class AppService {
                 waterlineBytes: waterlineBytes,
                 forceClean: false,
                 source: .auto,
+                minimumItemBytes: minimumItemBytes,
                 onItemWillDelete: { itemID in
                     Task { @MainActor in
                         state.deletingItemID = itemID
@@ -692,8 +781,9 @@ final class AppService {
             var trimmedCount = 0
             var remainingCount = 0
             for policy in policies {
+                let batchName = Self.progressiveBatchName(for: policy)
                 let deleter: FileDeleting = policy.disposition == .trash
-                    ? TrashBatchDeleter()
+                    ? TrashBatchDeleter(batchName: batchName)
                     : FileManagerFileDeleter()
                 let cleaner = ProgressiveCleaner(
                     deleter: deleter,
@@ -775,7 +865,8 @@ final class AppService {
                 minimumAgeSeconds: 86_400,
                 disposition: .trash,
                 source: .auto,
-                reclaimableRatio: ratio
+                reclaimableRatio: ratio,
+                minimumCleanBytes: autoMinimumCleanItemBytes
             ))
         }
         return policies

@@ -303,7 +303,7 @@ struct MenuBarView: View {
             totalBytes: state.totalBytes,
             availableBytes: state.availableBytes,
             estimatedRecipeIDs: estimatedRecipeIDs,
-            excludedItemIDs: []   // 图例保留已清理行（打删除线），只有水池层消失
+            excludedItemIDs: state.cleanedItemIDs
         )
         return VStack(alignment: .leading, spacing: 5) {
             Text(Localized.string("section.cleanable_count", poolLayers.layers.count))
@@ -534,7 +534,8 @@ struct MenuBarView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 .focusEffectDisabled()
                 .cursorPointingHand()
             }
@@ -583,18 +584,35 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 10) {
+                if item.safety == .safeWhileRunning, item.recipeID != "trash" {
+                    Button(Localized.string("detail.clean_now")) {
+                        withAnimation(overlaySpring) { state.detailItem = nil }
+                        Task { _ = await service.cleanItem(item) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .controlSize(.large)
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
+                } else if item.safety == .requiresQuit {
+                    Text(Localized.string("detail.clean_requires_quit"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 if isKept {
                     Button(Localized.string("detail.unkeep")) {
                         service.unkeepItem(item.id)
                     }
-                    .buttonStyle(PressableButtonStyle())
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
                     .focusEffectDisabled()
                     .cursorPointingHand()
                 } else {
                     Button(Localized.string("detail.keep")) {
                         service.keepItem(item)
                     }
-                    .buttonStyle(PressableButtonStyle())
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
                     .focusEffectDisabled()
                     .cursorPointingHand()
                 }
@@ -602,7 +620,7 @@ struct MenuBarView: View {
                 Button(Localized.string("common.close")) {
                     withAnimation(overlaySpring) { state.detailItem = nil }
                 }
-                .buttonStyle(PressableButtonStyle())
+                .buttonStyle(.bordered)
                 .focusEffectDisabled()
                 .cursorPointingHand()
             }
