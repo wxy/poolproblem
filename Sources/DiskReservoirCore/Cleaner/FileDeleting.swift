@@ -1,25 +1,46 @@
 import Foundation
 
+public struct FileDeletionResult: Sendable {
+    public let freedBytes: Int64
+    public let resultingURL: URL?
+
+    public init(freedBytes: Int64, resultingURL: URL? = nil) {
+        self.freedBytes = freedBytes
+        self.resultingURL = resultingURL
+    }
+}
+
 public protocol FileDeleting: Sendable {
     func delete(url: URL, disposition: CleanDisposition) throws -> Int64
+    func deleteReturningResult(url: URL, disposition: CleanDisposition) throws -> FileDeletionResult
+}
+
+public extension FileDeleting {
+    func deleteReturningResult(url: URL, disposition: CleanDisposition) throws -> FileDeletionResult {
+        FileDeletionResult(freedBytes: try delete(url: url, disposition: disposition))
+    }
 }
 
 public struct FileManagerFileDeleter: FileDeleting {
     public init() {}
 
     public func delete(url: URL, disposition: CleanDisposition) throws -> Int64 {
+        try deleteReturningResult(url: url, disposition: disposition).freedBytes
+    }
+
+    public func deleteReturningResult(url: URL, disposition: CleanDisposition) throws -> FileDeletionResult {
         switch disposition {
         case .none:
-            return 0
+            return FileDeletionResult(freedBytes: 0)
         case .trash:
             let allocated = allocatedBytes(of: url)
             var resulting: NSURL?
             try FileManager.default.trashItem(at: url, resultingItemURL: &resulting)
-            return allocated
+            return FileDeletionResult(freedBytes: allocated, resultingURL: resulting as URL?)
         case .deletePermanently:
             let allocated = allocatedBytes(of: url)
             try FileManager.default.removeItem(at: url)
-            return allocated
+            return FileDeletionResult(freedBytes: allocated)
         }
     }
 

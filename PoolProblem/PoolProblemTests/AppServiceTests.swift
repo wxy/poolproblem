@@ -10,7 +10,7 @@ import DiskReservoirCore
     defer { try? FileManager.default.removeItem(at: dir) }
     let paths = StoragePaths(baseURL: dir)
     let state = AppState()
-    let service = AppService(state: state, paths: paths)
+    let service = AppService(state: state, paths: paths, automationEnabled: false)
     await service.scanNow()
     let snapshots = try SnapshotStore(paths: paths).snapshots()
     #expect(!snapshots.isEmpty)
@@ -23,7 +23,7 @@ import DiskReservoirCore
         .appendingPathComponent("pp-app-config-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: dir) }
     let paths = StoragePaths(baseURL: dir)
-    let service = AppService(state: AppState(), paths: paths)
+    let service = AppService(state: AppState(), paths: paths, automationEnabled: false)
     var config = Config.default
     config.waterlineGB = 42
     service.saveConfig(config)
@@ -37,7 +37,7 @@ import DiskReservoirCore
         .appendingPathComponent("pp-app-keep-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: dir) }
     let paths = StoragePaths(baseURL: dir)
-    let service = AppService(state: AppState(), paths: paths)
+    let service = AppService(state: AppState(), paths: paths, automationEnabled: false)
     let item = ScanItem(
         id: "keepme", recipeID: "r", name: "N", path: "/tmp/keepme",
         category: .common, safety: .safeWhileRunning, disposition: .trash,
@@ -58,7 +58,7 @@ import DiskReservoirCore
         .appendingPathComponent("pp-app-merge-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: dir) }
     let paths = StoragePaths(baseURL: dir)
-    let service = AppService(state: AppState(), paths: paths)
+    let service = AppService(state: AppState(), paths: paths, automationEnabled: false)
     service.keepItem(ScanItem(
         id: "keep", recipeID: "r", name: "N", path: "/tmp/keep",
         category: .common, safety: .safeWhileRunning, disposition: .trash,

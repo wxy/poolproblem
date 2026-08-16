@@ -19,6 +19,12 @@ public struct CleanLogStore: Sendable {
         try store.save(all, to: paths.cleanLogURL)
     }
 
+    public func remove(id: UUID) throws {
+        var all = try entries()
+        all.removeAll { $0.id == id }
+        try store.save(all, to: paths.cleanLogURL)
+    }
+
     public func prune(retainingDays: Int = 90) throws {
         let cutoff = Date().addingTimeInterval(-Double(retainingDays) * 86_400)
         let kept = try entries().filter { $0.timestamp >= cutoff }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 出水管：跨在水池右缘，代表"排水/清理"；上方是点击提示，右侧是本周已清理数据
+/// 出水管：跨在水池右缘，代表"排水/清理"；上方是点击提示，右侧是本周已清理数据。
 struct OutletPipeView: View {
     let weeklyCleanedBytes: Int64
 
@@ -25,11 +25,11 @@ struct OutletPipeView: View {
                 vertical: true
             )
 
-            // 管子上方：点击提示
+            // 排水标签直接放在水平管道上
             drawPill(
                 context: &context,
                 text: Localized.string("outlet.drain"),
-                center: CGPoint(x: pipeRect.midX, y: 18)
+                center: CGPoint(x: pipeRect.midX, y: pipeRect.midY)
             )
 
             // 管子右侧：本周已清理数据

@@ -4,12 +4,23 @@ import AppKit
 /// 水位语义（方案 B）：可用空间 ≥ 安全上限（默认 2× 水位线）→ 空缸；
 /// 可用空间 ≤ 水位线 → 满缸；两者之间线性过渡。
 enum PoolStatusIcon {
-    static func image(availableBytes: Int64, waterlineBytes: Int64) -> NSImage {
+    enum Activity {
+        case idle
+        case scanning
+        case cleaning
+    }
+
+    static func image(
+        availableBytes: Int64,
+        waterlineBytes: Int64,
+        activity: Activity = .idle
+    ) -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18))
         image.isTemplate = true
         image.lockFocus()
         if let ctx = NSGraphicsContext.current?.cgContext {
             draw(level: level(availableBytes: availableBytes, waterlineBytes: waterlineBytes), ctx: ctx)
+            draw(activity: activity, ctx: ctx)
         }
         image.unlockFocus()
         return image
@@ -81,6 +92,30 @@ enum PoolStatusIcon {
                 x += 0.4
             }
             ctx.strokePath()
+        }
+    }
+
+    private static func draw(activity: Activity, ctx: CGContext) {
+        switch activity {
+        case .idle:
+            break
+        case .scanning:
+            let center = CGPoint(x: 13.2, y: 4.8)
+            ctx.setStrokeColor(CGColor(gray: 0, alpha: 1))
+            ctx.setLineWidth(1)
+            ctx.strokeEllipse(in: CGRect(x: center.x - 2.2, y: center.y - 2.2, width: 4.4, height: 4.4))
+            ctx.move(to: CGPoint(x: center.x + 1.4, y: center.y + 1.4))
+            ctx.addLine(to: CGPoint(x: center.x + 3.4, y: center.y + 3.4))
+            ctx.strokePath()
+        case .cleaning:
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: 13.0, y: 16.4))
+            path.addLine(to: CGPoint(x: 15.2, y: 12.0))
+            path.addLine(to: CGPoint(x: 10.8, y: 12.0))
+            path.closeSubpath()
+            ctx.setFillColor(CGColor(gray: 0, alpha: 1))
+            ctx.addPath(path)
+            ctx.fillPath()
         }
     }
 }
