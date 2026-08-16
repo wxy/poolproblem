@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/readme/hero.svg" width="100%" alt="The Pool Problem — 蓄水池问题"></p>
 
-<p align="center"><img src="assets/readme/icon-rounded.png" width="96" height="96" alt="The Pool Problem App Icon">&nbsp;<img src="assets/readme/download-button.svg" width="420" height="96" alt="Download v1.0.0 · GitHub Releases"></p>
+<p align="center"><img src="assets/readme/icon-rounded.png" width="96" height="96" alt="The Pool Problem App Icon">&nbsp;<img src="assets/readme/download-button.svg" width="420" height="96" alt="Download v1.1.0 · GitHub Releases"></p>
 
 <p align="center"><code>macOS MENU BAR · SWIFTUI · MACOS 14+</code></p>
 
@@ -28,7 +28,7 @@ The Pool Problem is a disk attribution and governance tool for developers. It tr
 | M2 CLI · 命令行 | ✅ Done 完成 | `poolproblem` — `scan` / `suggest` / `clean` / `status` with stable JSON output.<br>`poolproblem`——`scan` / `suggest` / `clean` / `status`，稳定 JSON 输出。 |
 | M3 App · 应用 | ✅ Done 完成 | SwiftUI menu-bar app — water-level panel (E-shaped gauge, sky-primary reading, layered levels), smart cleanup, novice / expert settings, notifications, Full Disk Access onboarding, launch at login, custom status-bar water icon, spring animations, accessibility.<br>SwiftUI 菜单栏应用——蓄水池水位面板（E 字型水位标尺、天空主读数、分层水位）、智能清理、傻瓜 / 专家设置、通知、完全磁盘访问引导、开机自启、自定义状态栏水位图标、弹簧动效与无障碍适配。 |
 | M4 Widget · 小组件 | ⏳ Paused 暂缓 | macOS desktop widget.<br>macOS 桌面小组件。 |
-| M5 Packaging · 打包 | ✅ Done 完成 | v1.0.0 — DMG + Apple notarization, distributed via GitHub Releases.<br>v1.0.0——DMG + Apple 公证，GitHub Releases 分发。 |
+| M5 Packaging · 打包 | ✅ Done 完成 | v1.1.0 — DMG + Apple notarization, distributed via GitHub Releases.<br>v1.1.0——DMG + Apple 公证，GitHub Releases 分发。 |
 
 <p align="center"><img src="assets/readme/section-requirements.svg" width="100%" alt="Requirements · 系统要求"></p>
 
