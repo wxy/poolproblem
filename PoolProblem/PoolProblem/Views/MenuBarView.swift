@@ -450,7 +450,7 @@ struct MenuBarView: View {
             let manualItems = state.items
                 .filter {
                     $0.reclaimableBytes > 0
-                        && CleanupRationale.make(for: $0).confirmation == .manualXcodeComponents
+                        && CleanupRationale.make(for: $0).isManual
                 }
                 .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
             if !manualItems.isEmpty {
@@ -555,7 +555,10 @@ struct MenuBarView: View {
         let config = service.loadConfig()
         let evaluator = RuleEvaluator(config: config)
         let suggestions = state.items
-            .filter { $0.reclaimableBytes > 0 }
+            .filter {
+                $0.reclaimableBytes > 0
+                    && !CleanupRationale.make(for: $0).isManual
+            }
             .compactMap { item -> (ScanItem, EvaluatedAction)? in
             let action = evaluator.evaluate(
                 item: item,
@@ -609,7 +612,7 @@ struct MenuBarView: View {
             }
 
             let rationale = CleanupRationale.make(for: item)
-            let appCleanable = rationale.confirmation != .manualXcodeComponents
+            let appCleanable = !rationale.isManual
                 && item.cleanability != .displayOnly
             VStack(alignment: .leading, spacing: 4) {
                 Text(Localized.string("detail.why_suggested"))
@@ -632,7 +635,7 @@ struct MenuBarView: View {
                         .font(.caption)
                 }
                 if let confirmation = rationale.confirmation {
-                    Text(confirmation == .manualXcodeComponents
+                    Text(rationale.isManual
                          ? Localized.string("detail.why_manual")
                          : Localized.string("detail.why_confirm"))
                         .font(.caption2)
@@ -688,7 +691,7 @@ struct MenuBarView: View {
 
             HStack(spacing: 10) {
                 if item.cleanability != .displayOnly,
-                          rationale.confirmation != .manualXcodeComponents,
+                          !rationale.isManual,
                           item.safety == .safeWhileRunning
                           || item.safety == .userConfirm
                           || (item.safety == .requiresQuit && !quitProcessRunning) {
@@ -1038,7 +1041,7 @@ struct MenuBarView: View {
         case .requiresQuit:
             return Localized.string("safety.requires_quit")
         case .userConfirm:
-            if CleanupRationale.make(for: item).confirmation == .manualXcodeComponents {
+            if CleanupRationale.make(for: item).isManual {
                 return Localized.string("safety.manual_delete")
             }
             return Localized.string("safety.user_confirm")

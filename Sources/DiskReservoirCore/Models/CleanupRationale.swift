@@ -23,10 +23,10 @@ public struct CleanupRationale: Equatable, Sendable {
     }
 
     public enum ConfirmationReason: Equatable, Sendable {
-        /// 删除后如需再次使用需要重新下载。
-        case reDownload
         /// 由 Xcode 管理并占用，只能通过 Xcode 组件界面手动删除。
         case manualXcodeComponents
+        /// 位于用户目录、应用不直接删除，需在 Finder 中手动删除。
+        case manualFinderDeletion
         /// 数据不可再生，删除后需重建设备并重装 App。
         case nonRegenerable
     }
@@ -35,6 +35,11 @@ public struct CleanupRationale: Equatable, Sendable {
     public let confirmation: ConfirmationReason?
     /// 最后使用时间（运行时为最后启动时间，其余为目录最新写入时间）。
     public let lastUsed: Date?
+
+    /// 应用无法直接删除、需要用户手动处理的项（如 Xcode 组件/Finder 清理）。
+    public var isManual: Bool {
+        confirmation == .manualXcodeComponents || confirmation == .manualFinderDeletion
+    }
 
     public init(
         suggestion: SuggestionReason,
@@ -79,7 +84,7 @@ public struct CleanupRationale: Equatable, Sendable {
             confirmation = .manualXcodeComponents
         case "xcode-devicesupport":
             suggestion = .oldDeviceSupport
-            confirmation = .reDownload
+            confirmation = .manualFinderDeletion
         default:
             suggestion = .regenerable
             confirmation = nil

@@ -59,10 +59,10 @@ enum Localized {
     /// “为什么需要确认”文案
     static func confirmationText(_ reason: CleanupRationale.ConfirmationReason) -> String {
         switch reason {
-        case .reDownload:
-            return string("rationale.confirm.redownload")
         case .manualXcodeComponents:
             return string("rationale.confirm.xcode_components")
+        case .manualFinderDeletion:
+            return string("rationale.confirm.manual_finder")
         case .nonRegenerable:
             return string("rationale.confirm.non_regenerable")
         }

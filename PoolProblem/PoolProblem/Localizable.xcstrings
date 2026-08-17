@@ -1536,22 +1536,6 @@
         }
       }
     },
-    "rationale.confirm.redownload" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Must be re-downloaded before it can be used again"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除后如需再次使用需要重新下载"
-          }
-        }
-      }
-    },
     "rationale.old_device_support" : {
       "localizations" : {
         "en" : {
@@ -2716,6 +2700,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需手动删除"
+          }
+        }
+      }
+    },
+    "rationale.confirm.manual_finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Old versions can be deleted manually in Finder (the current debug version is kept)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在 Finder 中手动删除旧版本（当前调试版本会保留）"
           }
         }
       }

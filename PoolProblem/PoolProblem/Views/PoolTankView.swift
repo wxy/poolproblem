@@ -51,7 +51,7 @@ enum PoolLayers {
                     && !excludedItemIDs.contains($0.id)
                     && $0.recipeID != "trash"
                     // 应用无法删除的项（需手动在 Xcode/Finder 清理）不进入可清理图层
-                    && CleanupRationale.make(for: $0).confirmation != .manualXcodeComponents
+                    && !CleanupRationale.make(for: $0).isManual
             }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         var layers: [CleanableLayer] = []
@@ -176,7 +176,7 @@ struct PoolTankView: View {
         let cleanableCount = cleanableItems.filter {
             $0.recipeID != "trash"
                 && $0.reclaimableBytes > 0
-                && CleanupRationale.make(for: $0).confirmation != .manualXcodeComponents
+                && !CleanupRationale.make(for: $0).isManual
         }.count
         let pipeCount = min(2, max(1, (cleanableCount + 3) / 4))
         let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)]

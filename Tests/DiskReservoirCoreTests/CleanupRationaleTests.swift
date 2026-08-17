@@ -66,13 +66,33 @@ private func item(
     #expect(recent.confirmation == .manualXcodeComponents)
 }
 
-@Test func deviceSupportOldVersionsNeedRedownload() {
+@Test func deviceSupportOldVersionsAreManual() {
     let rationale = CleanupRationale.make(for: item(
         "xcode-devicesupport",
         safety: .userConfirm
     ))
     #expect(rationale.suggestion == .oldDeviceSupport)
-    #expect(rationale.confirmation == .reDownload)
+    #expect(rationale.confirmation == .manualFinderDeletion)
+    #expect(rationale.isManual)
+}
+
+@Test func manualCategoriesAreFlagged() {
+    let runtime = CleanupRationale.make(for: item(
+        "simulator-runtimes",
+        safety: .userConfirm,
+        modified: Date(timeIntervalSince1970: 1_000_000)
+    ))
+    #expect(runtime.isManual)
+
+    let cache = CleanupRationale.make(for: item(
+        "simulator-dyld-cache",
+        safety: .userConfirm,
+        modified: Date(timeIntervalSince1970: 1_000_000)
+    ))
+    #expect(cache.isManual)
+
+    let cleanable = CleanupRationale.make(for: item("npm-cache"))
+    #expect(!cleanable.isManual)
 }
 
 @Test func simulatorDevicesAreNonRegenerable() {
