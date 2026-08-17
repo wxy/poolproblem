@@ -540,9 +540,26 @@ struct MenuBarView: View {
                 .cursorPointingHand()
             }
 
-            Text(explanation(for: item))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            let rationale = CleanupRationale.make(for: item)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Localized.string("detail.why_suggested"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(Localized.suggestionText(rationale.suggestion))
+                    .font(.caption)
+                if let confirmation = rationale.confirmation {
+                    Text(Localized.string("detail.why_confirm"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(Localized.confirmationText(confirmation))
+                        .font(.caption)
+                }
+                Text(Localized.string("detail.last_used"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(lastUsedText(rationale.lastUsed))
+                    .font(.caption)
+            }
 
             if estimatedRecipeIDs.contains(item.recipeID) {
                 Text(Localized.string("detail.cow_warning"))
@@ -875,21 +892,6 @@ struct MenuBarView: View {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
-    private func explanation(for item: ScanItem) -> String {
-        switch item.category {
-        case .xcode:
-            return Localized.string("explain.xcode")
-        case .simulator:
-            return Localized.string("explain.simulator")
-        case .packageManager:
-            return Localized.string("explain.package_manager")
-        case .common:
-            return Localized.string("explain.common")
-        case .project, .custom:
-            return Localized.string("explain.project")
-        }
-    }
-
     private func safetyText(_ safety: SafetyLevel) -> String {
         switch safety {
         case .safeWhileRunning:
@@ -899,6 +901,17 @@ struct MenuBarView: View {
         case .userConfirm:
             return Localized.string("safety.user_confirm")
         }
+    }
+
+    private func lastUsedText(_ date: Date?) -> String {
+        guard let date else {
+            return Localized.string("detail.never_used")
+        }
+        let days = max(0, Int(Date().timeIntervalSince(date) / 86_400))
+        if days == 0 {
+            return Localized.string("detail.last_used_today")
+        }
+        return Localized.string("detail.last_used_days", days)
     }
 
     private func revealInFinder(_ path: String) {
@@ -914,19 +927,34 @@ struct MenuBarView: View {
 
     private func safetyMark(_ layer: CleanableLayer) -> some View {
         if state.keptItemIDs.contains(layer.itemID) {
-            return Text(Localized.string("badge.kept")).font(.caption2).foregroundStyle(.orange)
+            return Text(Localized.string("badge.kept"))
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .help(Localized.string("badge.tooltip.kept"))
         }
         if layer.recipeID == "trash" {
-            return Text(Localized.string("badge.manual")).font(.caption2).foregroundStyle(.blue)
+            return Text(Localized.string("badge.manual"))
+                .font(.caption2)
+                .foregroundStyle(.blue)
+                .help(Localized.string("badge.tooltip.manual"))
         }
         let safety = layer.safety
         switch safety {
         case .safeWhileRunning:
-            return Text(Localized.string("badge.cleanable")).font(.caption2).foregroundStyle(.green)
+            return Text(Localized.string("badge.cleanable"))
+                .font(.caption2)
+                .foregroundStyle(.green)
+                .help(Localized.string("badge.tooltip.cleanable"))
         case .requiresQuit:
-            return Text(Localized.string("badge.requires_quit")).font(.caption2).foregroundStyle(.red)
+            return Text(Localized.string("badge.requires_quit"))
+                .font(.caption2)
+                .foregroundStyle(.red)
+                .help(Localized.string("badge.tooltip.requires_quit"))
         case .userConfirm:
-            return Text(Localized.string("badge.user_confirm")).font(.caption2).foregroundStyle(.gray)
+            return Text(Localized.string("badge.user_confirm"))
+                .font(.caption2)
+                .foregroundStyle(.gray)
+                .help(Localized.string("badge.tooltip.user_confirm"))
         }
     }
 }

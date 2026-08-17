@@ -1,4 +1,5 @@
 import Foundation
+import DiskReservoirCore
 
 /// 本地化辅助：英文为源语言，简体中文提供翻译（Localizable.xcstrings）
 enum Localized {
@@ -30,6 +31,38 @@ enum Localized {
         case "simulator-dyld-cache": return string("recipe.simulator-dyld-cache")
         case "trash": return string("recipe.trash")
         default: return fallback
+        }
+    }
+
+    /// “为什么建议清理”文案
+    static func suggestionText(_ reason: CleanupRationale.SuggestionReason) -> String {
+        switch reason {
+        case .regenerable:
+            return string("rationale.regenerable")
+        case .unusedSimulatorRuntime:
+            return string("rationale.simulator_runtime")
+        case .unusedSimulatorSharedCache:
+            return string("rationale.simulator_shared_cache")
+        case .oldDeviceSupport:
+            return string("rationale.old_device_support")
+        case .simulatorDeviceData:
+            return string("rationale.simulator_device_data")
+        case .userDataOnly:
+            return string("rationale.user_data_only")
+        }
+    }
+
+    /// “为什么需要确认”文案
+    static func confirmationText(_ reason: CleanupRationale.ConfirmationReason) -> String {
+        switch reason {
+        case .reDownload:
+            return string("rationale.confirm.redownload")
+        case .reDownloadNeedsAdmin:
+            return string("rationale.confirm.redownload_admin")
+        case .rebuildsOnBoot:
+            return string("rationale.confirm.rebuilds_on_boot")
+        case .nonRegenerable:
+            return string("rationale.confirm.non_regenerable")
         }
     }
 }
