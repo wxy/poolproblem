@@ -50,6 +50,8 @@ enum PoolLayers {
                 $0.reclaimableBytes > 0
                     && !excludedItemIDs.contains($0.id)
                     && $0.recipeID != "trash"
+                    // 应用无法删除的项（需手动在 Xcode/Finder 清理）不进入可清理图层
+                    && CleanupRationale.make(for: $0).confirmation != .manualXcodeComponents
             }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         var layers: [CleanableLayer] = []
@@ -171,7 +173,11 @@ struct PoolTankView: View {
         // 3.5) 金属拐角水管（参照 xingyu.wang 官网 pipes：管身金属渐变+高光阴影、两端端盖、拐角连接件）
         let pipeDiameter: CGFloat = 18
         // 进水管数量：每 4 个可清理项对应 1 根，最多 2 根
-        let cleanableCount = cleanableItems.filter { $0.recipeID != "trash" && $0.reclaimableBytes > 0 }.count
+        let cleanableCount = cleanableItems.filter {
+            $0.recipeID != "trash"
+                && $0.reclaimableBytes > 0
+                && CleanupRationale.make(for: $0).confirmation != .manualXcodeComponents
+        }.count
         let pipeCount = min(2, max(1, (cleanableCount + 3) / 4))
         let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)]
         switch pipeCount {

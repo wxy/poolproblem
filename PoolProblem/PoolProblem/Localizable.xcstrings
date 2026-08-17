@@ -2607,6 +2607,22 @@
           }
         }
       }
+    },
+    "section.manual_cleanup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动清理"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

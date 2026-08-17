@@ -444,6 +444,51 @@ struct MenuBarView: View {
                 }
             }
             .padding(.top, 2)
+
+            // 手动清理项：应用无法删除，只能提示用户到对应应用/Finder 清理
+            let manualItems = state.items
+                .filter {
+                    $0.reclaimableBytes > 0
+                        && CleanupRationale.make(for: $0).confirmation == .manualXcodeComponents
+                }
+                .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
+            if !manualItems.isEmpty {
+                Divider()
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(Localized.string("section.manual_cleanup"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(manualItems) { item in
+                        Button {
+                            withAnimation(overlaySpring) { state.detailItem = item }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Rectangle()
+                                    .fill(PoolLayers.nonCleanableColor.opacity(0.5))
+                                    .frame(width: 9, height: 9)
+                                Text(Localized.recipeName(item.recipeID, fallback: item.name))
+                                    .lineLimit(1)
+                                    .font(.caption)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Text(Format.bytes(item.reclaimableBytes))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                                Text(Localized.string("badge.manual"))
+                                    .font(.caption2)
+                                    .foregroundStyle(.blue)
+                                    .help(Localized.string("badge.tooltip.xcode_manual"))
+                            }
+                            .frame(height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .focusEffectDisabled()
+                        .cursorPointingHand()
+                    }
+                }
+                .padding(.top, 4)
+            }
         }
     }
 
@@ -993,12 +1038,6 @@ struct MenuBarView: View {
                 .font(.caption2)
                 .foregroundStyle(.blue)
                 .help(Localized.string("badge.tooltip.manual"))
-        }
-        if layer.recipeID == "simulator-runtimes" || layer.recipeID == "simulator-dyld-cache" {
-            return Text(Localized.string("badge.manual"))
-                .font(.caption2)
-                .foregroundStyle(.blue)
-                .help(Localized.string("badge.tooltip.xcode_manual"))
         }
         let safety = layer.safety
         switch safety {

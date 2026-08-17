@@ -107,29 +107,27 @@ enum GaugeImageRenderer {
 
         let stepGB = gaugeStepGB(span)
         let stepBytes = stepGB * 1_000_000_000
-        var value = (total / stepBytes).rounded(.down) * stepBytes
-        var index = 0
         let floorValue = max(0, total - span)
-        while value >= floorValue {
-            let blockTopY = yForUsed(value)
-            let nextValue = max(floorValue, value - stepBytes)
-            let blockBottomY = yForUsed(nextValue)
-            guard blockBottomY - blockTopY > 2 else { break }
+        var index = 0
 
+        func drawEBlock(
+            topY: CGFloat,
+            bottomY: CGFloat,
+            value: Double,
+            red: Bool,
+            index: Int
+        ) {
             let isLeft = index.isMultiple(of: 2)
-            // 按块中点判定红/黑，避免横跨水位线的块整块变红，
-            // 导致红黑分界低于水位线标记（标记看起来“偏上”）。
-            let inRed = (blockTopY + blockBottomY) / 2 < waterlineY
-            let color = inRed
+            let color = red
                 ? Color(red: 0.85, green: 0.14, blue: 0.10)
                 : Color(white: 0.13)
             fillLargeE(
                 context: &context,
                 rect: CGRect(
                     x: isLeft ? leftColumn.minX : rightColumn.minX,
-                    y: blockTopY,
+                    y: topY,
                     width: columnWidth,
-                    height: blockBottomY - blockTopY
+                    height: bottomY - topY
                 ),
                 color: color,
                 mirrored: !isLeft
@@ -139,17 +137,53 @@ enum GaugeImageRenderer {
                 text: Format.bytes(Int64(value)),
                 at: CGPoint(
                     x: isLeft ? rightColumn.midX : leftColumn.midX,
-                    y: (blockTopY + blockBottomY) / 2
+                    y: (topY + bottomY) / 2
                 ),
-                color: inRed
+                color: red
                     ? Color(red: 0.85, green: 0.14, blue: 0.10)
                     : Color(white: 0.16),
                 size: 7,
                 weight: .bold
             )
+        }
 
+        // 红/黑分界与水线精确对齐：红色区从水线向上逐块，黑色区从水线向下逐块。
+        // 顶部/底部块可能不完整（显示半个 E 或留空），保留空间不再依赖
+        // “整 E 数量”恰好等于水位线。
+        var redTopValue = Double(waterlineBytes)
+        while redTopValue + stepBytes <= total {
+            let rawTopY = yForUsed(redTopValue + stepBytes)
+            let rawBottomY = yForUsed(redTopValue)
+            guard rawBottomY - rawTopY > 2,
+                  rawBottomY > gaugeRect.minY,
+                  rawTopY < gaugeRect.maxY else { break }
+            drawEBlock(
+                topY: max(rawTopY, gaugeRect.minY),
+                bottomY: min(rawBottomY, gaugeRect.maxY),
+                value: redTopValue + stepBytes,
+                red: true,
+                index: index
+            )
             index += 1
-            value -= stepBytes
+            redTopValue += stepBytes
+        }
+
+        var blackBottomValue = Double(waterlineBytes)
+        while blackBottomValue > floorValue {
+            let rawTopY = yForUsed(blackBottomValue)
+            let rawBottomY = yForUsed(max(floorValue, blackBottomValue - stepBytes))
+            guard rawBottomY - rawTopY > 2,
+                  rawBottomY > gaugeRect.minY,
+                  rawTopY < gaugeRect.maxY else { break }
+            drawEBlock(
+                topY: max(rawTopY, gaugeRect.minY),
+                bottomY: min(rawBottomY, gaugeRect.maxY),
+                value: blackBottomValue,
+                red: false,
+                index: index
+            )
+            index += 1
+            blackBottomValue -= stepBytes
         }
 
         // 水线标记（跨越标尺的实线）与徽标
