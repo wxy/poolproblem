@@ -390,6 +390,9 @@ struct MenuBarView: View {
                             .frame(width: 9, height: 9)
                         Text(Localized.string("recipe.trash"))
                             .font(.caption)
+                        Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text(Format.bytes(poolLayers.trashBytes))
                             .font(.caption)
@@ -397,9 +400,6 @@ struct MenuBarView: View {
                         Text(Localized.string("badge.manual"))
                             .font(.caption2)
                             .foregroundStyle(.blue)
-                        Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
                 }
                 .buttonStyle(.plain)
@@ -609,14 +609,32 @@ struct MenuBarView: View {
             }
 
             let rationale = CleanupRationale.make(for: item)
+            let appCleanable = rationale.confirmation != .manualXcodeComponents
+                && item.cleanability != .displayOnly
             VStack(alignment: .leading, spacing: 4) {
                 Text(Localized.string("detail.why_suggested"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Text(Localized.suggestionText(rationale.suggestion))
                     .font(.caption)
+                if appCleanable {
+                    Text(Localized.string("detail.why_cleanable"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(Localized.string("detail.why_cleanable_reason"))
+                        .font(.caption)
+                }
+                if item.safety == .requiresQuit, let appName = processName(for: item) {
+                    Text(Localized.string("detail.why_quit"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(Localized.string("detail.why_quit_reason", appName))
+                        .font(.caption)
+                }
                 if let confirmation = rationale.confirmation {
-                    Text(Localized.string("detail.why_confirm"))
+                    Text(confirmation == .manualXcodeComponents
+                         ? Localized.string("detail.why_manual")
+                         : Localized.string("detail.why_confirm"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     Text(Localized.confirmationText(confirmation))
@@ -660,7 +678,7 @@ struct MenuBarView: View {
 
             HStack(spacing: 16) {
                 LabeledContent(Localized.string("detail.reclaimable"), value: Format.bytes(item.reclaimableBytes))
-                LabeledContent(Localized.string("detail.safety"), value: safetyText(item.safety))
+                LabeledContent(Localized.string("detail.safety"), value: safetyText(for: item))
             }
             .font(.caption)
             if let rate = state.growthRates[item.id], rate > 0 {
@@ -669,9 +687,8 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 10) {
-                if rationale.confirmation == .manualXcodeComponents {
-                    xcodeCleanupHint(for: item)
-                } else if item.cleanability != .displayOnly,
+                if item.cleanability != .displayOnly,
+                          rationale.confirmation != .manualXcodeComponents,
                           item.safety == .safeWhileRunning
                           || item.safety == .userConfirm
                           || (item.safety == .requiresQuit && !quitProcessRunning) {
@@ -773,20 +790,6 @@ struct MenuBarView: View {
             return "Simulator"
         default:
             return nil
-        }
-    }
-
-    /// 由 Xcode 管理并占用的项（模拟器运行时镜像/共享缓存）：
-    /// 应用无法删除，只能提示用户到 Xcode 组件界面手动处理。
-    @ViewBuilder
-    private func xcodeCleanupHint(for item: ScanItem) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(Localized.string("detail.xcode_manual_title"))
-                .font(.caption2)
-                .foregroundStyle(.orange)
-            Text(Localized.string("detail.xcode_manual_body"))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -1028,13 +1031,16 @@ struct MenuBarView: View {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
-    private func safetyText(_ safety: SafetyLevel) -> String {
-        switch safety {
+    private func safetyText(for item: ScanItem) -> String {
+        switch item.safety {
         case .safeWhileRunning:
             return Localized.string("safety.safe_while_running")
         case .requiresQuit:
             return Localized.string("safety.requires_quit")
         case .userConfirm:
+            if CleanupRationale.make(for: item).confirmation == .manualXcodeComponents {
+                return Localized.string("safety.manual_delete")
+            }
             return Localized.string("safety.user_confirm")
         }
     }
@@ -1043,11 +1049,19 @@ struct MenuBarView: View {
         guard let date else {
             return Localized.string("detail.never_used")
         }
-        let days = max(0, Int(Date().timeIntervalSince(date) / 86_400))
-        if days == 0 {
-            return Localized.string("detail.last_used_today")
+        let interval = Date().timeIntervalSince(date)
+        if interval < 86_400 {
+            let hours = max(1, Int(interval / 3600))
+            return Localized.string("detail.last_used_hours", hours)
         }
-        return Localized.string("detail.last_used_days", days)
+        let days = Int(interval / 86_400)
+        if days == 1 {
+            return Localized.string("detail.last_used_yesterday")
+        }
+        if days == 2 {
+            return Localized.string("detail.last_used_before_yesterday")
+        }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 
     private func revealInFinder(_ path: String) {

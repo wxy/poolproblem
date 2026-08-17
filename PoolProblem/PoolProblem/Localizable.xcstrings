@@ -713,38 +713,6 @@
         }
       }
     },
-    "detail.last_used_days" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d days ago"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 天前"
-          }
-        }
-      }
-    },
-    "detail.last_used_today" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Today"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "今天"
-          }
-        }
-      }
-    },
     "detail.never_used" : {
       "localizations" : {
         "en" : {
@@ -2005,13 +1973,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Manual confirmation"
+            "value" : "Needs confirmation"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需手动确认"
+            "value" : "需确认"
           }
         }
       }
@@ -2544,50 +2512,18 @@
         }
       }
     },
-    "detail.xcode_manual_body" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This runtime is managed and held by Xcode. Open Xcode → Settings → Components to delete it. Once deleted, builds for this version will no longer work."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "该运行时由 Xcode 管理并占用，应用无法删除。请到 Xcode → 设置 → 组件 中删除；删除后将无法使用该版本构建。"
-          }
-        }
-      }
-    },
-    "detail.xcode_manual_title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only removable in Xcode"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只能在 Xcode 中删除"
-          }
-        }
-      }
-    },
     "rationale.confirm.xcode_components" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Only removable in Xcode → Settings → Components"
+            "value" : "Only removable in Xcode → Settings → Components; after deletion, this version can no longer be built"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只能在 Xcode → 设置 → 组件 中删除"
+            "value" : "只能在 Xcode → 设置 → 组件 中删除；删除后将无法使用该版本构建"
           }
         }
       }
@@ -2636,6 +2572,150 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需先退出 %@"
+          }
+        }
+      }
+    },
+    "detail.last_used_before_yesterday" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day before yesterday"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前天"
+          }
+        }
+      }
+    },
+    "detail.last_used_hours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d hours ago"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 小时前"
+          }
+        }
+      }
+    },
+    "detail.last_used_yesterday" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨天"
+          }
+        }
+      }
+    },
+    "detail.why_cleanable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why cleanable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么可清理"
+          }
+        }
+      }
+    },
+    "detail.why_cleanable_reason" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These data are no longer in use"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些数据不再使用"
+          }
+        }
+      }
+    },
+    "detail.why_manual" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why manual cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么需要手动"
+          }
+        }
+      }
+    },
+    "detail.why_quit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why quit is required"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么需要退出"
+          }
+        }
+      }
+    },
+    "detail.why_quit_reason" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These files are in use by %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些数据正被 %@ 使用"
+          }
+        }
+      }
+    },
+    "safety.manual_delete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需手动删除"
           }
         }
       }
