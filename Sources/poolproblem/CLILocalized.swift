@@ -69,5 +69,10 @@ enum CLILocalized {
             zh: "按当前流速，约 %d 天后到水线。"
         ),
         "status.clean_log": Entry(en: "Clean %@: %lld bytes (%@)", zh: "清理 %@：%lld 字节 (%@)"),
+
+        "mcp.abstract": Entry(
+            en: "Run as an MCP stdio server exposing scan, suggest, clean, and status tools",
+            zh: "作为 MCP stdio server 运行，暴露 scan/suggest/clean/status 工具"
+        ),
     ]
 }

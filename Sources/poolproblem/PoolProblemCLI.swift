@@ -6,6 +6,12 @@ struct PoolProblemCLI: ParsableCommand {
         commandName: "poolproblem",
         abstract: CLILocalized.string("cli.abstract"),
         version: "1.1.0",
-        subcommands: [ScanCommand.self, SuggestCommand.self, CleanCommand.self, StatusCommand.self]
+        subcommands: [
+            ScanCommand.self,
+            SuggestCommand.self,
+            CleanCommand.self,
+            StatusCommand.self,
+            MCPCommand.self,
+        ]
     )
 }
