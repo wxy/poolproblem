@@ -117,7 +117,9 @@ enum GaugeImageRenderer {
             guard blockBottomY - blockTopY > 2 else { break }
 
             let isLeft = index.isMultiple(of: 2)
-            let inRed = blockTopY < waterlineY
+            // 按块中点判定红/黑，避免横跨水位线的块整块变红，
+            // 导致红黑分界低于水位线标记（标记看起来“偏上”）。
+            let inRed = (blockTopY + blockBottomY) / 2 < waterlineY
             let color = inRed
                 ? Color(red: 0.85, green: 0.14, blue: 0.10)
                 : Color(white: 0.13)
