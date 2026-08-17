@@ -387,11 +387,19 @@ final class AppService {
 
     func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
         // 详情页点击“立即清理”即用户确认：
-        // safeWhileRunning 与 userConfirm 都放行，displayOnly（用户数据）除外；
-        // requiresQuit 仍须先退出相关应用。
-        guard item.cleanability != .displayOnly,
-              item.safety == .safeWhileRunning || item.safety == .userConfirm else {
+        // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
+        // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
+        guard item.cleanability != .displayOnly else {
             return nil
+        }
+        switch item.safety {
+        case .safeWhileRunning, .userConfirm:
+            break
+        case .requiresQuit:
+            guard let processName = Self.processName(for: item),
+                  !PGrepProcessInspector().isRunning(processName) else {
+                return nil
+            }
         }
         state.isCleaning = true
         state.cleanedItemIDs = []
@@ -441,6 +449,17 @@ final class AppService {
         )
         state.cleanCelebrationID += 1
         return outcome
+    }
+
+    private static func processName(for item: ScanItem) -> String? {
+        switch item.category {
+        case .xcode:
+            return "Xcode"
+        case .simulator:
+            return "Simulator"
+        default:
+            return nil
+        }
     }
 
     func undoCleanup(_ entry: CleanLogEntry) async -> Bool {

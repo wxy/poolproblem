@@ -13,6 +13,7 @@ struct MenuBarView: View {
     @State private var showNonCleanableInfo = false
     @State private var showCleanHistory = false
     @State private var cleanFailureNotice: String?
+    @State private var quitProcessRunning = false
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -671,10 +672,12 @@ struct MenuBarView: View {
                 if rationale.confirmation == .manualXcodeComponents {
                     xcodeCleanupHint(for: item)
                 } else if item.cleanability != .displayOnly,
-                   item.safety == .safeWhileRunning || item.safety == .userConfirm {
-                    Button(item.safety == .userConfirm
-                           ? Localized.string("detail.clean_confirm")
-                           : Localized.string("detail.clean_now")) {
+                          item.safety == .safeWhileRunning
+                          || item.safety == .userConfirm
+                          || (item.safety == .requiresQuit && !quitProcessRunning) {
+                    Button(item.safety == .safeWhileRunning
+                           ? Localized.string("detail.clean_now")
+                           : Localized.string("detail.clean_confirm")) {
                         withAnimation(overlaySpring) { state.detailItem = nil }
                         Task {
                             if await service.cleanItem(item) == nil {
@@ -738,6 +741,32 @@ struct MenuBarView: View {
             Button(Localized.string("common.close"), role: .cancel) {}
         } message: {
             Text(cleanFailureNotice ?? "")
+        }
+        .onAppear {
+            guard item.safety == .requiresQuit,
+                  let name = processName(for: item) else {
+                quitProcessRunning = false
+                return
+            }
+            Task {
+                let running = await Task.detached(priority: .userInitiated) {
+                    PGrepProcessInspector().isRunning(name)
+                }.value
+                await MainActor.run {
+                    quitProcessRunning = running
+                }
+            }
+        }
+    }
+
+    private func processName(for item: ScanItem) -> String? {
+        switch item.category {
+        case .xcode:
+            return "Xcode"
+        case .simulator:
+            return "Simulator"
+        default:
+            return nil
         }
     }
 
