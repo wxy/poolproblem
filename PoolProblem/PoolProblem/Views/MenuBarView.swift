@@ -467,7 +467,7 @@ struct MenuBarView: View {
                                 Rectangle()
                                     .fill(PoolLayers.nonCleanableColor.opacity(0.5))
                                     .frame(width: 9, height: 9)
-                                Text(Localized.recipeName(item.recipeID, fallback: item.name))
+                                Text(Localized.recipeName(item.recipeID, fallback: item.name) + manualSuffix(for: item))
                                     .lineLimit(1)
                                     .font(.caption)
                                     .foregroundStyle(.primary)
@@ -490,6 +490,19 @@ struct MenuBarView: View {
                 }
                 .padding(.top, 4)
             }
+        }
+    }
+
+    /// 手动清理项行名后缀：区分同一配方的多个版本（大小已在行尾单独显示）
+    private func manualSuffix(for item: ScanItem) -> String {
+        switch item.recipeID {
+        case "simulator-runtimes", "simulator-dyld-cache":
+            return SimulatorRuntimeUsage.displayName(forPath: item.path)
+                .map { " · \($0)" } ?? ""
+        case "xcode-devicesupport":
+            return " · " + URL(fileURLWithPath: item.path).lastPathComponent
+        default:
+            return ""
         }
     }
 

@@ -199,6 +199,22 @@ import Foundation
     #expect(result.items.first?.path.hasSuffix("iOS_23F77") == true)
 }
 
+@Test func runtimeDisplayNameReadsSimruntimeBundle() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-runtime-name-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let bundle = root
+        .appendingPathComponent("Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.5.simruntime", isDirectory: true)
+    try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+
+    #expect(SimulatorRuntimeUsage.displayName(forPath: root.path) == "iOS 26.5")
+}
+
+@Test func runtimeDisplayNameParsesDyldCacheName() {
+    let path = "/tmp/dyld/25F80/com.apple.CoreSimulator.SimRuntime.watchOS-26-5.23T570"
+    #expect(SimulatorRuntimeUsage.displayName(forPath: path) == "watchOS 26.5")
+}
+
 @Test func volumeReaderReturnsAvailableCapacity() {
     let info = VolumeReader.read(fileURL: URL(fileURLWithPath: "/"))
     #expect(info.totalBytes > 0)

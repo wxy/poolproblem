@@ -6,6 +6,26 @@ import Foundation
 /// 权威信号是 `~/Library/Developer/CoreSimulator/Devices/*/device.plist`
 /// 里的 `lastBootedAt`（最后启动时间），按 runtime 标识映射。
 public enum SimulatorRuntimeUsage {
+    /// 用户可读的运行时显示名（如 “iOS 26.5” / “watchOS 26.5”）。
+    public static func displayName(forPath path: String) -> String? {
+        let url = URL(fileURLWithPath: path)
+        // 运行时镜像：读取 .simruntime 包名，如 "iOS 26.5.simruntime"
+        let runtimes = url.appendingPathComponent("Library/Developer/CoreSimulator/Profiles/Runtimes")
+        if let entries = try? FileManager.default.contentsOfDirectory(
+            at: runtimes,
+            includingPropertiesForKeys: nil
+        ) {
+            for entry in entries where entry.pathExtension == "simruntime" {
+                return entry.deletingPathExtension().lastPathComponent
+            }
+        }
+        // dyld 缓存目录：从 runtime 标识解析，如 com.apple.CoreSimulator.SimRuntime.iOS-26-5.23F77
+        if let id = runtimeIdentifier(forPath: path) {
+            return displayName(fromIdentifier: id)
+        }
+        return nil
+    }
+
     /// 解析运行时路径对应的 runtime 标识（如 `com.apple.CoreSimulator.SimRuntime.iOS-26-5`）。
     public static func runtimeIdentifier(forPath path: String) -> String? {
         let url = URL(fileURLWithPath: path)
@@ -41,6 +61,16 @@ public enum SimulatorRuntimeUsage {
             }
         }
         return nil
+    }
+
+    private static func displayName(fromIdentifier id: String) -> String? {
+        let prefix = "com.apple.CoreSimulator.SimRuntime."
+        guard id.hasPrefix(prefix) else { return nil }
+        let rest = id.dropFirst(prefix.count)
+        let parts = rest.split(separator: "-")
+        guard let platform = parts.first else { return nil }
+        let version = parts.dropFirst().joined(separator: ".")
+        return version.isEmpty ? String(platform) : "\(platform) \(version)"
     }
 
     /// 给定 runtime 标识，返回所有设备 `lastBootedAt` 的最大值；没有设备则为 nil。
