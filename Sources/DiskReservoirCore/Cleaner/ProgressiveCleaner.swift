@@ -205,10 +205,7 @@ public struct ProgressiveCleaner: Sendable {
         guard count > policy.maxChildren else {
             return (count, [])
         }
-        let selected = datedChildren
-            .sorted { $0.date < $1.date }
-            .prefix(policy.maxItemsPerRun)
-        let candidates = selected.map { candidate -> ProgressiveCleanupCandidate in
+        let measuredCandidates = datedChildren.map { candidate -> ProgressiveCleanupCandidate in
             let itemID = "\(policy.recipeID):\(candidate.url.path)"
             return ProgressiveCleanupCandidate(
                 path: candidate.url.path,
@@ -219,6 +216,11 @@ public struct ProgressiveCleaner: Sendable {
                 )
             )
         }
+        let candidates = Array(
+            measuredCandidates
+                .sorted { $0.estimatedBytes > $1.estimatedBytes }
+                .prefix(policy.maxItemsPerRun)
+        )
         return (count, candidates)
     }
 

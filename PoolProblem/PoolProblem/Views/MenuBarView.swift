@@ -780,11 +780,15 @@ struct MenuBarView: View {
     }
 
     private func historyNames(_ entry: CleanLogEntry) -> String {
-        if !entry.itemNames.isEmpty {
-            return entry.itemNames.joined(separator: ", ")
+        if !entry.itemNames.isEmpty, entry.itemIDs.count == entry.itemNames.count {
+            return zip(entry.itemIDs, entry.itemNames)
+                .map { itemID, name in
+                    historyItemDisplayName(itemID: itemID, fallbackName: name)
+                }
+                .joined(separator: ", ")
         }
         return entry.itemIDs
-            .map(historyItemName)
+            .map { historyItemDisplayName(itemID: $0, fallbackName: "") }
             .joined(separator: ", ")
     }
 
@@ -824,9 +828,17 @@ struct MenuBarView: View {
         return "legacy-\(entry.source.rawValue)-\(Int(entry.timestamp.timeIntervalSince1970))"
     }
 
-    private func historyItemName(_ itemID: String) -> String {
-        let path = itemID.split(separator: ":", maxSplits: 1).last.map(String.init) ?? itemID
-        return path.split(separator: "/").last.map(String.init) ?? itemID
+    private func historyItemDisplayName(itemID: String, fallbackName: String) -> String {
+        let parts = itemID.split(separator: ":", maxSplits: 1)
+        let recipeID = parts.first.map(String.init) ?? itemID
+        let path = parts.count > 1 ? String(parts[1]) : itemID
+        let pathName = path.split(separator: "/").last.map(String.init) ?? path
+        let parentName = Localized.recipeName(recipeID, fallback: recipeID)
+        let childName = fallbackName.isEmpty ? pathName : fallbackName
+        if childName == parentName || childName == pathName {
+            return parentName
+        }
+        return "\(parentName) · \(childName)"
     }
 
     private func historySourceText(_ source: CleanSource) -> String {

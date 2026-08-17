@@ -159,7 +159,7 @@ final class CaptureBox: @unchecked Sendable {
     #expect(capture.cleaned == ["cb"])
 }
 
-@Test func cleanerProcessesSmallItemsFirst() throws {
+@Test func cleanerProcessesLargerItemsFirst() throws {
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-clean5-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: dir) }
@@ -203,6 +203,6 @@ final class CaptureBox: @unchecked Sendable {
         onItemWillDelete: { capture.will.append($0) },
         onItemCleaned: { itemID, _ in capture.cleaned.append(itemID) }
     )
-    #expect(capture.will == ["small", "big"])
-    #expect(capture.cleaned == ["small", "big"])
+    #expect(capture.will == ["big", "small"])
+    #expect(capture.cleaned == ["big", "small"])
 }
