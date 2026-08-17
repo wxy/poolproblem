@@ -691,9 +691,15 @@ struct MenuBarView: View {
                     .focusEffectDisabled()
                     .cursorPointingHand()
                 } else if item.safety == .requiresQuit {
-                    Text(Localized.string("detail.clean_requires_quit"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if let appName = processName(for: item) {
+                        Text(Localized.string("detail.clean_requires_quit_app", appName))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(Localized.string("detail.clean_requires_quit"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 if isKept {
                     Button(Localized.string("detail.unkeep")) {

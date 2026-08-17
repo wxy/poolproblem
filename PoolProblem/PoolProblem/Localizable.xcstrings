@@ -590,13 +590,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Confirm & clean (to Trash)"
+            "value" : "Clean now"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "确认并清理（进回收站）"
+            "value" : "马上清理"
           }
         }
       }
@@ -638,13 +638,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clean this item now"
+            "value" : "Clean now"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "立即清理此项"
+            "value" : "马上清理"
           }
         }
       }
@@ -686,13 +686,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keep this item (don't clean)"
+            "value" : "Don't clean"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保留此项（不再清理）"
+            "value" : "不再清理"
           }
         }
       }
@@ -2620,6 +2620,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "手动清理"
+          }
+        }
+      }
+    },
+    "detail.clean_requires_quit_app" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit %@ first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需先退出 %@"
           }
         }
       }
