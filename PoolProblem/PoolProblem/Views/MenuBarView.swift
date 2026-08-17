@@ -132,6 +132,16 @@ struct MenuBarView: View {
         .onHover { hovering in
             if !hovering { NSCursor.arrow.set() }
         }
+        .onChange(of: state.deletingItemID) { _, newValue in
+            if newValue != nil {
+                // 删除期间：大小在 1.2 秒内平滑缩到 0，闪动随之停止，行消失
+                withAnimation(.easeOut(duration: 1.2)) {
+                    state.deletingProgress = 0
+                }
+            } else {
+                state.deletingProgress = 1
+            }
+        }
         .alert(
             Localized.string("clean.confirm_title"),
             isPresented: $state.showCleanConfirm,
@@ -310,7 +320,9 @@ struct MenuBarView: View {
             Text(Localized.string("section.cleanable_count", poolLayers.layers.count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(poolLayers.layers) { layer in
+            ForEach(poolLayers.layers.filter { layer in
+                !(layer.itemID == state.deletingItemID && state.deletingProgress <= 0)
+            }) { layer in
                 Button {
                     if let item = state.items.first(where: { $0.id == layer.itemID }) {
                         withAnimation(overlaySpring) { state.detailItem = item }
@@ -333,9 +345,14 @@ struct MenuBarView: View {
                                 .foregroundStyle(arrows == 1 ? Color.green : (arrows == 2 ? Color.orange : Color.red))
                         }
                         Spacer()
-                        Text(Format.bytes(layer.bytes))
+                        let deleting = state.deletingItemID == layer.itemID
+                        let displayBytes = deleting
+                            ? Int64(Double(layer.bytes) * state.deletingProgress)
+                            : layer.bytes
+                        Text(Format.bytes(displayBytes))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .monospacedDigit()
                         // COW 项：大小后面显示"?"（占位对齐，非 COW 项保留空白）
                         Text(verbatim: layer.estimated ? "?" : " ")
                             .font(.caption2)
@@ -344,12 +361,16 @@ struct MenuBarView: View {
                         safetyMark(layer)
                     }
                     .frame(height: 22)
-                    .opacity(state.deletingItemID == layer.itemID ? 0.35 : 1)
+                    .opacity(
+                        state.deletingItemID == layer.itemID && state.deletingProgress > 0
+                            ? 0.35
+                            : 1
+                    )
                     .animation(
-                        state.deletingItemID == layer.itemID
+                        state.deletingItemID == layer.itemID && state.deletingProgress > 0
                             ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true)
                             : .default,
-                        value: state.deletingItemID == layer.itemID
+                        value: state.deletingItemID == layer.itemID && state.deletingProgress > 0
                     )
                 }
                 .buttonStyle(.plain)

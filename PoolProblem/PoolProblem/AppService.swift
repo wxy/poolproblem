@@ -428,6 +428,8 @@ final class AppService {
         }
         guard let outcome = await work.value else {
             state.isCleaning = false
+            state.deletingItemID = nil
+            state.deletingProgress = 1
             return nil
         }
         state.isCleaning = false
