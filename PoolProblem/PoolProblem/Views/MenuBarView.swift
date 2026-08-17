@@ -12,6 +12,7 @@ struct MenuBarView: View {
     @State private var spinning = false
     @State private var showNonCleanableInfo = false
     @State private var showCleanHistory = false
+    @State private var cleanFailureNotice: String?
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -601,10 +602,17 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 10) {
-                if item.safety == .safeWhileRunning, item.recipeID != "trash" {
-                    Button(Localized.string("detail.clean_now")) {
+                if item.cleanability != .displayOnly,
+                   item.safety == .safeWhileRunning || item.safety == .userConfirm {
+                    Button(item.safety == .userConfirm
+                           ? Localized.string("detail.clean_confirm")
+                           : Localized.string("detail.clean_now")) {
                         withAnimation(overlaySpring) { state.detailItem = nil }
-                        Task { _ = await service.cleanItem(item) }
+                        Task {
+                            if await service.cleanItem(item) == nil {
+                                cleanFailureNotice = Localized.string("detail.clean_failed")
+                            }
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
@@ -652,6 +660,17 @@ struct MenuBarView: View {
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.15))
+        .alert(
+            Localized.string("detail.clean_failed_title"),
+            isPresented: Binding(
+                get: { cleanFailureNotice != nil },
+                set: { if !$0 { cleanFailureNotice = nil } }
+            )
+        ) {
+            Button(Localized.string("common.close"), role: .cancel) {}
+        } message: {
+            Text(cleanFailureNotice ?? "")
+        }
     }
 
     /// 通用信息浮层（不可清理说明等）

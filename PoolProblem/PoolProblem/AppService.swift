@@ -386,7 +386,11 @@ final class AppService {
     }
 
     func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
-        guard item.safety == .safeWhileRunning, item.recipeID != "trash" else {
+        // 详情页点击“立即清理”即用户确认：
+        // safeWhileRunning 与 userConfirm 都放行，displayOnly（用户数据）除外；
+        // requiresQuit 仍须先退出相关应用。
+        guard item.cleanability != .displayOnly,
+              item.safety == .safeWhileRunning || item.safety == .userConfirm else {
             return nil
         }
         state.isCleaning = true
