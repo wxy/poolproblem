@@ -206,3 +206,13 @@ final class CaptureBox: @unchecked Sendable {
     #expect(capture.will == ["big", "small"])
     #expect(capture.cleaned == ["big", "small"])
 }
+
+@Test func cleanabilityGuardDowngradesPermanentDeleteToTrash() {
+    #expect(Cleaner.guardedDisposition(for: .deletePermanently, cleanability: .trashOnly) == .trash)
+    #expect(Cleaner.guardedDisposition(for: .deletePermanently, cleanability: .regenerable) == .deletePermanently)
+}
+
+@Test func cleanabilityGuardBlocksDisplayOnly() {
+    #expect(Cleaner.guardedDisposition(for: .trash, cleanability: .displayOnly) == nil)
+    #expect(Cleaner.guardedDisposition(for: .deletePermanently, cleanability: .displayOnly) == nil)
+}

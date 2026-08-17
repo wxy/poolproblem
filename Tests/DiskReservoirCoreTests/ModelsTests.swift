@@ -7,15 +7,66 @@ import Foundation
         id: "xctest-1", recipeID: "xctestdevices", name: "XCTestDevices",
         path: "/tmp/x", category: .xcode, safety: .safeWhileRunning,
         disposition: .deletePermanently, sizeBytes: 100, allocatedBytes: 80,
-        reclaimableBytes: 10, fileCount: 3, lastModified: nil
+        reclaimableBytes: 10, fileCount: 3, lastModified: nil,
+        cleanability: .trashOnly
     )
     let data = try JSONEncoder().encode(item)
     let decoded = try JSONDecoder().decode(ScanItem.self, from: data)
     #expect(decoded == item)
+    #expect(decoded.cleanability == .trashOnly)
+}
+
+@Test func scanItemDecodesLegacyJSONWithoutCleanability() throws {
+    let json = """
+    {
+      "id": "trash:/Users/tester/.Trash",
+      "recipeID": "trash",
+      "name": "废纸篓",
+      "path": "/Users/tester/.Trash",
+      "category": "common",
+      "safety": "userConfirm",
+      "disposition": "none",
+      "sizeBytes": 0,
+      "allocatedBytes": 0,
+      "reclaimableBytes": 0,
+      "fileCount": 0,
+      "lastModified": null
+    }
+    """.data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(ScanItem.self, from: json)
+    #expect(decoded.cleanability == .regenerable)
 }
 
 @Test func configDefaultWaterlineIs30GB() {
     #expect(Config.default.waterlineGB == 30)
+}
+
+@Test func configDefaultProtectsBuildCriticalCacheChildren() {
+    #expect(Config.default.protectedCacheChildren.contains("org.swift.swiftpm"))
+    #expect(Config.default.protectedCacheChildren.contains("node-gyp"))
+}
+
+@Test func configDecodesLegacyJSONWithoutProtectedChildren() throws {
+    let json = """
+    {
+      "waterlineGB": 30,
+      "rules": [],
+      "whitelistPaths": [],
+      "enabledRecipes": [],
+      "cloneRatios": {},
+      "keptItemIDs": []
+    }
+    """.data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(Config.self, from: json)
+    #expect(decoded.protectedCacheChildren == Config.default.protectedCacheChildren)
+}
+
+@Test func configRoundTripsProtectedChildren() throws {
+    var config = Config.default
+    config.protectedCacheChildren = ["org.swift.swiftpm", "custom-cache"]
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(Config.self, from: data)
+    #expect(decoded.protectedCacheChildren == ["org.swift.swiftpm", "custom-cache"])
 }
 
 @Test func cleanLogEntryRoundTrip() throws {

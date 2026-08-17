@@ -883,7 +883,11 @@ final class AppService {
                     disposition: .trash,
                     source: .auto,
                     reclaimableRatio: ratio,
-                    minimumCleanBytes: 0
+                    minimumCleanBytes: 0,
+                    protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
+                        recipe: recipe,
+                        config: config
+                    )
                 ))
                 continue
             }
@@ -901,7 +905,11 @@ final class AppService {
                 disposition: .trash,
                 source: .auto,
                 reclaimableRatio: ratio,
-                minimumCleanBytes: autoMinimumCleanItemBytes
+                minimumCleanBytes: autoMinimumCleanItemBytes,
+                protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
+                    recipe: recipe,
+                    config: config
+                )
             ))
         }
         return policies

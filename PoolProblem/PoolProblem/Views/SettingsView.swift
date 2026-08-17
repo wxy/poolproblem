@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var expertMode = false
     @State private var launchAtLogin = LaunchAtLoginService.isEnabled
     @State private var newWhitelistPath = ""
+    @State private var newProtectedChild = ""
     @State private var hasFullDiskAccess = false
 
     var body: some View {
@@ -57,7 +58,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(Localized.string("settings.whitelist_section")) {
+            Section(Localized.string("settings.whitelist_section")) {
                     ForEach(config.whitelistPaths, id: \.self) { path in
                         HStack {
                             Text(path).font(.caption).lineLimit(1)
@@ -82,6 +83,37 @@ struct SettingsView: View {
                         .cursorPointingHand(enabled: !newWhitelistPath.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 }
+            }
+
+            Section(Localized.string("settings.protected_children_section")) {
+                ForEach(config.protectedCacheChildren, id: \.self) { name in
+                    HStack {
+                        Text(name).font(.caption).lineLimit(1)
+                        Spacer()
+                        Button(Localized.string("common.remove")) {
+                            config.protectedCacheChildren.removeAll { $0 == name }
+                        }
+                        .cursorPointingHand()
+                    }
+                }
+                HStack {
+                    TextField(Localized.string("settings.path_placeholder"), text: $newProtectedChild)
+                        .textFieldStyle(.roundedBorder)
+                    Button(Localized.string("common.add")) {
+                        let trimmed = newProtectedChild.trimmingCharacters(in: .whitespaces)
+                        if !trimmed.isEmpty, !config.protectedCacheChildren.contains(trimmed) {
+                            config.protectedCacheChildren.append(trimmed)
+                        }
+                        newProtectedChild = ""
+                    }
+                    .disabled(newProtectedChild.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .cursorPointingHand(
+                        enabled: !newProtectedChild.trimmingCharacters(in: .whitespaces).isEmpty
+                    )
+                }
+                Text(Localized.string("settings.protected_children_footer"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section(Localized.string("settings.permission_section")) {

@@ -10,6 +10,7 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
     public let source: CleanSource
     public let reclaimableRatio: Double
     public let minimumCleanBytes: Int64
+    public let protectedChildNames: Set<String>
 
     public init(
         recipeID: String,
@@ -20,7 +21,8 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
         disposition: CleanDisposition,
         source: CleanSource = .auto,
         reclaimableRatio: Double = 1,
-        minimumCleanBytes: Int64 = 0
+        minimumCleanBytes: Int64 = 0,
+        protectedChildNames: Set<String> = []
     ) {
         self.recipeID = recipeID
         self.parentPath = parentPath
@@ -31,6 +33,18 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
         self.source = source
         self.reclaimableRatio = reclaimableRatio
         self.minimumCleanBytes = minimumCleanBytes
+        self.protectedChildNames = protectedChildNames
+    }
+}
+
+extension ProgressiveCleanupPolicy {
+    /// 合并配方自带保护名单与全局配置保护名单：
+    /// 这两处的子目录在渐进清理中永远不会被自动删除。
+    public static func mergedProtectedChildNames(
+        recipe: Recipe,
+        config: Config
+    ) -> Set<String> {
+        Set(recipe.protectedChildren + config.protectedCacheChildren)
     }
 }
 
@@ -192,6 +206,7 @@ public struct ProgressiveCleaner: Sendable {
         )
         let cutoff = now().addingTimeInterval(-policy.minimumAgeSeconds)
         let datedChildren = children.compactMap { url -> (url: URL, date: Date)? in
+            guard !policy.protectedChildNames.contains(url.lastPathComponent) else { return nil }
             let values = try? url.resourceValues(forKeys: keys)
             guard values?.isSymbolicLink != true else { return nil }
             let date = values?.contentModificationDate

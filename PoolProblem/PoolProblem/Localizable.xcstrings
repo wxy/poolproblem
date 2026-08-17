@@ -2159,6 +2159,102 @@
           }
         }
       }
+    },
+    "recipe.xcode-preview-cache" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode Preview Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode 预览缓存"
+          }
+        }
+      }
+    },
+    "recipe.xcode-devicesupport" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Support (Old Versions)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真机调试支持（旧版本）"
+          }
+        }
+      }
+    },
+    "recipe.simulator-runtimes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simulator Runtimes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模拟器运行时镜像"
+          }
+        }
+      }
+    },
+    "recipe.simulator-dyld-cache" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simulator Shared Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模拟器共享缓存"
+          }
+        }
+      }
+    },
+    "settings.protected_children_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protected build caches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "构建必需缓存保护"
+          }
+        }
+      }
+    },
+    "settings.protected_children_footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These cache subfolders are never auto-deleted; deleting them forces re-download or re-resolution of build dependencies."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些缓存子目录不会被自动删除；删掉会触发重新下载或重新解析构建依赖。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

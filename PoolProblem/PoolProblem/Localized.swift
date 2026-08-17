@@ -24,6 +24,10 @@ enum Localized {
         case "cocoapods-cache": return string("recipe.cocoapods-cache")
         case "homebrew-cache": return string("recipe.homebrew-cache")
         case "library-caches": return string("recipe.library-caches")
+        case "xcode-preview-cache": return string("recipe.xcode-preview-cache")
+        case "xcode-devicesupport": return string("recipe.xcode-devicesupport")
+        case "simulator-runtimes": return string("recipe.simulator-runtimes")
+        case "simulator-dyld-cache": return string("recipe.simulator-dyld-cache")
         case "trash": return string("recipe.trash")
         default: return fallback
         }

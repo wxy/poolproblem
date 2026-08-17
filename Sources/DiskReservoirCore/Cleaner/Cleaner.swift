@@ -48,6 +48,22 @@ public struct Cleaner: Sendable {
         self.now = now
     }
 
+    /// 清理底线兜底：任何删除决定都必须经过可清理性校验。
+    /// `displayOnly` 永不删除；`trashOnly` 强制降级为回收站；`regenerable` 保持原决定。
+    public static func guardedDisposition(
+        for disposition: CleanDisposition,
+        cleanability: Cleanability
+    ) -> CleanDisposition? {
+        switch cleanability {
+        case .displayOnly:
+            return nil
+        case .trashOnly:
+            return .trash
+        case .regenerable:
+            return disposition
+        }
+    }
+
     public func run(
         scan: ScanResult,
         config: Config,
@@ -90,16 +106,20 @@ public struct Cleaner: Sendable {
                 },
                 force: forceClean
             )
-            let disposition: CleanDisposition?
+            let rawDisposition: CleanDisposition?
             switch decision.action {
             case .delete:
-                disposition = .deletePermanently
+                rawDisposition = .deletePermanently
             case .trash:
-                disposition = .trash
+                rawDisposition = .trash
             default:
-                disposition = nil
+                rawDisposition = nil
             }
-            guard let disposition else { continue }
+            guard let rawDisposition,
+                  let disposition = Cleaner.guardedDisposition(
+                      for: rawDisposition,
+                      cleanability: item.cleanability
+                  ) else { continue }
             onItemWillDelete?(item.id)
             let deletion = try deleter.deleteReturningResult(
                 url: URL(fileURLWithPath: item.path),

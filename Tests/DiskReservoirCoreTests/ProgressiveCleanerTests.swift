@@ -151,3 +151,59 @@ private struct RecorderDeleter: FileDeleting {
     #expect((try? FileManager.default.contentsOfDirectory(atPath: root.path))?.count == 12)
     #expect(try CleanLogStore(paths: paths).entries().isEmpty)
 }
+
+@Test func progressiveCleanerNeverTrimsProtectedChildren() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-progressive-protected-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    // 保护项做得又大又旧，确保它“应当”被选中，但必须被跳过
+    for index in 0..<12 {
+        let name = index == 0 ? "org.swift.swiftpm" : "child-\(index)"
+        let child = root.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        try Data(repeating: 0xAB, count: 4096).write(to: child.appendingPathComponent("data.bin"))
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-30 * 86_400)],
+            ofItemAtPath: child.path
+        )
+    }
+
+    let paths = StoragePaths(baseURL: root.appendingPathComponent("logs", isDirectory: true))
+    let outcome = try ProgressiveCleaner(
+        deleter: FileManagerFileDeleter(),
+        logStore: CleanLogStore(paths: paths)
+    ).run(policy: ProgressiveCleanupPolicy(
+        recipeID: "xctestdevices",
+        parentPath: root.path,
+        maxChildren: 10,
+        maxItemsPerRun: 3,
+        minimumAgeSeconds: 86_400,
+        disposition: .deletePermanently,
+        protectedChildNames: ["org.swift.swiftpm"]
+    ))
+
+    let protectedPath = root.appendingPathComponent("org.swift.swiftpm")
+    #expect(FileManager.default.fileExists(atPath: protectedPath.path))
+    #expect(outcome.entries.allSatisfy { !$0.itemIDs.contains(where: { $0.hasSuffix("org.swift.swiftpm") }) })
+    #expect(outcome.trimmedCount == 3)
+}
+
+@Test func mergedProtectedChildNamesCombinesRecipeAndConfig() {
+    let recipe = Recipe(
+        id: "library-caches", name: "Caches", category: .common,
+        safety: .safeWhileRunning, disposition: .trash, cleanability: .regenerable,
+        defaultAgeDays: 30, minimumSizeMB: 0, processName: nil,
+        protectedChildren: ["org.swift.swiftpm"],
+        resolvePaths: { _ in ["/tmp/caches"] }
+    )
+    var config = Config.default
+    config.protectedCacheChildren = ["node-gyp"]
+
+    let merged = ProgressiveCleanupPolicy.mergedProtectedChildNames(
+        recipe: recipe,
+        config: config
+    )
+    #expect(merged == ["org.swift.swiftpm", "node-gyp"])
+}
