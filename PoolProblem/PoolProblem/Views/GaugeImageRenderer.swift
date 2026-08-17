@@ -150,40 +150,43 @@ enum GaugeImageRenderer {
         // 红/黑分界与水线精确对齐：红色区从水线向上逐块，黑色区从水线向下逐块。
         // 顶部/底部块可能不完整（显示半个 E 或留空），保留空间不再依赖
         // “整 E 数量”恰好等于水位线。
-        var redTopValue = Double(waterlineBytes)
-        while redTopValue + stepBytes <= total {
-            let rawTopY = yForUsed(redTopValue + stepBytes)
-            let rawBottomY = yForUsed(redTopValue)
+        // 标尺刻度以“已用空间”为坐标：水线对应的已用值 = total - waterlineBytes，
+        // 红色区（保留空间）位于该值之上，黑色区在其之下。
+        let waterlineUsed = total - Double(waterlineBytes)
+        var redBottomValue = waterlineUsed
+        while redBottomValue + stepBytes <= total {
+            let rawTopY = yForUsed(redBottomValue + stepBytes)
+            let rawBottomY = yForUsed(redBottomValue)
             guard rawBottomY - rawTopY > 2,
                   rawBottomY > gaugeRect.minY,
                   rawTopY < gaugeRect.maxY else { break }
             drawEBlock(
                 topY: max(rawTopY, gaugeRect.minY),
                 bottomY: min(rawBottomY, gaugeRect.maxY),
-                value: redTopValue + stepBytes,
+                value: redBottomValue + stepBytes,
                 red: true,
                 index: index
             )
             index += 1
-            redTopValue += stepBytes
+            redBottomValue += stepBytes
         }
 
-        var blackBottomValue = Double(waterlineBytes)
-        while blackBottomValue > floorValue {
-            let rawTopY = yForUsed(blackBottomValue)
-            let rawBottomY = yForUsed(max(floorValue, blackBottomValue - stepBytes))
+        var blackTopValue = waterlineUsed
+        while blackTopValue > floorValue {
+            let rawTopY = yForUsed(blackTopValue)
+            let rawBottomY = yForUsed(max(floorValue, blackTopValue - stepBytes))
             guard rawBottomY - rawTopY > 2,
                   rawBottomY > gaugeRect.minY,
                   rawTopY < gaugeRect.maxY else { break }
             drawEBlock(
                 topY: max(rawTopY, gaugeRect.minY),
                 bottomY: min(rawBottomY, gaugeRect.maxY),
-                value: blackBottomValue,
+                value: blackTopValue,
                 red: false,
                 index: index
             )
             index += 1
-            blackBottomValue -= stepBytes
+            blackTopValue -= stepBytes
         }
 
         // 水线标记（跨越标尺的实线）与徽标
