@@ -26,7 +26,7 @@ private func item(
     )
 }
 
-@Test func runtimeItemNeedsAdminConfirmation() {
+@Test func staleRuntimeItemSuggestsManualXcodeDeletion() {
     let used = Date(timeIntervalSince1970: 1_000_000)
     let rationale = CleanupRationale.make(for: item(
         "simulator-runtimes",
@@ -34,17 +34,36 @@ private func item(
         modified: used
     ))
     #expect(rationale.suggestion == .unusedSimulatorRuntime)
-    #expect(rationale.confirmation == .reDownloadNeedsAdmin)
+    #expect(rationale.confirmation == .manualXcodeComponents)
     #expect(rationale.lastUsed == used)
 }
 
-@Test func dyldCacheRebuildsOnNextBoot() {
+@Test func recentlyUsedRuntimeIsNotSuggested() {
     let rationale = CleanupRationale.make(for: item(
-        "simulator-dyld-cache",
-        safety: .userConfirm
+        "simulator-runtimes",
+        safety: .userConfirm,
+        modified: Date()
     ))
-    #expect(rationale.suggestion == .unusedSimulatorSharedCache)
-    #expect(rationale.confirmation == .rebuildsOnBoot)
+    #expect(rationale.suggestion == .simulatorRuntimeInUse)
+    #expect(rationale.confirmation == .manualXcodeComponents)
+}
+
+@Test func dyldCacheFollowsRuntimeUsage() {
+    let stale = CleanupRationale.make(for: item(
+        "simulator-dyld-cache",
+        safety: .userConfirm,
+        modified: Date(timeIntervalSince1970: 1_000_000)
+    ))
+    #expect(stale.suggestion == .unusedSimulatorSharedCache)
+    #expect(stale.confirmation == .manualXcodeComponents)
+
+    let recent = CleanupRationale.make(for: item(
+        "simulator-dyld-cache",
+        safety: .userConfirm,
+        modified: Date()
+    ))
+    #expect(recent.suggestion == .simulatorSharedCacheInUse)
+    #expect(recent.confirmation == .manualXcodeComponents)
 }
 
 @Test func deviceSupportOldVersionsNeedRedownload() {

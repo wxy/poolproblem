@@ -623,8 +623,8 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 10) {
-                if rationale.confirmation == .reDownloadNeedsAdmin {
-                    adminDeletionHint(for: item)
+                if rationale.confirmation == .manualXcodeComponents {
+                    xcodeCleanupHint(for: item)
                 } else if item.cleanability != .displayOnly,
                    item.safety == .safeWhileRunning || item.safety == .userConfirm {
                     Button(item.safety == .userConfirm
@@ -696,50 +696,17 @@ struct MenuBarView: View {
         }
     }
 
-    /// 需要管理员权限的项（模拟器运行时镜像/共享缓存）：
-    /// 应用无法直接删除，展示说明并复制正确命令。
+    /// 由 Xcode 管理并占用的项（模拟器运行时镜像/共享缓存）：
+    /// 应用无法删除，只能提示用户到 Xcode 组件界面手动处理。
     @ViewBuilder
-    private func adminDeletionHint(for item: ScanItem) -> some View {
+    private func xcodeCleanupHint(for item: ScanItem) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(Localized.string("detail.requires_admin"))
+            Text(Localized.string("detail.xcode_manual_title"))
                 .font(.caption2)
                 .foregroundStyle(.orange)
-            Text(Localized.string("detail.admin_note"))
+            Text(Localized.string("detail.xcode_manual_body"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            let command = deletionCommand(for: item)
-            HStack(spacing: 6) {
-                Text(command)
-                    .font(.caption2.monospaced())
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                Spacer()
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(command, forType: .string)
-                } label: {
-                    Label(Localized.string("detail.copy_command"), systemImage: "doc.on.doc")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .focusEffectDisabled()
-                .cursorPointingHand()
-            }
-        }
-    }
-
-    private func deletionCommand(for item: ScanItem) -> String {
-        switch item.recipeID {
-        case "simulator-runtimes":
-            if let id = SimulatorRuntimeUsage.runtimeIdentifier(forPath: item.path) {
-                // simctl 会先推出挂载卷再删除，这是运行时镜像的正确删除方式
-                return "sudo xcrun simctl runtime delete \(id)"
-            }
-            return "diskutil unmount \"\(item.path)\" && sudo rm -rf \"\(item.path)\""
-        case "simulator-dyld-cache":
-            return "sudo rm -rf \"\(item.path)\""
-        default:
-            return "sudo rm -rf \"\(item.path)\""
         }
     }
 
@@ -1027,6 +994,12 @@ struct MenuBarView: View {
                 .foregroundStyle(.blue)
                 .help(Localized.string("badge.tooltip.manual"))
         }
+        if layer.recipeID == "simulator-runtimes" || layer.recipeID == "simulator-dyld-cache" {
+            return Text(Localized.string("badge.manual"))
+                .font(.caption2)
+                .foregroundStyle(.blue)
+                .help(Localized.string("badge.tooltip.xcode_manual"))
+        }
         let safety = layer.safety
         switch safety {
         case .safeWhileRunning:
@@ -1040,14 +1013,10 @@ struct MenuBarView: View {
                 .foregroundStyle(.red)
                 .help(Localized.string("badge.tooltip.requires_quit"))
         case .userConfirm:
-            let tooltip = layer.recipeID == "simulator-runtimes"
-                || layer.recipeID == "simulator-dyld-cache"
-                ? Localized.string("badge.tooltip.admin")
-                : Localized.string("badge.tooltip.user_confirm")
             return Text(Localized.string("badge.user_confirm"))
                 .font(.caption2)
                 .foregroundStyle(.gray)
-                .help(tooltip)
+                .help(Localized.string("badge.tooltip.user_confirm"))
         }
     }
 }

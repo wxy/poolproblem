@@ -8,8 +8,12 @@ public struct CleanupRationale: Equatable, Sendable {
         case regenerable
         /// 模拟器运行时镜像：按最后启动时间判断长期未使用。
         case unusedSimulatorRuntime
+        /// 模拟器运行时镜像：近期仍在使用，暂不建议删除。
+        case simulatorRuntimeInUse
         /// 模拟器共享缓存：对应运行时长期未使用。
         case unusedSimulatorSharedCache
+        /// 模拟器共享缓存：对应运行时近期仍在使用。
+        case simulatorSharedCacheInUse
         /// 真机调试支持：仅列旧版本，当前调试版本保留。
         case oldDeviceSupport
         /// 模拟器设备数据：不可再生。
@@ -21,10 +25,8 @@ public struct CleanupRationale: Equatable, Sendable {
     public enum ConfirmationReason: Equatable, Sendable {
         /// 删除后如需再次使用需要重新下载。
         case reDownload
-        /// 需要重新下载，且删除需要管理员权限。
-        case reDownloadNeedsAdmin
-        /// 下次启动模拟器时自动重建。
-        case rebuildsOnBoot
+        /// 由 Xcode 管理并占用，只能通过 Xcode 组件界面手动删除。
+        case manualXcodeComponents
         /// 数据不可再生，删除后需重建设备并重装 App。
         case nonRegenerable
     }
@@ -66,11 +68,15 @@ public struct CleanupRationale: Equatable, Sendable {
         let confirmation: ConfirmationReason?
         switch item.recipeID {
         case "simulator-runtimes":
-            suggestion = .unusedSimulatorRuntime
-            confirmation = .reDownloadNeedsAdmin
+            suggestion = isRecentlyUsed(item)
+                ? .simulatorRuntimeInUse
+                : .unusedSimulatorRuntime
+            confirmation = .manualXcodeComponents
         case "simulator-dyld-cache":
-            suggestion = .unusedSimulatorSharedCache
-            confirmation = .rebuildsOnBoot
+            suggestion = isRecentlyUsed(item)
+                ? .simulatorSharedCacheInUse
+                : .unusedSimulatorSharedCache
+            confirmation = .manualXcodeComponents
         case "xcode-devicesupport":
             suggestion = .oldDeviceSupport
             confirmation = .reDownload
@@ -83,5 +89,13 @@ public struct CleanupRationale: Equatable, Sendable {
             confirmation: confirmation,
             lastUsed: item.lastModified
         )
+    }
+
+    private static func isRecentlyUsed(
+        _ item: ScanItem,
+        withinDays: Double = 30
+    ) -> Bool {
+        guard let lastUsed = item.lastModified else { return false }
+        return Date().timeIntervalSince(lastUsed) < withinDays * 86_400
     }
 }

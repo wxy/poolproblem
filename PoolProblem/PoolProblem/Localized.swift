@@ -41,8 +41,12 @@ enum Localized {
             return string("rationale.regenerable")
         case .unusedSimulatorRuntime:
             return string("rationale.simulator_runtime")
+        case .simulatorRuntimeInUse:
+            return string("rationale.in_use")
         case .unusedSimulatorSharedCache:
             return string("rationale.simulator_shared_cache")
+        case .simulatorSharedCacheInUse:
+            return string("rationale.in_use")
         case .oldDeviceSupport:
             return string("rationale.old_device_support")
         case .simulatorDeviceData:
@@ -57,10 +61,8 @@ enum Localized {
         switch reason {
         case .reDownload:
             return string("rationale.confirm.redownload")
-        case .reDownloadNeedsAdmin:
-            return string("rationale.confirm.redownload_admin")
-        case .rebuildsOnBoot:
-            return string("rationale.confirm.rebuilds_on_boot")
+        case .manualXcodeComponents:
+            return string("rationale.confirm.xcode_components")
         case .nonRegenerable:
             return string("rationale.confirm.non_regenerable")
         }

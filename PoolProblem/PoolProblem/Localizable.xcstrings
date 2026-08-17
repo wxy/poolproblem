@@ -1568,22 +1568,6 @@
         }
       }
     },
-    "rationale.confirm.rebuilds_on_boot" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rebuilt automatically on the next simulator boot"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "下次启动模拟器时会自动重建"
-          }
-        }
-      }
-    },
     "rationale.confirm.redownload" : {
       "localizations" : {
         "en" : {
@@ -1596,22 +1580,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "删除后如需再次使用需要重新下载"
-          }
-        }
-      }
-    },
-    "rationale.confirm.redownload_admin" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Re-download is required, and deletion needs administrator rights"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除后需重新下载，且删除需要管理员权限"
           }
         }
       }
@@ -2560,66 +2528,82 @@
         }
       }
     },
-    "badge.tooltip.admin" : {
+    "badge.tooltip.xcode_manual" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Requires administrator rights; see details"
+            "value" : "Only removable via Xcode components"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需管理员权限；详见详情"
+            "value" : "需在 Xcode 组件界面删除"
           }
         }
       }
     },
-    "detail.admin_note" : {
+    "detail.xcode_manual_body" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Simulator runtime images are mounted volumes; delete them via simctl (it ejects the volume) or Xcode → Settings → Components. The app cannot delete them directly."
+            "value" : "This runtime is managed and held by Xcode. Open Xcode → Settings → Components to delete it. Once deleted, builds for this version will no longer work."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "模拟器镜像是已挂载的卷，删除前需要推出；请用 xcrun simctl runtime delete（会自动推出）或 Xcode → 设置 → Components 删除。应用无法直接删除。"
+            "value" : "该运行时由 Xcode 管理并占用，应用无法删除。请到 Xcode → 设置 → 组件 中删除；删除后将无法使用该版本构建。"
           }
         }
       }
     },
-    "detail.copy_command" : {
+    "detail.xcode_manual_title" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Copy command"
+            "value" : "Only removable in Xcode"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "复制命令"
+            "value" : "只能在 Xcode 中删除"
           }
         }
       }
     },
-    "detail.requires_admin" : {
+    "rationale.confirm.xcode_components" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Requires administrator rights"
+            "value" : "Only removable in Xcode → Settings → Components"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要管理员权限"
+            "value" : "只能在 Xcode → 设置 → 组件 中删除"
+          }
+        }
+      }
+    },
+    "rationale.in_use" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Still in use recently; not suggested for deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近期仍在使用，暂不建议删除"
           }
         }
       }
