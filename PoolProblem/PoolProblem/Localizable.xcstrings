@@ -2559,6 +2559,70 @@
           }
         }
       }
+    },
+    "badge.tooltip.admin" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requires administrator rights; see details"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需管理员权限；详见详情"
+          }
+        }
+      }
+    },
+    "detail.admin_note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simulator runtime images are mounted volumes; delete them via simctl (it ejects the volume) or Xcode → Settings → Components. The app cannot delete them directly."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模拟器镜像是已挂载的卷，删除前需要推出；请用 xcrun simctl runtime delete（会自动推出）或 Xcode → 设置 → Components 删除。应用无法直接删除。"
+          }
+        }
+      }
+    },
+    "detail.copy_command" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy command"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制命令"
+          }
+        }
+      }
+    },
+    "detail.requires_admin" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requires administrator rights"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要管理员权限"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

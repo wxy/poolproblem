@@ -5,9 +5,9 @@ import Foundation
 /// 运行时镜像和 dyld 缓存是静态下载物，目录 mtime 只反映安装/构建时间。
 /// 权威信号是 `~/Library/Developer/CoreSimulator/Devices/*/device.plist`
 /// 里的 `lastBootedAt`（最后启动时间），按 runtime 标识映射。
-enum SimulatorRuntimeUsage {
+public enum SimulatorRuntimeUsage {
     /// 解析运行时路径对应的 runtime 标识（如 `com.apple.CoreSimulator.SimRuntime.iOS-26-5`）。
-    static func runtimeIdentifier(forPath path: String) -> String? {
+    public static func runtimeIdentifier(forPath path: String) -> String? {
         let url = URL(fileURLWithPath: path)
 
         // 运行时镜像：读取 .simruntime 包内的 Info.plist

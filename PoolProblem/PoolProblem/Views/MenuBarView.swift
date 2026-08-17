@@ -623,7 +623,9 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 10) {
-                if item.cleanability != .displayOnly,
+                if rationale.confirmation == .reDownloadNeedsAdmin {
+                    adminDeletionHint(for: item)
+                } else if item.cleanability != .displayOnly,
                    item.safety == .safeWhileRunning || item.safety == .userConfirm {
                     Button(item.safety == .userConfirm
                            ? Localized.string("detail.clean_confirm")
@@ -691,6 +693,53 @@ struct MenuBarView: View {
             Button(Localized.string("common.close"), role: .cancel) {}
         } message: {
             Text(cleanFailureNotice ?? "")
+        }
+    }
+
+    /// 需要管理员权限的项（模拟器运行时镜像/共享缓存）：
+    /// 应用无法直接删除，展示说明并复制正确命令。
+    @ViewBuilder
+    private func adminDeletionHint(for item: ScanItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(Localized.string("detail.requires_admin"))
+                .font(.caption2)
+                .foregroundStyle(.orange)
+            Text(Localized.string("detail.admin_note"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            let command = deletionCommand(for: item)
+            HStack(spacing: 6) {
+                Text(command)
+                    .font(.caption2.monospaced())
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(command, forType: .string)
+                } label: {
+                    Label(Localized.string("detail.copy_command"), systemImage: "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+            }
+        }
+    }
+
+    private func deletionCommand(for item: ScanItem) -> String {
+        switch item.recipeID {
+        case "simulator-runtimes":
+            if let id = SimulatorRuntimeUsage.runtimeIdentifier(forPath: item.path) {
+                // simctl 会先推出挂载卷再删除，这是运行时镜像的正确删除方式
+                return "sudo xcrun simctl runtime delete \(id)"
+            }
+            return "diskutil unmount \"\(item.path)\" && sudo rm -rf \"\(item.path)\""
+        case "simulator-dyld-cache":
+            return "sudo rm -rf \"\(item.path)\""
+        default:
+            return "sudo rm -rf \"\(item.path)\""
         }
     }
 
@@ -991,10 +1040,14 @@ struct MenuBarView: View {
                 .foregroundStyle(.red)
                 .help(Localized.string("badge.tooltip.requires_quit"))
         case .userConfirm:
+            let tooltip = layer.recipeID == "simulator-runtimes"
+                || layer.recipeID == "simulator-dyld-cache"
+                ? Localized.string("badge.tooltip.admin")
+                : Localized.string("badge.tooltip.user_confirm")
             return Text(Localized.string("badge.user_confirm"))
                 .font(.caption2)
                 .foregroundStyle(.gray)
-                .help(Localized.string("badge.tooltip.user_confirm"))
+                .help(tooltip)
         }
     }
 }
