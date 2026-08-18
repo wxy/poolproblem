@@ -106,6 +106,14 @@ poolproblem status             # waterline, fill prediction, recent cleanups
 poolproblem mcp                # run as an MCP stdio server for AI agents
 ```
 
+Install the CLI into `~/.local/bin`:
+
+> 将 CLI 安装到 `~/.local/bin`：
+
+```bash
+scripts/install-cli.sh
+```
+
 The CLI is also available as an MCP server. Start it with:
 
 > CLI 也可以作为 MCP server 供其他 AI Agent 使用：
@@ -131,7 +139,7 @@ Example MCP client configuration:
 {
   "mcpServers": {
     "poolproblem": {
-      "command": "/path/to/poolproblem",
+      "command": "poolproblem",
       "args": ["mcp"]
     }
   }

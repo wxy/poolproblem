@@ -13,6 +13,7 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
     public let reclaimableBytes: Int64
     public let fileCount: Int
     public let lastModified: Date?
+    public let cleanability: Cleanability
 
     public init(
         id: String,
@@ -26,7 +27,8 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         allocatedBytes: Int64,
         reclaimableBytes: Int64,
         fileCount: Int,
-        lastModified: Date?
+        lastModified: Date?,
+        cleanability: Cleanability = .regenerable
     ) {
         self.id = id
         self.recipeID = recipeID
@@ -40,5 +42,46 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         self.reclaimableBytes = reclaimableBytes
         self.fileCount = fileCount
         self.lastModified = lastModified
+        self.cleanability = cleanability
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, recipeID, name, path, category, safety, disposition,
+             sizeBytes, allocatedBytes, reclaimableBytes, fileCount,
+             lastModified, cleanability
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        recipeID = try c.decode(String.self, forKey: .recipeID)
+        name = try c.decode(String.self, forKey: .name)
+        path = try c.decode(String.self, forKey: .path)
+        category = try c.decode(Category.self, forKey: .category)
+        safety = try c.decode(SafetyLevel.self, forKey: .safety)
+        disposition = try c.decode(CleanDisposition.self, forKey: .disposition)
+        sizeBytes = try c.decode(Int64.self, forKey: .sizeBytes)
+        allocatedBytes = try c.decode(Int64.self, forKey: .allocatedBytes)
+        reclaimableBytes = try c.decode(Int64.self, forKey: .reclaimableBytes)
+        fileCount = try c.decode(Int.self, forKey: .fileCount)
+        lastModified = try c.decodeIfPresent(Date.self, forKey: .lastModified)
+        cleanability = try c.decodeIfPresent(Cleanability.self, forKey: .cleanability) ?? .regenerable
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(recipeID, forKey: .recipeID)
+        try c.encode(name, forKey: .name)
+        try c.encode(path, forKey: .path)
+        try c.encode(category, forKey: .category)
+        try c.encode(safety, forKey: .safety)
+        try c.encode(disposition, forKey: .disposition)
+        try c.encode(sizeBytes, forKey: .sizeBytes)
+        try c.encode(allocatedBytes, forKey: .allocatedBytes)
+        try c.encode(reclaimableBytes, forKey: .reclaimableBytes)
+        try c.encode(fileCount, forKey: .fileCount)
+        try c.encodeIfPresent(lastModified, forKey: .lastModified)
+        try c.encode(cleanability, forKey: .cleanability)
     }
 }

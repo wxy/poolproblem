@@ -84,6 +84,86 @@
         }
       }
     },
+    "badge.tooltip.cleanable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleanable automatically (regenerable)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可自动清理（可再生）"
+          }
+        }
+      }
+    },
+    "badge.tooltip.kept" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kept by you; not cleaned"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你已保留，不会被清理"
+          }
+        }
+      }
+    },
+    "badge.tooltip.manual" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual action (e.g. trash)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需手动处理（如废纸篓）"
+          }
+        }
+      }
+    },
+    "badge.tooltip.requires_quit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit the related app first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需先退出相关应用"
+          }
+        }
+      }
+    },
+    "badge.tooltip.user_confirm" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleans only after your confirmation; see the details for why"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认后才会清理；原因见详情"
+          }
+        }
+      }
+    },
     "badge.user_confirm" : {
       "localizations" : {
         "en" : {
@@ -505,18 +585,50 @@
         }
       }
     },
-    "detail.cow_warning" : {
+    "detail.clean_confirm" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Note: this item uses APFS clones (COW); the apparent size may be inflated, so the actual freed space can be much smaller."
+            "value" : "Clean now"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "提示：此项是 APFS 克隆（COW）文件，表观大小可能虚高，清理后实际释放的空间可能远小于显示值。"
+            "value" : "马上清理"
+          }
+        }
+      }
+    },
+    "detail.clean_failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The item may require administrator rights or is in use. You can delete it manually in Finder or Terminal."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可能没有权限或文件正被使用；可在 Finder 或终端中手动删除。"
+          }
+        }
+      }
+    },
+    "detail.clean_failed_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleanup failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理失败"
           }
         }
       }
@@ -526,13 +638,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clean this item now"
+            "value" : "Clean now"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "立即清理此项"
+            "value" : "马上清理"
           }
         }
       }
@@ -553,18 +665,66 @@
         }
       }
     },
-    "detail.keep" : {
+    "detail.cow_warning" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Keep this item (don't clean)"
+            "value" : "Note: this item uses APFS clones (COW); the apparent size may be inflated, so the actual freed space can be much smaller."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "保留此项（不再清理）"
+            "value" : "提示：此项是 APFS 克隆（COW）文件，表观大小可能虚高，清理后实际释放的空间可能远小于显示值。"
+          }
+        }
+      }
+    },
+    "detail.keep" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don't clean"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不再清理"
+          }
+        }
+      }
+    },
+    "detail.last_used" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last used"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最后使用"
+          }
+        }
+      }
+    },
+    "detail.never_used" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never used"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从未使用"
           }
         }
       }
@@ -649,82 +809,34 @@
         }
       }
     },
-    "explain.common" : {
+    "detail.why_confirm" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "General app caches; apps regenerate them on demand and your data is unaffected."
+            "value" : "Why confirmation is needed"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "应用通用缓存，删除后应用会按需重新生成，不影响你的数据。"
+            "value" : "为什么需要确认"
           }
         }
       }
     },
-    "explain.package_manager" : {
+    "detail.why_suggested" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Package manager download caches; they re-download when needed and installed dependencies are unaffected."
+            "value" : "Why we suggest cleaning"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "包管理器的下载缓存，删除后需要时会重新下载，不影响已安装的依赖。"
-          }
-        }
-      }
-    },
-    "explain.project" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Project or custom directory; confirm nothing inside needs to be kept before cleaning."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "项目或自定义目录，删除前请确认其中没有需要保留的内容。"
-          }
-        }
-      }
-    },
-    "explain.simulator" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Simulator device data; it is recreated when needed. Make sure the simulator is quit before cleaning."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模拟器相关设备数据，删除后如需使用会重新创建；清理前请确认对应模拟器已退出。"
-          }
-        }
-      }
-    },
-    "explain.xcode" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Xcode build artifacts or test snapshots; they regenerate on the next build/test, so cleaning is safe."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "属于 Xcode 的构建产物或测试快照，删除后会在下次构建/测试时自动重新生成，因此可以安全清理。"
+            "value" : "为什么建议清理"
           }
         }
       }
@@ -1408,6 +1520,118 @@
         }
       }
     },
+    "rationale.confirm.non_regenerable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not regenerable: devices and installed apps must be recreated"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不可再生：需重建设备并重装 App"
+          }
+        }
+      }
+    },
+    "rationale.old_device_support" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Old versions only; the current debugging version is kept"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅旧版本；当前调试版本会保留"
+          }
+        }
+      }
+    },
+    "rationale.regenerable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regenerable: recreated or re-downloaded after deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可再生：删除后会重新生成或重新下载"
+          }
+        }
+      }
+    },
+    "rationale.simulator_device_data" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simulator device data is not regenerable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模拟器设备数据不可再生"
+          }
+        }
+      }
+    },
+    "rationale.simulator_runtime" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not used for a long time (judged by the last simulator boot)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "长期未使用（按模拟器最后启动时间判断）"
+          }
+        }
+      }
+    },
+    "rationale.simulator_shared_cache" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shared cache of a runtime not used for a long time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "长期未使用运行时的共享缓存"
+          }
+        }
+      }
+    },
+    "rationale.user_data_only" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "User data: displayed only, never cleaned"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户数据：仅展示，永不清理"
+          }
+        }
+      }
+    },
     "recipe.cocoapods-cache" : {
       "localizations" : {
         "en" : {
@@ -1520,6 +1744,38 @@
         }
       }
     },
+    "recipe.simulator-dyld-cache" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simulator Shared Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模拟器共享缓存"
+          }
+        }
+      }
+    },
+    "recipe.simulator-runtimes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simulator Runtimes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模拟器运行时镜像"
+          }
+        }
+      }
+    },
     "recipe.trash" : {
       "localizations" : {
         "en" : {
@@ -1568,6 +1824,22 @@
         }
       }
     },
+    "recipe.xcode-devicesupport" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device Support (Old Versions)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真机调试支持（旧版本）"
+          }
+        }
+      }
+    },
     "recipe.xcode-docscache" : {
       "localizations" : {
         "en" : {
@@ -1580,6 +1852,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xcode DocumentationCache"
+          }
+        }
+      }
+    },
+    "recipe.xcode-preview-cache" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode Preview Cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode 预览缓存"
           }
         }
       }
@@ -1669,13 +1957,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Manual confirmation"
+            "value" : "Needs confirmation"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需手动确认"
+            "value" : "需确认"
           }
         }
       }
@@ -1952,6 +2240,38 @@
         }
       }
     },
+    "settings.protected_children_footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These cache subfolders are never auto-deleted; deleting them forces re-download or re-resolution of build dependencies."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些缓存子目录不会被自动删除；删掉会触发重新下载或重新解析构建依赖。"
+          }
+        }
+      }
+    },
+    "settings.protected_children_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protected build caches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "构建必需缓存保护"
+          }
+        }
+      }
+    },
     "settings.recheck" : {
       "localizations" : {
         "en" : {
@@ -2156,6 +2476,246 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他（手动放入）：%@"
+          }
+        }
+      }
+    },
+    "badge.tooltip.xcode_manual" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only removable via Xcode components"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需在 Xcode 组件界面删除"
+          }
+        }
+      }
+    },
+    "rationale.confirm.xcode_components" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only removable in Xcode → Settings → Components; after deletion, this version can no longer be built"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只能在 Xcode → 设置 → 组件 中删除；删除后将无法使用该版本构建"
+          }
+        }
+      }
+    },
+    "rationale.in_use" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Still in use recently; not suggested for deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近期仍在使用，暂不建议删除"
+          }
+        }
+      }
+    },
+    "section.manual_cleanup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动清理"
+          }
+        }
+      }
+    },
+    "detail.clean_requires_quit_app" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit %@ first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需先退出 %@"
+          }
+        }
+      }
+    },
+    "detail.last_used_before_yesterday" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day before yesterday"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前天"
+          }
+        }
+      }
+    },
+    "detail.last_used_hours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d hours ago"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 小时前"
+          }
+        }
+      }
+    },
+    "detail.last_used_yesterday" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨天"
+          }
+        }
+      }
+    },
+    "detail.why_cleanable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why cleanable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么可清理"
+          }
+        }
+      }
+    },
+    "detail.why_cleanable_reason" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These data are no longer in use"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些数据不再使用"
+          }
+        }
+      }
+    },
+    "detail.why_manual" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why manual cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么需要手动"
+          }
+        }
+      }
+    },
+    "detail.why_quit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why quit is required"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么需要退出"
+          }
+        }
+      }
+    },
+    "detail.why_quit_reason" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These files are in use by %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些数据正被 %@ 使用"
+          }
+        }
+      }
+    },
+    "safety.manual_delete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需手动删除"
+          }
+        }
+      }
+    },
+    "rationale.confirm.manual_finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Old versions can be deleted manually in Finder (the current debug version is kept)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在 Finder 中手动删除旧版本（当前调试版本会保留）"
           }
         }
       }

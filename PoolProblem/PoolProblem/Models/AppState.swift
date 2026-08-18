@@ -27,6 +27,8 @@ final class AppState: ObservableObject {
     @Published var isCleaning = false
     @Published var cleanedItemIDs: Set<String> = []
     @Published var deletingItemID: String?
+    /// 正在删除的条目剩余比例：1 → 0，用于列表里大小逐渐缩小到消失的动画。
+    @Published var deletingProgress: Double = 1
     @Published var lastCleanSummary: String?
     @Published var trashExpanded = false
     @Published var ourTrashNames: [String] = []

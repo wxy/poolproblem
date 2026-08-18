@@ -41,13 +41,21 @@ public struct RuleEvaluator: Sendable {
         if !(rule?.enabled ?? true) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "disabled"))
         }
+        switch item.cleanability {
+        case .displayOnly:
+            return EvaluatedAction(itemID: item.id, action: .skip(reason: "display only"))
+        case .trashOnly:
+            if force {
+                return EvaluatedAction(itemID: item.id, action: .trash)
+            }
+            return EvaluatedAction(itemID: item.id, action: .notify(reason: "requires user confirmation"))
+        case .regenerable:
+            break
+        }
         switch item.safety {
         case .userConfirm:
             return EvaluatedAction(itemID: item.id, action: .notify(reason: "requires user confirmation"))
         case .requiresQuit:
-            if force {
-                return EvaluatedAction(itemID: item.id, action: .notify(reason: "requires app quit (auto later)"))
-            }
             if let process = itemProcessName(for: item), isProcessRunning(process) {
                 return EvaluatedAction(itemID: item.id, action: .notify(reason: "process running: \(process)"))
             }

@@ -16,6 +16,7 @@ final class AppService {
     private let proactiveCleanBatchBytes: Int64 = 3 * 1_000_000_000
     private let fastGrowthTriggerBytesPerDay: Double = 500_000_000
     private let autoMinimumCleanItemBytes: Int64 = 500_000_000
+    private let emergencyProgressiveMinimumAgeSeconds: TimeInterval = 2 * 3600
 
     init(state: AppState, paths: StoragePaths = StoragePaths(), automationEnabled: Bool = true) {
         self.state = state
@@ -187,10 +188,15 @@ final class AppService {
         state.weeklyCleanedBytes = entries
             .filter { $0.timestamp >= cutoff }
             .reduce(0) { $0 + $1.freedBytes }
-        // 废纸篓详情：本应用清理的项 vs 其他（手动放入）
+        // 废纸篓详情：只展示当前仍留在回收站里的、本应用清理过的项；
+        // 用户清空废纸篓后，这里不再显示历史清理记录。
         var names: [String] = []
         var ourBytes: Int64 = 0
-        for entry in entries {
+        for entry in entries where entry.disposition == .trash {
+            let stillPresent = !entry.trashPaths.isEmpty
+                ? entry.trashPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) }
+                : false
+            guard stillPresent else { continue }
             let entryNames = entry.itemNames.isEmpty
                 ? entry.itemIDs.map(itemName(for:))
                 : entry.itemNames
@@ -385,8 +391,20 @@ final class AppService {
     }
 
     func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
-        guard item.safety == .safeWhileRunning, item.recipeID != "trash" else {
+        // 详情页点击“立即清理”即用户确认：
+        // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
+        // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
+        guard item.cleanability != .displayOnly else {
             return nil
+        }
+        switch item.safety {
+        case .safeWhileRunning, .userConfirm:
+            break
+        case .requiresQuit:
+            guard let processName = Self.processName(for: item),
+                  !PGrepProcessInspector().isRunning(processName) else {
+                return nil
+            }
         }
         state.isCleaning = true
         state.cleanedItemIDs = []
@@ -423,6 +441,8 @@ final class AppService {
         }
         guard let outcome = await work.value else {
             state.isCleaning = false
+            state.deletingItemID = nil
+            state.deletingProgress = 1
             return nil
         }
         state.isCleaning = false
@@ -434,6 +454,17 @@ final class AppService {
         )
         state.cleanCelebrationID += 1
         return outcome
+    }
+
+    private static func processName(for item: ScanItem) -> String? {
+        switch item.category {
+        case .xcode:
+            return "Xcode"
+        case .simulator:
+            return "Simulator"
+        default:
+            return nil
+        }
     }
 
     func undoCleanup(_ entry: CleanLogEntry) async -> Bool {
@@ -677,13 +708,16 @@ final class AppService {
             target = nil
         }
 
-        if let target {
+        let emergency = result.volume.availableBytes < waterline + proactiveCleanTriggerBytes
+        if let target, !emergency {
             let belowWaterline = result.volume.availableBytes < waterline
             if let outcome = await runAutoWaterlineClean(
                 scan: result,
                 config: config,
                 waterlineBytes: target,
-                minimumItemBytes: belowWaterline ? nil : autoMinimumCleanItemBytes
+                forceClean: false,
+                minimumItemBytes: autoMinimumCleanItemBytes,
+                itemGrowthRates: state.growthRates
             ) {
                 totalCount += outcome.entries.count
                 totalFreed += outcome.freedBytes
@@ -697,7 +731,7 @@ final class AppService {
             }
         }
 
-        let progressive = await runProgressiveCleanup(config: config)
+        let progressive = await runProgressiveCleanup(config: config, emergency: emergency)
         totalCount += progressive.entries.count
         totalFreed += progressive.freedBytes
 
@@ -717,11 +751,17 @@ final class AppService {
         scan: ScanResult,
         config: Config,
         waterlineBytes: Int64,
-        minimumItemBytes: Int64? = nil
+        forceClean: Bool = false,
+        minimumItemBytes: Int64? = nil,
+        itemGrowthRates: [String: Double] = [:]
     ) async -> CleanOutcome? {
         state.isCleaning = true
         state.cleanedItemIDs = []
-        state.deletingItemID = firstAutoPlannedItem(scan: scan, config: config)?.id
+        state.deletingItemID = firstAutoPlannedItem(
+            scan: scan,
+            config: config,
+            minimumItemBytes: minimumItemBytes
+        )?.id
         let logStore = self.logStore
         let state = self.state
         let work = Task.detached(priority: .utility) { () -> CleanOutcome? in
@@ -735,9 +775,10 @@ final class AppService {
                 scan: scan,
                 config: config,
                 waterlineBytes: waterlineBytes,
-                forceClean: false,
+                forceClean: forceClean,
                 source: .auto,
                 minimumItemBytes: minimumItemBytes,
+                itemGrowthRates: itemGrowthRates,
                 onItemWillDelete: { itemID in
                     Task { @MainActor in
                         state.deletingItemID = itemID
@@ -764,14 +805,19 @@ final class AppService {
         }
         guard let outcome = await work.value else {
             state.isCleaning = false
+            state.deletingItemID = nil
             return nil
         }
         state.isCleaning = false
+        state.deletingItemID = nil
         return outcome
     }
 
-    private func runProgressiveCleanup(config: Config) async -> ProgressiveCleanupOutcome {
-        let policies = progressivePolicies(config: config)
+    private func runProgressiveCleanup(
+        config: Config,
+        emergency: Bool
+    ) async -> ProgressiveCleanupOutcome {
+        let policies = progressivePolicies(config: config, emergency: emergency)
         guard !policies.isEmpty else { return .empty }
         state.isCleaning = true
         let logStore = self.logStore
@@ -829,7 +875,10 @@ final class AppService {
         return outcome
     }
 
-    private func progressivePolicies(config: Config) -> [ProgressiveCleanupPolicy] {
+    private func progressivePolicies(
+        config: Config,
+        emergency: Bool
+    ) -> [ProgressiveCleanupPolicy] {
         var policies: [ProgressiveCleanupPolicy] = []
         for item in state.items {
             guard item.recipeID != "trash",
@@ -850,13 +899,33 @@ final class AppService {
                   childCount > 0 else {
                 continue
             }
+            let ratio = recipe.cloneProne
+                ? (config.cloneRatios[item.recipeID] ?? 0.2)
+                : 1
+
+            if emergency {
+                policies.append(ProgressiveCleanupPolicy(
+                    recipeID: item.recipeID,
+                    parentPath: item.path,
+                    maxChildren: 0,
+                    maxItemsPerRun: 3,
+                    minimumAgeSeconds: emergencyProgressiveMinimumAgeSeconds,
+                    disposition: .trash,
+                    source: .auto,
+                    reclaimableRatio: ratio,
+                    minimumCleanBytes: 0,
+                    protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
+                        recipe: recipe,
+                        config: config
+                    )
+                ))
+                continue
+            }
+
             let growthRate = state.growthRates[item.id] ?? 0
             let fastGrowing = growthRate >= fastGrowthTriggerBytesPerDay
             let tooManyChildren = childCount > 10
             guard fastGrowing || tooManyChildren else { continue }
-            let ratio = recipe.cloneProne
-                ? (config.cloneRatios[item.recipeID] ?? 0.2)
-                : 1
             policies.append(ProgressiveCleanupPolicy(
                 recipeID: item.recipeID,
                 parentPath: item.path,
@@ -866,20 +935,29 @@ final class AppService {
                 disposition: .trash,
                 source: .auto,
                 reclaimableRatio: ratio,
-                minimumCleanBytes: autoMinimumCleanItemBytes
+                minimumCleanBytes: autoMinimumCleanItemBytes,
+                protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
+                    recipe: recipe,
+                    config: config
+                )
             ))
         }
         return policies
     }
 
-    private func firstAutoPlannedItem(scan: ScanResult, config: Config) -> ScanItem? {
+    private func firstAutoPlannedItem(
+        scan: ScanResult,
+        config: Config,
+        minimumItemBytes: Int64? = nil
+    ) -> ScanItem? {
         scan.items
-            .filter {
-                $0.reclaimableBytes > 0
-                    && $0.recipeID != "trash"
-                    && $0.safety == .safeWhileRunning
-                    && !config.whitelistPaths.contains($0.path)
-                    && !config.keptItemIDs.contains($0.id)
+            .filter { item in
+                item.reclaimableBytes > 0
+                    && (minimumItemBytes.map { item.reclaimableBytes >= $0 } ?? true)
+                    && item.recipeID != "trash"
+                    && item.safety == .safeWhileRunning
+                    && !config.whitelistPaths.contains(item.path)
+                    && !config.keptItemIDs.contains(item.id)
             }
             .sorted { $0.reclaimableBytes < $1.reclaimableBytes }
             .first

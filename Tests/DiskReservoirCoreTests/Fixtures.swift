@@ -18,6 +18,7 @@ enum Fixtures {
         Recipe(
             id: id, name: "Fixture \(id)", category: category,
             safety: .safeWhileRunning, disposition: .deletePermanently,
+            cleanability: .regenerable,
             defaultAgeDays: 30, minimumSizeMB: 0, processName: nil,
             resolvePaths: { _ in [path] }
         )
