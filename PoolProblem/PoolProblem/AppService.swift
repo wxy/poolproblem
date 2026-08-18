@@ -237,6 +237,42 @@ final class AppService {
         state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
     }
 
+    /// 用户点击"未覆盖空间"下钻：按需扫描一次表面根目录，
+    /// 对比上次表面快照找出增长的目录并写回台账（成本仅在点击时发生）。
+    func drillDownUnknownSpace() async {
+        guard !state.isDrillingDown else { return }
+        state.isDrillingDown = true
+        defer { state.isDrillingDown = false }
+        let home = NSHomeDirectory()
+        let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
+        let dirs = await Task.detached(priority: .userInitiated) {
+            SurfaceScanner().scan(roots: roots)
+        }.value
+        let builder = GrowthLedgerBuilder()
+        let oldDirs = (try? growthLedgerStore.surfaceDirectories()) ?? []
+        let baselineWasMissing = oldDirs.isEmpty
+        let entries = builder.surfaceEntries(previous: oldDirs, latest: dirs, homeDirectory: home)
+        if !entries.isEmpty {
+            try? growthLedgerStore.append(entries)
+        }
+        var merged = oldDirs.filter { dir in !dirs.contains(where: { $0.path == dir.path }) }
+        merged.append(contentsOf: dirs)
+        try? growthLedgerStore.saveSurface(merged, scannedAt: Date())
+        try? growthLedgerStore.prune(retainingDays: 30)
+        state.unknownDrillDown = entries
+        state.unknownDrillDownBaselineMissing = baselineWasMissing
+        // 表面条目进入 L2 候选配方管线
+        let allEntries = (try? growthLedgerStore.entries()) ?? []
+        let candidates = RecipeSuggester().suggest(
+            entries: allEntries,
+            existingRecipes: RecipeRegistry.builtIn(),
+            homeDirectory: home
+        )
+        try? recipeSuggestionStore.merge(candidates)
+        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+    }
+
     #if DEBUG
     /// 诊断：记录受保护目录的可读性，定位废纸篓检测为 0 的问题
     private func debugLogPermission() {
