@@ -23,4 +23,7 @@ public struct StoragePaths: Sendable {
     public var snapshotsURL: URL { baseURL.appendingPathComponent("snapshots.json") }
     public var configURL: URL { baseURL.appendingPathComponent("config.json") }
     public var cleanLogURL: URL { baseURL.appendingPathComponent("clean-log.json") }
+    public var growthLedgerURL: URL { baseURL.appendingPathComponent("growth-ledger.json") }
+    public var surfaceSnapshotURL: URL { baseURL.appendingPathComponent("surface-snapshot.json") }
+    public var recipeSuggestionsURL: URL { baseURL.appendingPathComponent("recipe-suggestions.json") }
 }
