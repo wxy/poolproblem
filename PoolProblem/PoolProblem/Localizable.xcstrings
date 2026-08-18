@@ -4,6 +4,9 @@
     "" : {
 
     },
+    "%lld" : {
+
+    },
     "0KB" : {
       "localizations" : {
         "en" : {
@@ -164,6 +167,22 @@
         }
       }
     },
+    "badge.tooltip.xcode_manual" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only removable via Xcode components"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需在 Xcode 组件界面删除"
+          }
+        }
+      }
+    },
     "badge.user_confirm" : {
       "localizations" : {
         "en" : {
@@ -176,6 +195,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需确认"
+          }
+        }
+      }
+    },
+    "candidate.accept" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "采纳"
+          }
+        }
+      }
+    },
+    "candidate.dismiss" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignore"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忽略"
+          }
+        }
+      }
+    },
+    "candidate.evidence" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld observations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 次观测"
+          }
+        }
+      }
+    },
+    "candidate.safety_confirm" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs confirmation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需确认"
+          }
+        }
+      }
+    },
+    "candidate.safety_safe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-safe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可自动清理"
           }
         }
       }
@@ -665,6 +764,22 @@
         }
       }
     },
+    "detail.clean_requires_quit_app" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit %@ first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需先退出 %@"
+          }
+        }
+      }
+    },
     "detail.cow_warning" : {
       "localizations" : {
         "en" : {
@@ -709,6 +824,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最后使用"
+          }
+        }
+      }
+    },
+    "detail.last_used_before_yesterday" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day before yesterday"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前天"
+          }
+        }
+      }
+    },
+    "detail.last_used_hours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d hours ago"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 小时前"
+          }
+        }
+      }
+    },
+    "detail.last_used_yesterday" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "昨天"
           }
         }
       }
@@ -809,6 +972,38 @@
         }
       }
     },
+    "detail.why_cleanable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why cleanable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么可清理"
+          }
+        }
+      }
+    },
+    "detail.why_cleanable_reason" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These data are no longer in use"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些数据不再使用"
+          }
+        }
+      }
+    },
     "detail.why_confirm" : {
       "localizations" : {
         "en" : {
@@ -821,6 +1016,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "为什么需要确认"
+          }
+        }
+      }
+    },
+    "detail.why_manual" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why manual cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么需要手动"
+          }
+        }
+      }
+    },
+    "detail.why_quit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why quit is required"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么需要退出"
+          }
+        }
+      }
+    },
+    "detail.why_quit_reason" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These files are in use by %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些数据正被 %@ 使用"
           }
         }
       }
@@ -1045,6 +1288,134 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这部分包含无法安全自动清理的内容：系统及系统数据、正在使用的应用数据（如微信、QQ、照片图库等），以及我们未纳入清理配方的其他占用。\n建议使用对应软件内置的存储/清理功能管理它们产生的缓存与垃圾。"
+          }
+        }
+      }
+    },
+    "insights.candidates" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recipe Suggestions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配方建议"
+          }
+        }
+      }
+    },
+    "insights.empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No unexpected growth yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂未发现异常增长"
+          }
+        }
+      }
+    },
+    "insights.entries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Growth Log"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增长记录"
+          }
+        }
+      }
+    },
+    "insights.new_badge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新"
+          }
+        }
+      }
+    },
+    "insights.rate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@/day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@/天"
+          }
+        }
+      }
+    },
+    "insights.title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Growth Insights"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增长洞察"
+          }
+        }
+      }
+    },
+    "insights.unknown_space" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uncovered space"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未覆盖空间"
+          }
+        }
+      }
+    },
+    "insights.view" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看"
           }
         }
       }
@@ -1520,6 +1891,22 @@
         }
       }
     },
+    "rationale.confirm.manual_finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Old versions can be deleted manually in Finder (the current debug version is kept)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可在 Finder 中手动删除旧版本（当前调试版本会保留）"
+          }
+        }
+      }
+    },
     "rationale.confirm.non_regenerable" : {
       "localizations" : {
         "en" : {
@@ -1532,6 +1919,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不可再生：需重建设备并重装 App"
+          }
+        }
+      }
+    },
+    "rationale.confirm.xcode_components" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only removable in Xcode → Settings → Components; after deletion, this version can no longer be built"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只能在 Xcode → 设置 → 组件 中删除；删除后将无法使用该版本构建"
+          }
+        }
+      }
+    },
+    "rationale.in_use" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Still in use recently; not suggested for deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近期仍在使用，暂不建议删除"
           }
         }
       }
@@ -1920,6 +2339,22 @@
         }
       }
     },
+    "safety.manual_delete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual deletion"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需手动删除"
+          }
+        }
+      }
+    },
     "safety.requires_quit" : {
       "localizations" : {
         "en" : {
@@ -1984,6 +2419,22 @@
         }
       }
     },
+    "section.manual_cleanup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动清理"
+          }
+        }
+      }
+    },
     "section.non_cleanable" : {
       "localizations" : {
         "en" : {
@@ -1996,6 +2447,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不可清理（其余已用）"
+          }
+        }
+      }
+    },
+    "settings.candidates_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recipe Suggestions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候选配方"
           }
         }
       }
@@ -2476,246 +2943,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他（手动放入）：%@"
-          }
-        }
-      }
-    },
-    "badge.tooltip.xcode_manual" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only removable via Xcode components"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需在 Xcode 组件界面删除"
-          }
-        }
-      }
-    },
-    "rationale.confirm.xcode_components" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only removable in Xcode → Settings → Components; after deletion, this version can no longer be built"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只能在 Xcode → 设置 → 组件 中删除；删除后将无法使用该版本构建"
-          }
-        }
-      }
-    },
-    "rationale.in_use" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Still in use recently; not suggested for deletion"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "近期仍在使用，暂不建议删除"
-          }
-        }
-      }
-    },
-    "section.manual_cleanup" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Manual cleanup"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手动清理"
-          }
-        }
-      }
-    },
-    "detail.clean_requires_quit_app" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Quit %@ first"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需先退出 %@"
-          }
-        }
-      }
-    },
-    "detail.last_used_before_yesterday" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Day before yesterday"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "前天"
-          }
-        }
-      }
-    },
-    "detail.last_used_hours" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d hours ago"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 小时前"
-          }
-        }
-      }
-    },
-    "detail.last_used_yesterday" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Yesterday"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "昨天"
-          }
-        }
-      }
-    },
-    "detail.why_cleanable" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Why cleanable"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "为什么可清理"
-          }
-        }
-      }
-    },
-    "detail.why_cleanable_reason" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "These data are no longer in use"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这些数据不再使用"
-          }
-        }
-      }
-    },
-    "detail.why_manual" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Why manual cleanup"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "为什么需要手动"
-          }
-        }
-      }
-    },
-    "detail.why_quit" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Why quit is required"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "为什么需要退出"
-          }
-        }
-      }
-    },
-    "detail.why_quit_reason" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "These files are in use by %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这些数据正被 %@ 使用"
-          }
-        }
-      }
-    },
-    "safety.manual_delete" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Manual deletion"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需手动删除"
-          }
-        }
-      }
-    },
-    "rationale.confirm.manual_finder" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Old versions can be deleted manually in Finder (the current debug version is kept)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可在 Finder 中手动删除旧版本（当前调试版本会保留）"
           }
         }
       }

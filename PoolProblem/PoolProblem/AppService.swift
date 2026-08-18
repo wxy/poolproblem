@@ -7,6 +7,12 @@ final class AppService {
     private let paths: StoragePaths
     private let snapshotStore: SnapshotStore
     private let logStore: CleanLogStore
+    private let growthLedgerStore: GrowthLedgerStore
+    private let recipeSuggestionStore: RecipeSuggestionStore
+    private let fseventMonitor = FSEventMonitor(paths: [])
+    private var dirtyTracker = DirtyTracker(trackedPaths: [])
+    private var incrementalTimer: Timer?
+    private var lastIncrementalAt = Date.distantPast
     private let automationEnabled: Bool
     private var timer: Timer?
     private var lowSpaceNotified = false
@@ -23,6 +29,8 @@ final class AppService {
         self.paths = paths
         self.snapshotStore = SnapshotStore(paths: paths)
         self.logStore = CleanLogStore(paths: paths)
+        self.growthLedgerStore = GrowthLedgerStore(paths: paths)
+        self.recipeSuggestionStore = RecipeSuggestionStore(paths: paths)
         self.automationEnabled = automationEnabled
     }
 
@@ -67,6 +75,7 @@ final class AppService {
             waterlineBytes: waterlineBytes()
         )
         await updateFlowMetrics(snapshots: snapshots)
+        refreshGrowthState()
         refreshGaugeImage()
     }
 
@@ -101,6 +110,7 @@ final class AppService {
         )
         await updateFlowMetrics(snapshots: all)
         let snapshot = Snapshot(volume: result.volume, items: result.items)
+        await updateGrowthInsights(previous: previous, latest: snapshot)
         checkGrowth(previous: previous, latest: snapshot)
         checkLowSpace(available: result.volume.availableBytes)
         let plans = upcomingAutoCleanPlans(result: result)
@@ -115,9 +125,116 @@ final class AppService {
             checkTrashAccumulation()
         }
         refreshGaugeImage()
+        startWatching()
         #if DEBUG
         debugLogPermission()
         #endif
+    }
+
+    /// 全量扫描成功后启动 FSEvents 监听（幂等：内部先 stop 再 start）。
+    private func startWatching() {
+        let home = NSHomeDirectory()
+        let recipePaths = RecipeRegistry.builtIn()
+            .flatMap { $0.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: home)) }
+        let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
+        dirtyTracker = DirtyTracker(trackedPaths: Array(Set(recipePaths + roots)))
+        fseventMonitor.start { [weak self] eventPaths in
+            Task { @MainActor [weak self] in
+                self?.handleEvents(eventPaths)
+            }
+        }
+        incrementalTimer?.invalidate()
+        incrementalTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.incrementalScanIfDirty() }
+        }
+    }
+
+    private func handleEvents(_ eventPaths: [String]) {
+        dirtyTracker.mark(eventPaths: eventPaths)
+    }
+
+    private func incrementalScanIfDirty() async {
+        guard !dirtyTracker.dirty.isEmpty else { return }
+        guard Date().timeIntervalSince(lastIncrementalAt) >= 30 else { return }
+        lastIncrementalAt = Date()
+        let dirty = dirtyTracker.dirty
+        dirtyTracker.clear()
+        await runIncrementalScan(dirty: dirty)
+    }
+
+    /// 增量重扫：脏配方路径 + 脏表面目录 → 合成增量快照 → 更新台账与候选配方。
+    /// 不触发自动清理、通知与水位预测（由下一次全量扫描接管）。
+    private func runIncrementalScan(dirty: Set<String>) async {
+        let home = NSHomeDirectory()
+        let paths = self.paths
+        let recipes = RecipeRegistry.builtIn()
+        let cloneRatios = loadConfig().cloneRatios
+        let surfaceRoots = SurfaceScanner.defaultRoots(homeDirectory: home)
+        let work = Task.detached(priority: .utility) { () -> (Snapshot, [SurfaceDirectory])? in
+            let store = SnapshotStore(paths: paths)
+            var items = (try? store.snapshots().last?.items) ?? []
+            var dirtySurface: [String] = []
+            let storagePaths = StoragePaths(baseURL: nil, homeDirectory: home)
+            for path in dirty {
+                if let recipe = recipes.first(where: {
+                    $0.resolvePaths(storagePaths).contains { $0 == path || path.hasPrefix($0 + "/") }
+                }) {
+                    let fresh = Scanner(cloneRatios: cloneRatios).rescan(
+                        path: path,
+                        recipe: recipe,
+                        homeDirectory: home
+                    )
+                    items.removeAll { $0.path == path || $0.path.hasPrefix(path + "/") }
+                    items.append(contentsOf: fresh)
+                } else if surfaceRoots.contains(where: { path.hasPrefix($0 + "/") || $0.hasPrefix(path + "/") }) {
+                    dirtySurface.append(path)
+                }
+            }
+            let surface = SurfaceScanner().measure(paths: dirtySurface)
+            let volume = VolumeReader.read(fileURL: URL(fileURLWithPath: home))
+            return (Snapshot(volume: volume, items: items, source: .incremental), surface)
+        }
+        guard let (snapshot, surface) = await work.value else { return }
+        let store = SnapshotStore(paths: paths)
+        let previous = try? store.snapshots().last
+        try? store.append(snapshot)
+        state.items = snapshot.items
+        state.availableBytes = snapshot.volume.availableBytes
+        state.totalBytes = snapshot.volume.totalBytes
+        await updateIncrementalInsights(previous: previous, latest: snapshot, surface: surface)
+    }
+
+    /// 增量更新增长台账与候选配方（不走 24h 表面扫描门控；只更新脏表面目录）。
+    private func updateIncrementalInsights(
+        previous: Snapshot?,
+        latest: Snapshot,
+        surface: [SurfaceDirectory]
+    ) async {
+        let home = NSHomeDirectory()
+        let builder = GrowthLedgerBuilder()
+        var entries = builder.entries(previous: previous, latest: latest, homeDirectory: home)
+        if !surface.isEmpty {
+            let oldDirs = (try? growthLedgerStore.surfaceDirectories()) ?? []
+            var merged = oldDirs.filter { dir in !surface.contains(where: { $0.path == dir.path }) }
+            merged.append(contentsOf: surface)
+            entries.append(contentsOf: builder.surfaceEntries(
+                previous: oldDirs,
+                latest: merged,
+                homeDirectory: home
+            ))
+            try? growthLedgerStore.saveSurface(merged, scannedAt: Date())
+        }
+        try? growthLedgerStore.append(entries)
+        try? growthLedgerStore.prune(retainingDays: 30)
+        let allEntries = (try? growthLedgerStore.entries()) ?? []
+        let candidates = RecipeSuggester().suggest(
+            entries: allEntries,
+            existingRecipes: RecipeRegistry.builtIn(),
+            homeDirectory: home
+        )
+        try? recipeSuggestionStore.merge(candidates)
+        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
     }
 
     #if DEBUG
@@ -148,12 +265,15 @@ final class AppService {
 
     /// 数据变化后预生成 E 字型标尺位图（避免弹窗打开时执行重活）
     private func refreshGaugeImage() {
-        state.poolGaugeImage = GaugeImageRenderer.render(
+        let made = PoolWindowLayout.make(
             totalBytes: state.totalBytes,
-            waterlineBytes: state.waterlineBytes,
             availableBytes: state.availableBytes,
-            cleanableItems: state.items
+            waterlineBytes: state.waterlineBytes,
+            items: state.items,
+            estimatedRecipeIDs: Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id)),
+            excludedItemIDs: state.cleanedItemIDs
         )
+        state.poolGaugeImage = GaugeImageRenderer.render(layout: made.layout)
     }
 
     private func updateFlowMetrics(snapshots: [Snapshot]) async {
@@ -1064,6 +1184,61 @@ final class AppService {
                 body: Localized.string("notify.growth_body", alert.name, Format.bytes(alert.deltaBytes))
             )
         }
+    }
+
+    /// 每次扫描后：更新增长台账（含配方外未知空间与表面目录），
+    /// 并刷新候选配方建议。
+    private func updateGrowthInsights(previous: Snapshot?, latest: Snapshot) async {
+        let home = NSHomeDirectory()
+        let builder = GrowthLedgerBuilder()
+        var entries = builder.entries(previous: previous, latest: latest, homeDirectory: home)
+        if entries.contains(where: { $0.kind == .unknownSpace }) {
+            let lastScan = growthLedgerStore.lastSurfaceScanAt()
+            if lastScan == nil || Date().timeIntervalSince(lastScan!) >= 86_400 {
+                let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
+                let dirs = await Task.detached(priority: .utility) {
+                    SurfaceScanner().scan(roots: roots)
+                }.value
+                let prevDirs = (try? growthLedgerStore.surfaceDirectories()) ?? []
+                entries.append(contentsOf: builder.surfaceEntries(
+                    previous: prevDirs,
+                    latest: dirs,
+                    homeDirectory: home
+                ))
+                try? growthLedgerStore.saveSurface(dirs, scannedAt: Date())
+            }
+        }
+        try? growthLedgerStore.append(entries)
+        try? growthLedgerStore.prune(retainingDays: 30)
+        let allEntries = (try? growthLedgerStore.entries()) ?? []
+        let candidates = RecipeSuggester().suggest(
+            entries: allEntries,
+            existingRecipes: RecipeRegistry.builtIn(),
+            homeDirectory: home
+        )
+        try? recipeSuggestionStore.merge(candidates)
+        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+    }
+
+    /// 启动时从磁盘恢复增长洞察与候选配方状态。
+    private func refreshGrowthState() {
+        let allEntries = (try? growthLedgerStore.entries()) ?? []
+        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+    }
+
+    func acceptCandidate(id: String) {
+        setCandidateStatus(id: id, status: .accepted)
+    }
+
+    func dismissCandidate(id: String) {
+        setCandidateStatus(id: id, status: .dismissed)
+    }
+
+    private func setCandidateStatus(id: String, status: CandidateStatus) {
+        try? recipeSuggestionStore.setStatus(id: id, status: status)
+        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
     }
 
     private func checkLowSpace(available: Int64) {

@@ -10,6 +10,9 @@ import Foundation
     #expect(paths.snapshotsURL.lastPathComponent == "snapshots.json")
     #expect(paths.configURL.lastPathComponent == "config.json")
     #expect(paths.cleanLogURL.lastPathComponent == "clean-log.json")
+    #expect(paths.growthLedgerURL.lastPathComponent == "growth-ledger.json")
+    #expect(paths.surfaceSnapshotURL.lastPathComponent == "surface-snapshot.json")
+    #expect(paths.recipeSuggestionsURL.lastPathComponent == "recipe-suggestions.json")
 }
 
 @Test func jsonStoreRoundTrip() throws {

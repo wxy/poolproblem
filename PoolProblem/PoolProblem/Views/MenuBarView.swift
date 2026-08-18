@@ -11,6 +11,7 @@ struct MenuBarView: View {
     @State private var showSettings = false
     @State private var spinning = false
     @State private var showNonCleanableInfo = false
+    @State private var manualExpanded = false
     @State private var showCleanHistory = false
     @State private var cleanFailureNotice: String?
     @State private var quitProcessRunning = false
@@ -128,6 +129,12 @@ struct MenuBarView: View {
                     .zIndex(13)
             }
 
+            if state.showGrowthInsights {
+                GrowthInsightsView(state: state, service: service)
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
+                    .zIndex(13)
+            }
+
         }
         .frame(width: 700, height: 560)
         .onHover { hovering in
@@ -188,10 +195,71 @@ struct MenuBarView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
+                    if !state.growthInsights.isEmpty || !state.candidateRecipes.isEmpty {
+                        Divider()
+                        insightsCard
+                    }
                 }
                 .padding(14)
             }
         }
+    }
+
+    private var insightsCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(overlaySpring) { state.showGrowthInsights = true }
+            } label: {
+                HStack {
+                    Text(Localized.string("insights.title"))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.primary)
+                    if pendingCandidateCount > 0 {
+                        Text("\(pendingCandidateCount)")
+                            .font(.caption2)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.accentColor))
+                    }
+                    Spacer()
+                    Text(Localized.string("insights.view"))
+                        .font(.caption2)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .buttonStyle(.plain)
+            .cursorPointingHand()
+
+            ForEach(state.growthInsights.prefix(2)) { entry in
+                HStack(spacing: 5) {
+                    Text(entry.kind == .unknownSpace
+                         ? Localized.string("insights.unknown_space")
+                         : entry.pattern)
+                        .font(.caption2)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if entry.kind == .unknownSpace || entry.kind == .surface {
+                        Text(Localized.string("insights.new_badge"))
+                            .font(.caption2)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
+                    }
+                    Spacer()
+                    Text(Format.bytes(entry.deltaBytes))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        }
+    }
+
+    private var pendingCandidateCount: Int {
+        state.candidateRecipes.filter { $0.status == .pending }.count
     }
 
     private var autoCleanPlanList: some View {
@@ -317,6 +385,14 @@ struct MenuBarView: View {
             estimatedRecipeIDs: estimatedRecipeIDs,
             excludedItemIDs: state.cleanedItemIDs
         )
+        // 手动清理项：应用无法删除，只能提示用户到对应应用/Finder 清理
+        let manualItems = state.items
+            .filter {
+                $0.reclaimableBytes > 0
+                    && $0.recipeID != "trash"
+                    && CleanupRationale.make(for: $0).isManual
+            }
+            .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         return VStack(alignment: .leading, spacing: 5) {
             Text(Localized.string("section.cleanable_count", poolLayers.layers.count))
                 .font(.caption)
@@ -422,6 +498,63 @@ struct MenuBarView: View {
                     }
                     .padding(.leading, 14)
                 }
+                if !manualItems.isEmpty {
+                    Button {
+                        withAnimation { manualExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.manualColor)
+                                .frame(width: 9, height: 9)
+                            Text(Localized.string("section.manual_cleanup"))
+                                .font(.caption)
+                            Image(systemName: manualExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(Format.bytes(manualItems.reduce(Int64(0)) { $0 + $1.reclaimableBytes }))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
+                    if manualExpanded {
+                        VStack(alignment: .leading, spacing: 3) {
+                            ForEach(manualItems) { item in
+                                Button {
+                                    withAnimation(overlaySpring) { state.detailItem = item }
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Rectangle()
+                                            .fill(PoolLayers.manualColor.opacity(0.7))
+                                            .frame(width: 9, height: 9)
+                                        Text(Localized.recipeName(item.recipeID, fallback: item.name) + manualSuffix(for: item))
+                                            .lineLimit(1)
+                                            .font(.caption)
+                                            .foregroundStyle(.primary)
+                                        Spacer()
+                                        Text(Format.bytes(item.reclaimableBytes))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .monospacedDigit()
+                                        Text(Localized.string("badge.manual"))
+                                            .font(.caption2)
+                                            .foregroundStyle(.blue)
+                                            .help(Localized.string("badge.tooltip.xcode_manual"))
+                                    }
+                                    .frame(height: 22)
+                                }
+                                .buttonStyle(.plain)
+                                .focusEffectDisabled()
+                                .cursorPointingHand()
+                            }
+                        }
+                        .padding(.leading, 14)
+                    }
+                }
+
                 if poolLayers.nonCleanableBytes > 0 {
                     Button {
                         withAnimation(overlaySpring) { showNonCleanableInfo = true }
@@ -445,51 +578,6 @@ struct MenuBarView: View {
                 }
             }
             .padding(.top, 2)
-
-            // 手动清理项：应用无法删除，只能提示用户到对应应用/Finder 清理
-            let manualItems = state.items
-                .filter {
-                    $0.reclaimableBytes > 0
-                        && CleanupRationale.make(for: $0).isManual
-                }
-                .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
-            if !manualItems.isEmpty {
-                Divider()
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(Localized.string("section.manual_cleanup"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    ForEach(manualItems) { item in
-                        Button {
-                            withAnimation(overlaySpring) { state.detailItem = item }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Rectangle()
-                                    .fill(PoolLayers.nonCleanableColor.opacity(0.5))
-                                    .frame(width: 9, height: 9)
-                                Text(Localized.recipeName(item.recipeID, fallback: item.name) + manualSuffix(for: item))
-                                    .lineLimit(1)
-                                    .font(.caption)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                Text(Format.bytes(item.reclaimableBytes))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                                Text(Localized.string("badge.manual"))
-                                    .font(.caption2)
-                                    .foregroundStyle(.blue)
-                                    .help(Localized.string("badge.tooltip.xcode_manual"))
-                            }
-                            .frame(height: 22)
-                        }
-                        .buttonStyle(.plain)
-                        .focusEffectDisabled()
-                        .cursorPointingHand()
-                    }
-                }
-                .padding(.top, 4)
-            }
         }
     }
 

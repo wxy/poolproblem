@@ -37,12 +37,11 @@ public struct Scanner: Sendable {
             for path in recipe.resolvePaths(paths) {
                 guard FileManager.default.fileExists(atPath: path) else { continue }
                 if recipe.usageProbe == .simulatorRuntimeLastBooted {
-                    try appendRuntimeItems(
+                    items.append(contentsOf: runtimeItems(
                         recipe: recipe,
                         parentPath: path,
-                        homeDirectory: homeDirectory,
-                        items: &items
-                    )
+                        homeDirectory: homeDirectory
+                    ))
                     continue
                 }
                 let url = URL(fileURLWithPath: path, isDirectory: true)
@@ -102,21 +101,73 @@ public struct Scanner: Sendable {
         )
     }
 
+    /// 重扫单个配方路径（增量用）：普通配方返回 1 项，运行时配方返回展开的子项。
+    public func rescan(
+        path: String,
+        recipe: Recipe,
+        homeDirectory: String
+    ) -> [ScanItem] {
+        guard FileManager.default.fileExists(atPath: path) else { return [] }
+        if recipe.usageProbe == .simulatorRuntimeLastBooted {
+            return runtimeItems(recipe: recipe, parentPath: path, homeDirectory: homeDirectory)
+        }
+        let url = URL(fileURLWithPath: path, isDirectory: true)
+        let itemID = "\(recipe.id):\(path)"
+        guard let (size, allocated, count, modified, _) = try? measureDirectory(
+            url,
+            itemID: itemID,
+            lightWeight: recipe.disposition == .none
+        ) else { return [] }
+        var item = ScanItem(
+            id: itemID,
+            recipeID: recipe.id,
+            name: recipe.name,
+            path: path,
+            category: recipe.category,
+            safety: recipe.safety,
+            disposition: recipe.disposition,
+            sizeBytes: size,
+            allocatedBytes: allocated,
+            reclaimableBytes: allocated,
+            fileCount: count,
+            lastModified: modified,
+            cleanability: recipe.cleanability
+        )
+        if recipe.cloneProne {
+            item = ScanItem(
+                id: item.id,
+                recipeID: item.recipeID,
+                name: item.name,
+                path: item.path,
+                category: item.category,
+                safety: item.safety,
+                disposition: item.disposition,
+                sizeBytes: item.sizeBytes,
+                allocatedBytes: item.allocatedBytes,
+                reclaimableBytes: Int64(Double(item.allocatedBytes) * (self.cloneRatios[recipe.id] ?? 0.2)),
+                fileCount: item.fileCount,
+                lastModified: item.lastModified,
+                cleanability: item.cleanability
+            )
+        }
+        return [item]
+    }
+
     /// 运行时镜像/缓存配方：把父路径的一级子目录展开为独立条目，
     /// 并用 `lastBootedAt` 作为“最后使用时间”。
-    private func appendRuntimeItems(
+    private func runtimeItems(
         recipe: Recipe,
         parentPath: String,
-        homeDirectory: String,
-        items: inout [ScanItem]
-    ) throws {
+        homeDirectory: String
+    ) -> [ScanItem] {
         let parent = URL(fileURLWithPath: parentPath, isDirectory: true)
         guard let children = try? FileManager.default.contentsOfDirectory(
             at: parent,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
-        ) else { return }
+        ) else { return [] }
         let devicesRoot = homeDirectory + "/Library/Developer/CoreSimulator/Devices"
+        var items: [ScanItem] = []
         for child in children {
             let values = try? child.resourceValues(forKeys: [.isDirectoryKey])
             guard values?.isDirectory == true else { continue }
@@ -124,11 +175,11 @@ public struct Scanner: Sendable {
                 continue
             }
             let itemID = "\(recipe.id):\(child.path)"
-            let (size, allocated, count, _, _) = try measureDirectory(
+            guard let (size, allocated, count, _, _) = try? measureDirectory(
                 child,
                 itemID: itemID,
                 lightWeight: true
-            )
+            ) else { continue }
             let lastUsed = SimulatorRuntimeUsage.lastBootedDate(
                 devicesRoot: devicesRoot,
                 runtimeID: runtimeID
@@ -149,6 +200,7 @@ public struct Scanner: Sendable {
                 cleanability: recipe.cleanability
             ))
         }
+        return items
     }
 
     private func measureDirectory(

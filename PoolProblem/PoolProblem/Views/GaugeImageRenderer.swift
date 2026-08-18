@@ -5,41 +5,10 @@ import DiskReservoirCore
 /// 在数据变化时（扫描完成）预先生成标尺位图，弹窗打开时只做一次 draw，
 /// 避免把文本解析/光栅化放在 30fps 渲染或弹窗开场动画里。
 enum GaugeImageRenderer {
-    /// 与 PoolTankView 保持一致的"可视窗口覆盖的已用空间跨度"
-    static func windowSpanBytes(availableBytes: Int64, cleanableItems: [ScanItem]) -> Int64 {
-        let cleanableTotal = cleanableItems.reduce(Int64(0)) { $0 + max($1.reclaimableBytes, 0) }
-        return max(availableBytes + cleanableTotal + 20_000_000_000, 30_000_000_000)
-    }
-
     @MainActor
-    static func render(
-        totalBytes: Int64,
-        waterlineBytes: Int64,
-        availableBytes: Int64,
-        cleanableItems: [ScanItem]
-    ) -> Image? {
-        let span = Double(max(windowSpanBytes(availableBytes: availableBytes, cleanableItems: cleanableItems), 1))
+    static func render(layout: PoolWindowLayout) -> Image? {
         let canvas = Canvas { context, size in
-            let waterlineUsed = Double(max(0, totalBytes - waterlineBytes))
-            let usedBytes = max(0, totalBytes - availableBytes)
-            let topInset: CGFloat = 26
-            let usableH = max(1, size.height - topInset)
-            func yForUsed(_ value: Double) -> CGFloat {
-                let fraction = (Double(totalBytes) - value) / span
-                return topInset + CGFloat(min(max(fraction, 0), 1)) * usableH
-            }
-            drawGauge(
-                context: &context,
-                size: size,
-                waterlineY: yForUsed(waterlineUsed),
-                availableY: yForUsed(Double(usedBytes)),
-                waterlineBytes: waterlineBytes,
-                availableBytes: availableBytes,
-                usedBytes: usedBytes,
-                total: Double(totalBytes),
-                span: span,
-                yForUsed: yForUsed
-            )
+            drawGauge(context: &context, size: size, layout: layout)
         }
         .frame(width: 700, height: 560)
         let renderer = ImageRenderer(content: canvas)
@@ -63,15 +32,14 @@ enum GaugeImageRenderer {
     private static func drawGauge(
         context: inout GraphicsContext,
         size: CGSize,
-        waterlineY: CGFloat,
-        availableY: CGFloat,
-        waterlineBytes: Int64,
-        availableBytes: Int64,
-        usedBytes: Int64,
-        total: Double,
-        span: Double,
-        yForUsed: (Double) -> CGFloat
+        layout: PoolWindowLayout
     ) {
+        let waterlineY = layout.waterlineY
+        let waterlineBytes = layout.waterlineBytes
+        let total = Double(layout.totalBytes)
+        let span = layout.spanBytes
+        let yForUsed = layout.y(forBytes:)
+
         // 标尺下移并加小圆角，避开弹窗左上圆角；加宽让 E 与数字留出间隔
         let gaugeRect = CGRect(x: 8, y: 14, width: 40, height: size.height - 28)
         let gaugePath = Path(roundedRect: gaugeRect, cornerRadius: 3)
@@ -107,7 +75,7 @@ enum GaugeImageRenderer {
 
         let stepGB = gaugeStepGB(span)
         let stepBytes = stepGB * 1_000_000_000
-        let floorValue = max(0, total - span)
+        let floorValue = max(0, layout.windowBottomBytes)
         var index = 0
 
         func drawEBlock(
