@@ -5,7 +5,7 @@ struct PoolProblemCLI: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "poolproblem",
         abstract: CLILocalized.string("cli.abstract"),
-        version: "1.1.0",
+        version: "1.2.0",
         subcommands: [
             ScanCommand.self,
             SuggestCommand.self,

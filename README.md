@@ -1,6 +1,6 @@
 <p align="center"><img src="assets/readme/hero.svg" width="100%" alt="The Pool Problem — 蓄水池问题"></p>
 
-<p align="center"><img src="assets/readme/icon-rounded.png" width="96" height="96" alt="The Pool Problem App Icon">&nbsp;<a href="https://github.com/wxy/poolproblem/releases/latest"><img src="assets/readme/download-button.svg" width="420" height="96" alt="Download v1.1.0 · GitHub Releases"></a></p>
+<p align="center"><img src="assets/readme/icon-rounded.png" width="96" height="96" alt="The Pool Problem App Icon">&nbsp;<a href="https://github.com/wxy/poolproblem/releases/latest"><img src="assets/readme/download-button.svg" width="420" height="96" alt="Download v1.2.0 · GitHub Releases"></a></p>
 
 <p align="center"><code>macOS MENU BAR · SWIFTUI · MACOS 14+</code></p>
 

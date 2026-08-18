@@ -40,7 +40,7 @@ private final class MCPServer {
                 "capabilities": ["tools": [:]],
                 "serverInfo": [
                     "name": "poolproblem",
-                    "version": "1.1.0",
+                    "version": "1.2.0",
                 ],
             ])
 
