@@ -44,4 +44,24 @@ public struct SurfaceScanner: Sendable {
         }
         return result.sorted { $0.sizeBytes > $1.sizeBytes }
     }
+
+    /// 测量显式路径（增量用）：返回每个路径的 SurfaceDirectory，不设大小下限。
+    public func measure(paths: [String], minimumSizeBytes: Int64 = 0) -> [SurfaceDirectory] {
+        var result: [SurfaceDirectory] = []
+        for path in paths {
+            guard let walk = POSIXDirectoryWalker.walk(
+                url: URL(fileURLWithPath: path),
+                itemID: path,
+                includeRecords: false
+            ) else { continue }
+            guard walk.sizeBytes >= minimumSizeBytes else { continue }
+            result.append(SurfaceDirectory(
+                path: path,
+                sizeBytes: walk.sizeBytes,
+                fileCount: walk.fileCount,
+                lastModified: walk.newest
+            ))
+        }
+        return result
+    }
 }

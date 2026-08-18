@@ -35,3 +35,15 @@ import Foundation
     #expect(roots.contains("/Users/alice/Library/Caches"))
     #expect(roots.contains("/Users/alice/.cache"))
 }
+
+@Test func surfaceScannerMeasuresExplicitPaths() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-surf-measure-\(UUID().uuidString)", isDirectory: true)
+    let dir = root.appendingPathComponent("D", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data(repeating: 0x41, count: 77_000).write(to: dir.appendingPathComponent("f.bin"))
+    let dirs = SurfaceScanner().measure(paths: [dir.path])
+    #expect(dirs.first.map { URL(fileURLWithPath: $0.path).lastPathComponent } == "D")
+    #expect((dirs.first?.sizeBytes ?? 0) >= 77_000)
+}
