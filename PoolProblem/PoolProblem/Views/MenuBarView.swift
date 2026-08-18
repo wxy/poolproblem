@@ -128,6 +128,12 @@ struct MenuBarView: View {
                     .zIndex(13)
             }
 
+            if state.showGrowthInsights {
+                GrowthInsightsView(state: state, service: service)
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
+                    .zIndex(13)
+            }
+
         }
         .frame(width: 700, height: 560)
         .onHover { hovering in
@@ -188,10 +194,71 @@ struct MenuBarView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+
+                    if !state.growthInsights.isEmpty || !state.candidateRecipes.isEmpty {
+                        Divider()
+                        insightsCard
+                    }
                 }
                 .padding(14)
             }
         }
+    }
+
+    private var insightsCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                withAnimation(overlaySpring) { state.showGrowthInsights = true }
+            } label: {
+                HStack {
+                    Text(Localized.string("insights.title"))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(Color.primary)
+                    if pendingCandidateCount > 0 {
+                        Text("\(pendingCandidateCount)")
+                            .font(.caption2)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.accentColor))
+                    }
+                    Spacer()
+                    Text(Localized.string("insights.view"))
+                        .font(.caption2)
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .buttonStyle(.plain)
+            .cursorPointingHand()
+
+            ForEach(state.growthInsights.prefix(2)) { entry in
+                HStack(spacing: 5) {
+                    Text(entry.kind == .unknownSpace
+                         ? Localized.string("insights.unknown_space")
+                         : entry.pattern)
+                        .font(.caption2)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if entry.kind == .unknownSpace || entry.kind == .surface {
+                        Text(Localized.string("insights.new_badge"))
+                            .font(.caption2)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
+                    }
+                    Spacer()
+                    Text(Format.bytes(entry.deltaBytes))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+            }
+        }
+    }
+
+    private var pendingCandidateCount: Int {
+        state.candidateRecipes.filter { $0.status == .pending }.count
     }
 
     private var autoCleanPlanList: some View {

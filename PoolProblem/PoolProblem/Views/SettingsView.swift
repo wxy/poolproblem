@@ -58,6 +58,56 @@ struct SettingsView: View {
                     }
                 }
 
+                Section(Localized.string("settings.candidates_section")) {
+                    let pending = state.candidateRecipes.filter { $0.status == .pending }
+                    if pending.isEmpty {
+                        Text(Localized.string("insights.empty"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(pending) { candidate in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(candidate.pattern)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Text(Localized.string("candidate.evidence", candidate.evidenceCount)
+                                         + " · " + Format.bytes(candidate.totalGrowthBytes))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button(Localized.string("candidate.accept")) {
+                                    service.acceptCandidate(id: candidate.id)
+                                }
+                                .cursorPointingHand()
+                                Button(Localized.string("candidate.dismiss")) {
+                                    service.dismissCandidate(id: candidate.id)
+                                }
+                                .cursorPointingHand()
+                            }
+                        }
+                    }
+                    let accepted = state.candidateRecipes.filter { $0.status == .accepted }
+                    if !accepted.isEmpty {
+                        Divider()
+                        ForEach(accepted) { candidate in
+                            HStack {
+                                Text(candidate.pattern)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer()
+                                Button(Localized.string("common.remove")) {
+                                    service.dismissCandidate(id: candidate.id)
+                                }
+                                .cursorPointingHand()
+                            }
+                        }
+                    }
+                }
+
             Section(Localized.string("settings.whitelist_section")) {
                     ForEach(config.whitelistPaths, id: \.self) { path in
                         HStack {

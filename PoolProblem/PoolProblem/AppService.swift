@@ -7,6 +7,8 @@ final class AppService {
     private let paths: StoragePaths
     private let snapshotStore: SnapshotStore
     private let logStore: CleanLogStore
+    private let growthLedgerStore: GrowthLedgerStore
+    private let recipeSuggestionStore: RecipeSuggestionStore
     private let automationEnabled: Bool
     private var timer: Timer?
     private var lowSpaceNotified = false
@@ -23,6 +25,8 @@ final class AppService {
         self.paths = paths
         self.snapshotStore = SnapshotStore(paths: paths)
         self.logStore = CleanLogStore(paths: paths)
+        self.growthLedgerStore = GrowthLedgerStore(paths: paths)
+        self.recipeSuggestionStore = RecipeSuggestionStore(paths: paths)
         self.automationEnabled = automationEnabled
     }
 
@@ -67,6 +71,7 @@ final class AppService {
             waterlineBytes: waterlineBytes()
         )
         await updateFlowMetrics(snapshots: snapshots)
+        refreshGrowthState()
         refreshGaugeImage()
     }
 
@@ -101,6 +106,7 @@ final class AppService {
         )
         await updateFlowMetrics(snapshots: all)
         let snapshot = Snapshot(volume: result.volume, items: result.items)
+        await updateGrowthInsights(previous: previous, latest: snapshot)
         checkGrowth(previous: previous, latest: snapshot)
         checkLowSpace(available: result.volume.availableBytes)
         let plans = upcomingAutoCleanPlans(result: result)
@@ -1064,6 +1070,61 @@ final class AppService {
                 body: Localized.string("notify.growth_body", alert.name, Format.bytes(alert.deltaBytes))
             )
         }
+    }
+
+    /// 每次扫描后：更新增长台账（含配方外未知空间与表面目录），
+    /// 并刷新候选配方建议。
+    private func updateGrowthInsights(previous: Snapshot?, latest: Snapshot) async {
+        let home = NSHomeDirectory()
+        let builder = GrowthLedgerBuilder()
+        var entries = builder.entries(previous: previous, latest: latest, homeDirectory: home)
+        if entries.contains(where: { $0.kind == .unknownSpace }) {
+            let lastScan = growthLedgerStore.lastSurfaceScanAt()
+            if lastScan == nil || Date().timeIntervalSince(lastScan!) >= 86_400 {
+                let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
+                let dirs = await Task.detached(priority: .utility) {
+                    SurfaceScanner().scan(roots: roots)
+                }.value
+                let prevDirs = (try? growthLedgerStore.surfaceDirectories()) ?? []
+                entries.append(contentsOf: builder.surfaceEntries(
+                    previous: prevDirs,
+                    latest: dirs,
+                    homeDirectory: home
+                ))
+                try? growthLedgerStore.saveSurface(dirs, scannedAt: Date())
+            }
+        }
+        try? growthLedgerStore.append(entries)
+        try? growthLedgerStore.prune(retainingDays: 30)
+        let allEntries = (try? growthLedgerStore.entries()) ?? []
+        let candidates = RecipeSuggester().suggest(
+            entries: allEntries,
+            existingRecipes: RecipeRegistry.builtIn(),
+            homeDirectory: home
+        )
+        try? recipeSuggestionStore.merge(candidates)
+        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+    }
+
+    /// 启动时从磁盘恢复增长洞察与候选配方状态。
+    private func refreshGrowthState() {
+        let allEntries = (try? growthLedgerStore.entries()) ?? []
+        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+    }
+
+    func acceptCandidate(id: String) {
+        setCandidateStatus(id: id, status: .accepted)
+    }
+
+    func dismissCandidate(id: String) {
+        setCandidateStatus(id: id, status: .dismissed)
+    }
+
+    private func setCandidateStatus(id: String, status: CandidateStatus) {
+        try? recipeSuggestionStore.setStatus(id: id, status: status)
+        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
     }
 
     private func checkLowSpace(available: Int64) {
