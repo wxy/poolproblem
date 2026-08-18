@@ -260,7 +260,20 @@ final class AppService {
         try? growthLedgerStore.saveSurface(merged, scannedAt: Date())
         try? growthLedgerStore.prune(retainingDays: 30)
         state.unknownDrillDown = entries
-        state.unknownDrillDownTopSize = Array(dirs.sorted { $0.sizeBytes > $1.sizeBytes }.prefix(5))
+        // 当前占用较大的目录：排除已被配方监控的路径，只留"未知大户"供排查
+        let storagePaths = StoragePaths(baseURL: nil, homeDirectory: home)
+        let coveredPatterns = RecipeRegistry.builtIn()
+            .flatMap { $0.resolvePaths(storagePaths) }
+            .map { PathPatternizer.patternize($0, homeDirectory: home) }
+        state.unknownDrillDownTopSize = Array(
+            dirs
+                .filter { dir in
+                    let pattern = PathPatternizer.patternize(dir.path, homeDirectory: home)
+                    return !coveredPatterns.contains { $0 == pattern || pattern.hasPrefix($0 + "/") }
+                }
+                .sorted { $0.sizeBytes > $1.sizeBytes }
+                .prefix(5)
+        )
         state.unknownDrillDownBaselineMissing = baselineWasMissing
         // 表面条目进入 L2 候选配方管线
         let allEntries = (try? growthLedgerStore.entries()) ?? []
