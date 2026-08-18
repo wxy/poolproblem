@@ -12,6 +12,8 @@ struct MenuBarView: View {
     @State private var spinning = false
     @State private var showNonCleanableInfo = false
     @State private var showCleanHistory = false
+    @State private var cleanFailureNotice: String?
+    @State private var quitProcessRunning = false
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -130,6 +132,16 @@ struct MenuBarView: View {
         .frame(width: 700, height: 560)
         .onHover { hovering in
             if !hovering { NSCursor.arrow.set() }
+        }
+        .onChange(of: state.deletingItemID) { _, newValue in
+            if newValue != nil {
+                // 删除期间：大小在 1.2 秒内平滑缩到 0，闪动随之停止，行消失
+                withAnimation(.easeOut(duration: 1.2)) {
+                    state.deletingProgress = 0
+                }
+            } else {
+                state.deletingProgress = 1
+            }
         }
         .alert(
             Localized.string("clean.confirm_title"),
@@ -309,7 +321,9 @@ struct MenuBarView: View {
             Text(Localized.string("section.cleanable_count", poolLayers.layers.count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            ForEach(poolLayers.layers) { layer in
+            ForEach(poolLayers.layers.filter { layer in
+                !(layer.itemID == state.deletingItemID && state.deletingProgress <= 0)
+            }) { layer in
                 Button {
                     if let item = state.items.first(where: { $0.id == layer.itemID }) {
                         withAnimation(overlaySpring) { state.detailItem = item }
@@ -332,9 +346,14 @@ struct MenuBarView: View {
                                 .foregroundStyle(arrows == 1 ? Color.green : (arrows == 2 ? Color.orange : Color.red))
                         }
                         Spacer()
-                        Text(Format.bytes(layer.bytes))
+                        let deleting = state.deletingItemID == layer.itemID
+                        let displayBytes = deleting
+                            ? Int64(Double(layer.bytes) * state.deletingProgress)
+                            : layer.bytes
+                        Text(Format.bytes(displayBytes))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .monospacedDigit()
                         // COW 项：大小后面显示"?"（占位对齐，非 COW 项保留空白）
                         Text(verbatim: layer.estimated ? "?" : " ")
                             .font(.caption2)
@@ -343,12 +362,16 @@ struct MenuBarView: View {
                         safetyMark(layer)
                     }
                     .frame(height: 22)
-                    .opacity(state.deletingItemID == layer.itemID ? 0.35 : 1)
+                    .opacity(
+                        state.deletingItemID == layer.itemID && state.deletingProgress > 0
+                            ? 0.35
+                            : 1
+                    )
                     .animation(
-                        state.deletingItemID == layer.itemID
+                        state.deletingItemID == layer.itemID && state.deletingProgress > 0
                             ? .easeInOut(duration: 0.6).repeatForever(autoreverses: true)
                             : .default,
-                        value: state.deletingItemID == layer.itemID
+                        value: state.deletingItemID == layer.itemID && state.deletingProgress > 0
                     )
                 }
                 .buttonStyle(.plain)
@@ -367,6 +390,9 @@ struct MenuBarView: View {
                             .frame(width: 9, height: 9)
                         Text(Localized.string("recipe.trash"))
                             .font(.caption)
+                        Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                         Spacer()
                         Text(Format.bytes(poolLayers.trashBytes))
                             .font(.caption)
@@ -374,9 +400,6 @@ struct MenuBarView: View {
                         Text(Localized.string("badge.manual"))
                             .font(.caption2)
                             .foregroundStyle(.blue)
-                        Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
                     }
                 }
                 .buttonStyle(.plain)
@@ -422,6 +445,64 @@ struct MenuBarView: View {
                 }
             }
             .padding(.top, 2)
+
+            // 手动清理项：应用无法删除，只能提示用户到对应应用/Finder 清理
+            let manualItems = state.items
+                .filter {
+                    $0.reclaimableBytes > 0
+                        && CleanupRationale.make(for: $0).isManual
+                }
+                .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
+            if !manualItems.isEmpty {
+                Divider()
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(Localized.string("section.manual_cleanup"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(manualItems) { item in
+                        Button {
+                            withAnimation(overlaySpring) { state.detailItem = item }
+                        } label: {
+                            HStack(spacing: 5) {
+                                Rectangle()
+                                    .fill(PoolLayers.nonCleanableColor.opacity(0.5))
+                                    .frame(width: 9, height: 9)
+                                Text(Localized.recipeName(item.recipeID, fallback: item.name) + manualSuffix(for: item))
+                                    .lineLimit(1)
+                                    .font(.caption)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Text(Format.bytes(item.reclaimableBytes))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                                Text(Localized.string("badge.manual"))
+                                    .font(.caption2)
+                                    .foregroundStyle(.blue)
+                                    .help(Localized.string("badge.tooltip.xcode_manual"))
+                            }
+                            .frame(height: 22)
+                        }
+                        .buttonStyle(.plain)
+                        .focusEffectDisabled()
+                        .cursorPointingHand()
+                    }
+                }
+                .padding(.top, 4)
+            }
+        }
+    }
+
+    /// 手动清理项行名后缀：区分同一配方的多个版本（大小已在行尾单独显示）
+    private func manualSuffix(for item: ScanItem) -> String {
+        switch item.recipeID {
+        case "simulator-runtimes", "simulator-dyld-cache":
+            return SimulatorRuntimeUsage.displayName(forPath: item.path)
+                .map { " · \($0)" } ?? ""
+        case "xcode-devicesupport":
+            return " · " + URL(fileURLWithPath: item.path).lastPathComponent
+        default:
+            return ""
         }
     }
 
@@ -487,7 +568,10 @@ struct MenuBarView: View {
         let config = service.loadConfig()
         let evaluator = RuleEvaluator(config: config)
         let suggestions = state.items
-            .filter { $0.reclaimableBytes > 0 }
+            .filter {
+                $0.reclaimableBytes > 0
+                    && !CleanupRationale.make(for: $0).isManual
+            }
             .compactMap { item -> (ScanItem, EvaluatedAction)? in
             let action = evaluator.evaluate(
                 item: item,
@@ -540,9 +624,44 @@ struct MenuBarView: View {
                 .cursorPointingHand()
             }
 
-            Text(explanation(for: item))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            let rationale = CleanupRationale.make(for: item)
+            let appCleanable = !rationale.isManual
+                && item.cleanability != .displayOnly
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Localized.string("detail.why_suggested"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(Localized.suggestionText(rationale.suggestion))
+                    .font(.caption)
+                if appCleanable {
+                    Text(Localized.string("detail.why_cleanable"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(Localized.string("detail.why_cleanable_reason"))
+                        .font(.caption)
+                }
+                if item.safety == .requiresQuit, let appName = processName(for: item) {
+                    Text(Localized.string("detail.why_quit"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(Localized.string("detail.why_quit_reason", appName))
+                        .font(.caption)
+                }
+                if let confirmation = rationale.confirmation {
+                    Text(rationale.isManual
+                         ? Localized.string("detail.why_manual")
+                         : Localized.string("detail.why_confirm"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(Localized.confirmationText(confirmation))
+                        .font(.caption)
+                }
+                Text(Localized.string("detail.last_used"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(lastUsedText(rationale.lastUsed))
+                    .font(.caption)
+            }
 
             if estimatedRecipeIDs.contains(item.recipeID) {
                 Text(Localized.string("detail.cow_warning"))
@@ -575,7 +694,7 @@ struct MenuBarView: View {
 
             HStack(spacing: 16) {
                 LabeledContent(Localized.string("detail.reclaimable"), value: Format.bytes(item.reclaimableBytes))
-                LabeledContent(Localized.string("detail.safety"), value: safetyText(item.safety))
+                LabeledContent(Localized.string("detail.safety"), value: safetyText(for: item))
             }
             .font(.caption)
             if let rate = state.growthRates[item.id], rate > 0 {
@@ -584,10 +703,20 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 10) {
-                if item.safety == .safeWhileRunning, item.recipeID != "trash" {
-                    Button(Localized.string("detail.clean_now")) {
+                if item.cleanability != .displayOnly,
+                          !rationale.isManual,
+                          item.safety == .safeWhileRunning
+                          || item.safety == .userConfirm
+                          || (item.safety == .requiresQuit && !quitProcessRunning) {
+                    Button(item.safety == .safeWhileRunning
+                           ? Localized.string("detail.clean_now")
+                           : Localized.string("detail.clean_confirm")) {
                         withAnimation(overlaySpring) { state.detailItem = nil }
-                        Task { _ = await service.cleanItem(item) }
+                        Task {
+                            if await service.cleanItem(item) == nil {
+                                cleanFailureNotice = Localized.string("detail.clean_failed")
+                            }
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.red)
@@ -595,9 +724,15 @@ struct MenuBarView: View {
                     .focusEffectDisabled()
                     .cursorPointingHand()
                 } else if item.safety == .requiresQuit {
-                    Text(Localized.string("detail.clean_requires_quit"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if let appName = processName(for: item) {
+                        Text(Localized.string("detail.clean_requires_quit_app", appName))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(Localized.string("detail.clean_requires_quit"))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 if isKept {
                     Button(Localized.string("detail.unkeep")) {
@@ -635,6 +770,43 @@ struct MenuBarView: View {
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.15))
+        .alert(
+            Localized.string("detail.clean_failed_title"),
+            isPresented: Binding(
+                get: { cleanFailureNotice != nil },
+                set: { if !$0 { cleanFailureNotice = nil } }
+            )
+        ) {
+            Button(Localized.string("common.close"), role: .cancel) {}
+        } message: {
+            Text(cleanFailureNotice ?? "")
+        }
+        .onAppear {
+            guard item.safety == .requiresQuit,
+                  let name = processName(for: item) else {
+                quitProcessRunning = false
+                return
+            }
+            Task {
+                let running = await Task.detached(priority: .userInitiated) {
+                    PGrepProcessInspector().isRunning(name)
+                }.value
+                await MainActor.run {
+                    quitProcessRunning = running
+                }
+            }
+        }
+    }
+
+    private func processName(for item: ScanItem) -> String? {
+        switch item.category {
+        case .xcode:
+            return "Xcode"
+        case .simulator:
+            return "Simulator"
+        default:
+            return nil
+        }
     }
 
     /// 通用信息浮层（不可清理说明等）
@@ -875,30 +1047,37 @@ struct MenuBarView: View {
         return date.formatted(date: .abbreviated, time: .shortened)
     }
 
-    private func explanation(for item: ScanItem) -> String {
-        switch item.category {
-        case .xcode:
-            return Localized.string("explain.xcode")
-        case .simulator:
-            return Localized.string("explain.simulator")
-        case .packageManager:
-            return Localized.string("explain.package_manager")
-        case .common:
-            return Localized.string("explain.common")
-        case .project, .custom:
-            return Localized.string("explain.project")
-        }
-    }
-
-    private func safetyText(_ safety: SafetyLevel) -> String {
-        switch safety {
+    private func safetyText(for item: ScanItem) -> String {
+        switch item.safety {
         case .safeWhileRunning:
             return Localized.string("safety.safe_while_running")
         case .requiresQuit:
             return Localized.string("safety.requires_quit")
         case .userConfirm:
+            if CleanupRationale.make(for: item).isManual {
+                return Localized.string("safety.manual_delete")
+            }
             return Localized.string("safety.user_confirm")
         }
+    }
+
+    private func lastUsedText(_ date: Date?) -> String {
+        guard let date else {
+            return Localized.string("detail.never_used")
+        }
+        let interval = Date().timeIntervalSince(date)
+        if interval < 86_400 {
+            let hours = max(1, Int(interval / 3600))
+            return Localized.string("detail.last_used_hours", hours)
+        }
+        let days = Int(interval / 86_400)
+        if days == 1 {
+            return Localized.string("detail.last_used_yesterday")
+        }
+        if days == 2 {
+            return Localized.string("detail.last_used_before_yesterday")
+        }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 
     private func revealInFinder(_ path: String) {
@@ -914,19 +1093,34 @@ struct MenuBarView: View {
 
     private func safetyMark(_ layer: CleanableLayer) -> some View {
         if state.keptItemIDs.contains(layer.itemID) {
-            return Text(Localized.string("badge.kept")).font(.caption2).foregroundStyle(.orange)
+            return Text(Localized.string("badge.kept"))
+                .font(.caption2)
+                .foregroundStyle(.orange)
+                .help(Localized.string("badge.tooltip.kept"))
         }
         if layer.recipeID == "trash" {
-            return Text(Localized.string("badge.manual")).font(.caption2).foregroundStyle(.blue)
+            return Text(Localized.string("badge.manual"))
+                .font(.caption2)
+                .foregroundStyle(.blue)
+                .help(Localized.string("badge.tooltip.manual"))
         }
         let safety = layer.safety
         switch safety {
         case .safeWhileRunning:
-            return Text(Localized.string("badge.cleanable")).font(.caption2).foregroundStyle(.green)
+            return Text(Localized.string("badge.cleanable"))
+                .font(.caption2)
+                .foregroundStyle(.green)
+                .help(Localized.string("badge.tooltip.cleanable"))
         case .requiresQuit:
-            return Text(Localized.string("badge.requires_quit")).font(.caption2).foregroundStyle(.red)
+            return Text(Localized.string("badge.requires_quit"))
+                .font(.caption2)
+                .foregroundStyle(.red)
+                .help(Localized.string("badge.tooltip.requires_quit"))
         case .userConfirm:
-            return Text(Localized.string("badge.user_confirm")).font(.caption2).foregroundStyle(.gray)
+            return Text(Localized.string("badge.user_confirm"))
+                .font(.caption2)
+                .foregroundStyle(.gray)
+                .help(Localized.string("badge.tooltip.user_confirm"))
         }
     }
 }

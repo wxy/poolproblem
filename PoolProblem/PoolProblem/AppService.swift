@@ -188,10 +188,15 @@ final class AppService {
         state.weeklyCleanedBytes = entries
             .filter { $0.timestamp >= cutoff }
             .reduce(0) { $0 + $1.freedBytes }
-        // 废纸篓详情：本应用清理的项 vs 其他（手动放入）
+        // 废纸篓详情：只展示当前仍留在回收站里的、本应用清理过的项；
+        // 用户清空废纸篓后，这里不再显示历史清理记录。
         var names: [String] = []
         var ourBytes: Int64 = 0
-        for entry in entries {
+        for entry in entries where entry.disposition == .trash {
+            let stillPresent = !entry.trashPaths.isEmpty
+                ? entry.trashPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) }
+                : false
+            guard stillPresent else { continue }
             let entryNames = entry.itemNames.isEmpty
                 ? entry.itemIDs.map(itemName(for:))
                 : entry.itemNames
@@ -386,8 +391,20 @@ final class AppService {
     }
 
     func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
-        guard item.safety == .safeWhileRunning, item.recipeID != "trash" else {
+        // 详情页点击“立即清理”即用户确认：
+        // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
+        // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
+        guard item.cleanability != .displayOnly else {
             return nil
+        }
+        switch item.safety {
+        case .safeWhileRunning, .userConfirm:
+            break
+        case .requiresQuit:
+            guard let processName = Self.processName(for: item),
+                  !PGrepProcessInspector().isRunning(processName) else {
+                return nil
+            }
         }
         state.isCleaning = true
         state.cleanedItemIDs = []
@@ -424,6 +441,8 @@ final class AppService {
         }
         guard let outcome = await work.value else {
             state.isCleaning = false
+            state.deletingItemID = nil
+            state.deletingProgress = 1
             return nil
         }
         state.isCleaning = false
@@ -435,6 +454,17 @@ final class AppService {
         )
         state.cleanCelebrationID += 1
         return outcome
+    }
+
+    private static func processName(for item: ScanItem) -> String? {
+        switch item.category {
+        case .xcode:
+            return "Xcode"
+        case .simulator:
+            return "Simulator"
+        default:
+            return nil
+        }
     }
 
     func undoCleanup(_ entry: CleanLogEntry) async -> Bool {
@@ -883,7 +913,11 @@ final class AppService {
                     disposition: .trash,
                     source: .auto,
                     reclaimableRatio: ratio,
-                    minimumCleanBytes: 0
+                    minimumCleanBytes: 0,
+                    protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
+                        recipe: recipe,
+                        config: config
+                    )
                 ))
                 continue
             }
@@ -901,7 +935,11 @@ final class AppService {
                 disposition: .trash,
                 source: .auto,
                 reclaimableRatio: ratio,
-                minimumCleanBytes: autoMinimumCleanItemBytes
+                minimumCleanBytes: autoMinimumCleanItemBytes,
+                protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
+                    recipe: recipe,
+                    config: config
+                )
             ))
         }
         return policies

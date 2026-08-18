@@ -50,6 +50,8 @@ enum PoolLayers {
                 $0.reclaimableBytes > 0
                     && !excludedItemIDs.contains($0.id)
                     && $0.recipeID != "trash"
+                    // 应用无法删除的项（需手动在 Xcode/Finder 清理）不进入可清理图层
+                    && !CleanupRationale.make(for: $0).isManual
             }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         var layers: [CleanableLayer] = []
@@ -171,7 +173,11 @@ struct PoolTankView: View {
         // 3.5) 金属拐角水管（参照 xingyu.wang 官网 pipes：管身金属渐变+高光阴影、两端端盖、拐角连接件）
         let pipeDiameter: CGFloat = 18
         // 进水管数量：每 4 个可清理项对应 1 根，最多 2 根
-        let cleanableCount = cleanableItems.filter { $0.recipeID != "trash" && $0.reclaimableBytes > 0 }.count
+        let cleanableCount = cleanableItems.filter {
+            $0.recipeID != "trash"
+                && $0.reclaimableBytes > 0
+                && !CleanupRationale.make(for: $0).isManual
+        }.count
         let pipeCount = min(2, max(1, (cleanableCount + 3) / 4))
         let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)]
         switch pipeCount {
@@ -191,23 +197,36 @@ struct PoolTankView: View {
                 name = Localized.string("pool.inflow")
             }
 
+            // 进水管自适应：正常情况下水平段固定在 yTop、竖直下口对准水位线；
+            // 当水位线升到管顶之上时，整根管上移，保持竖直段至少 minVerticalLen，
+            // 管口始终对准水位线，避免进水口被压缩成水下短桩。
+            let minVerticalLen: CGFloat = 24
+            let pipeTopMin: CGFloat = 40
+            let pipeTopY: CGFloat
+            let pipeEndY: CGFloat
+            if waterlineY >= pipe.yTop + minVerticalLen {
+                pipeTopY = pipe.yTop
+                pipeEndY = waterlineY
+            } else {
+                pipeEndY = max(waterlineY, pipeTopMin)
+                pipeTopY = max(pipeTopMin, pipeEndY - minVerticalLen)
+            }
+
             // 水平管段（右侧 → 左侧）
             let hRect = CGRect(
                 x: pipe.xElbow,
-                y: pipe.yTop - pipeDiameter / 2,
+                y: pipeTopY - pipeDiameter / 2,
                 width: pipe.xStart - pipe.xElbow,
                 height: pipeDiameter
             )
             fillPipe(context: &context, rect: hRect, vertical: false)
 
-            // 垂直管段：按给定长度，半空结束（不伸入水面）
-            // 下水管下口与水线平齐；若水线位置异常靠上，保留最小可见管长。
-            let pipeEndY = max(pipe.yTop + 20, waterlineY)
+            // 垂直管段：下口与水线平齐（自适应后保持最小可见管长）
             let vRect = CGRect(
                 x: pipe.xElbow - pipeDiameter / 2,
-                y: pipe.yTop - pipeDiameter / 2,
+                y: pipeTopY - pipeDiameter / 2,
                 width: pipeDiameter,
-                height: pipeEndY - (pipe.yTop - pipeDiameter / 2)
+                height: pipeEndY - (pipeTopY - pipeDiameter / 2)
             )
             fillPipe(context: &context, rect: vRect, vertical: true)
 
@@ -216,7 +235,7 @@ struct PoolTankView: View {
                 context: &context,
                 rect: CGRect(
                     x: pipe.xStart - 6,
-                    y: pipe.yTop - (pipeDiameter + 8) / 2,
+                    y: pipeTopY - (pipeDiameter + 8) / 2,
                     width: 6,
                     height: pipeDiameter + 8
                 ),
@@ -238,7 +257,7 @@ struct PoolTankView: View {
             // 拐角连接件（银质）
             drawJoint(
                 context: &context,
-                center: CGPoint(x: pipe.xElbow, y: pipe.yTop),
+                center: CGPoint(x: pipe.xElbow, y: pipeTopY),
                 size: pipeDiameter + 10
             )
 
@@ -247,7 +266,7 @@ struct PoolTankView: View {
             drawBadge(
                 context: &context,
                 text: name,
-                center: CGPoint(x: midX, y: pipe.yTop)
+                center: CGPoint(x: midX, y: pipeTopY)
             )
 
             // 实心水流：直带略微收窄（不圆角），从半空管口流出进入水池 + 落水溅波

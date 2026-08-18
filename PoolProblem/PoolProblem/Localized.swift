@@ -1,4 +1,5 @@
 import Foundation
+import DiskReservoirCore
 
 /// 本地化辅助：英文为源语言，简体中文提供翻译（Localizable.xcstrings）
 enum Localized {
@@ -24,8 +25,46 @@ enum Localized {
         case "cocoapods-cache": return string("recipe.cocoapods-cache")
         case "homebrew-cache": return string("recipe.homebrew-cache")
         case "library-caches": return string("recipe.library-caches")
+        case "xcode-preview-cache": return string("recipe.xcode-preview-cache")
+        case "xcode-devicesupport": return string("recipe.xcode-devicesupport")
+        case "simulator-runtimes": return string("recipe.simulator-runtimes")
+        case "simulator-dyld-cache": return string("recipe.simulator-dyld-cache")
         case "trash": return string("recipe.trash")
         default: return fallback
+        }
+    }
+
+    /// “为什么建议清理”文案
+    static func suggestionText(_ reason: CleanupRationale.SuggestionReason) -> String {
+        switch reason {
+        case .regenerable:
+            return string("rationale.regenerable")
+        case .unusedSimulatorRuntime:
+            return string("rationale.simulator_runtime")
+        case .simulatorRuntimeInUse:
+            return string("rationale.in_use")
+        case .unusedSimulatorSharedCache:
+            return string("rationale.simulator_shared_cache")
+        case .simulatorSharedCacheInUse:
+            return string("rationale.in_use")
+        case .oldDeviceSupport:
+            return string("rationale.old_device_support")
+        case .simulatorDeviceData:
+            return string("rationale.simulator_device_data")
+        case .userDataOnly:
+            return string("rationale.user_data_only")
+        }
+    }
+
+    /// “为什么需要确认”文案
+    static func confirmationText(_ reason: CleanupRationale.ConfirmationReason) -> String {
+        switch reason {
+        case .manualXcodeComponents:
+            return string("rationale.confirm.xcode_components")
+        case .manualFinderDeletion:
+            return string("rationale.confirm.manual_finder")
+        case .nonRegenerable:
+            return string("rationale.confirm.non_regenerable")
         }
     }
 }

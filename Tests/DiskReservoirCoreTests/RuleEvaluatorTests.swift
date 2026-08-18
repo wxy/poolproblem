@@ -112,11 +112,21 @@ private func item(
     }
 }
 
-@Test func forceSkipsRequiresQuit() {
+@Test func forceCleansRequiresQuitWhenProcessNotRunning() {
     let evaluator = RuleEvaluator(config: .default)
     let result = evaluator.evaluate(
         item: item("q", safety: .requiresQuit, disposition: .trash),
         isProcessRunning: { _ in false },
+        force: true
+    )
+    #expect(result.action == .trash)
+}
+
+@Test func forceNotifiesRequiresQuitWhenProcessRunning() {
+    let evaluator = RuleEvaluator(config: .default)
+    let result = evaluator.evaluate(
+        item: item("q", safety: .requiresQuit, disposition: .trash),
+        isProcessRunning: { _ in true },
         force: true
     )
     guard case .notify = result.action else {
@@ -136,4 +146,54 @@ private func item(
         Issue.record("expected skip")
         return
     }
+}
+
+@Test func displayOnlyItemIsNeverCleaned() {
+    let evaluator = RuleEvaluator(config: .default, now: { Date(timeIntervalSince1970: 1_000_000) })
+    let item = ScanItem(
+        id: "d", recipeID: "r", name: "N", path: "/tmp/d",
+        category: .common, safety: .safeWhileRunning, disposition: .deletePermanently,
+        sizeBytes: 1, allocatedBytes: 1, reclaimableBytes: 1,
+        fileCount: 1, lastModified: Date(timeIntervalSince1970: 1),
+        cleanability: .displayOnly
+    )
+    let auto = evaluator.evaluate(item: item, isProcessRunning: { _ in false })
+    guard case .skip = auto.action else {
+        Issue.record("expected skip in auto mode")
+        return
+    }
+    let forced = evaluator.evaluate(item: item, isProcessRunning: { _ in false }, force: true)
+    guard case .skip = forced.action else {
+        Issue.record("expected skip even when forced")
+        return
+    }
+}
+
+@Test func trashOnlyItemNotifiesInAutoMode() {
+    let evaluator = RuleEvaluator(config: .default, now: { Date(timeIntervalSince1970: 1_000_000) })
+    let item = ScanItem(
+        id: "t", recipeID: "r", name: "N", path: "/tmp/t",
+        category: .common, safety: .safeWhileRunning, disposition: .trash,
+        sizeBytes: 1, allocatedBytes: 1, reclaimableBytes: 1,
+        fileCount: 1, lastModified: Date(timeIntervalSince1970: 1),
+        cleanability: .trashOnly
+    )
+    let result = evaluator.evaluate(item: item, isProcessRunning: { _ in false })
+    guard case .notify = result.action else {
+        Issue.record("expected notify in auto mode")
+        return
+    }
+}
+
+@Test func trashOnlyItemGoesToTrashWhenForced() {
+    let evaluator = RuleEvaluator(config: .default, now: { Date(timeIntervalSince1970: 1_000_000) })
+    let item = ScanItem(
+        id: "t2", recipeID: "r", name: "N", path: "/tmp/t2",
+        category: .common, safety: .safeWhileRunning, disposition: .deletePermanently,
+        sizeBytes: 1, allocatedBytes: 1, reclaimableBytes: 1,
+        fileCount: 1, lastModified: Date(timeIntervalSince1970: 1),
+        cleanability: .trashOnly
+    )
+    let result = evaluator.evaluate(item: item, isProcessRunning: { _ in false }, force: true)
+    #expect(result.action == .trash)
 }
