@@ -365,11 +365,9 @@ struct PoolTankView: View {
             )
         }
 
-        // 5) 容量分层（半透明，水面之下，层间画分隔线）
-        var boundaries: [CGFloat] = []
+        // 5) 容量分层（半透明，水面之下）
         var bottomUsed = 0.0
         let nonCleanableTop = bottomUsed + Double(nonCleanable)
-        boundaries.append(yForUsed(nonCleanableTop))
         fillLayer(
             context: &context,
             bottomUsed: bottomUsed,
@@ -383,7 +381,6 @@ struct PoolTankView: View {
         // 手动清理层（石板蓝灰，位于不可清理之上、废纸篓之下）
         if manualBytes > 0 {
             let top = bottomUsed + Double(manualBytes)
-            boundaries.append(yForUsed(top))
             fillLayer(
                 context: &context,
                 bottomUsed: bottomUsed,
@@ -398,7 +395,6 @@ struct PoolTankView: View {
         // 废纸篓层（浅蓝，位于不可清理之上、可清理层之下）
         if trashBytes > 0 {
             let top = bottomUsed + Double(trashBytes)
-            boundaries.append(yForUsed(top))
             fillLayer(
                 context: &context,
                 bottomUsed: bottomUsed,
@@ -410,7 +406,6 @@ struct PoolTankView: View {
         }
         for (index, layer) in layers.enumerated() {
             let top = bottomUsed + Double(layer.bytes)
-            boundaries.append(yForUsed(top))
             fillLayer(
                 context: &context,
                 bottomUsed: bottomUsed,
@@ -419,13 +414,6 @@ struct PoolTankView: View {
                 color: layer.color.opacity(PoolLayers.layerOpacity(index: index, count: layers.count))
             )
             bottomUsed = top
-        }
-        // 层间分隔线（静止，1px = 0.5pt；只有水面波动）
-        for boundaryY in boundaries {
-            var line = Path()
-            line.move(to: CGPoint(x: 0, y: boundaryY))
-            line.addLine(to: CGPoint(x: size.width, y: boundaryY))
-            context.stroke(line, with: .color(.white.opacity(0.85)), lineWidth: 0.5)
         }
 
         // 6) 水面波纹动效（水的最上层；减少动效时静止为一条直线）
