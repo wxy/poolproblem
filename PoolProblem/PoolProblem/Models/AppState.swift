@@ -52,6 +52,12 @@ final class AppState: ObservableObject {
     @Published var candidateRecipes: [CandidateRecipe] = []
     /// 菜单栏面板"增长洞察"明细 sheet 开关。
     @Published var showGrowthInsights = false
+    /// 未覆盖空间下钻结果：按需表面扫描得到的增长目录（新→旧）。
+    @Published var unknownDrillDown: [GrowthEntry] = []
+    /// 下钻时表面基线尚不存在（首次点击只建立基线）。
+    @Published var unknownDrillDownBaselineMissing = false
+    /// 下钻扫描进行中。
+    @Published var isDrillingDown = false
 }
 
 enum Format {

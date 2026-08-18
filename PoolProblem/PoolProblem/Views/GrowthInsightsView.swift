@@ -5,6 +5,7 @@ import DiskReservoirCore
 struct GrowthInsightsView: View {
     @ObservedObject var state: AppState
     let service: AppService
+    @State private var expandedUnknownID: UUID?
 
     private var pendingCandidates: [CandidateRecipe] {
         state.candidateRecipes.filter { $0.status == .pending }
@@ -91,6 +92,61 @@ struct GrowthInsightsView: View {
     }
 
     private func growthRow(_ entry: GrowthEntry) -> some View {
+        if entry.kind == .unknownSpace {
+            return AnyView(unknownSpaceRow(entry))
+        }
+        return AnyView(regularRow(entry))
+    }
+
+    private func unknownSpaceRow(_ entry: GrowthEntry) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    if expandedUnknownID == entry.id {
+                        expandedUnknownID = nil
+                    } else {
+                        expandedUnknownID = entry.id
+                        Task { await service.drillDownUnknownSpace() }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: expandedUnknownID == entry.id ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(displayName(entry))
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(Localized.string("insights.new_badge"))
+                        .font(.caption2)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
+                    Spacer()
+                    Text(Format.bytes(entry.deltaBytes))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    Text(growthRateText(entry))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .monospacedDigit()
+                }
+            }
+            .buttonStyle(.plain)
+            .cursorPointingHand()
+            .help(Localized.string("insights.drill"))
+
+            if expandedUnknownID == entry.id {
+                drillDownList
+                    .padding(.leading, 12)
+            }
+        }
+    }
+
+    private func regularRow(_ entry: GrowthEntry) -> some View {
         HStack(spacing: 6) {
             Text(displayName(entry))
                 .font(.caption)
@@ -113,6 +169,47 @@ struct GrowthInsightsView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()
+        }
+    }
+
+    private var drillDownList: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if state.isDrillingDown {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(Localized.string("insights.drilling"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            } else if state.unknownDrillDownBaselineMissing {
+                Text(Localized.string("insights.drill_baseline"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else if state.unknownDrillDown.isEmpty {
+                Text(Localized.string("insights.drill_empty"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(state.unknownDrillDown.prefix(10)) { dir in
+                    HStack(spacing: 5) {
+                        Text(dir.pattern)
+                            .font(.caption2)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Text(Format.bytes(dir.deltaBytes))
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(Localized.string("insights.drill_caption"))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
         }
     }
 

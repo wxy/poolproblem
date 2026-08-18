@@ -1308,6 +1308,86 @@
         }
       }
     },
+    "insights.drill" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locate which directories grew"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定位是哪些目录在增长"
+          }
+        }
+      }
+    },
+    "insights.drill_baseline" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baseline established. Growth directories will appear after the next drill-down."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已建立基线。下次下钻即可对比出增长的目录。"
+          }
+        }
+      }
+    },
+    "insights.drill_caption" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On-demand scan of Caches / Logs / Developer / Application Support / .cache — runs only when you click."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按需扫描 Caches / Logs / Developer / Application Support / .cache——仅在点击时执行。"
+          }
+        }
+      }
+    },
+    "insights.drill_empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No significantly growing directories found (below 200MB)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未发现显著增长的目录（增量低于 200MB）。"
+          }
+        }
+      }
+    },
+    "insights.drilling" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locating growth…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在定位增长的目录…"
+          }
+        }
+      }
+    },
     "insights.empty" : {
       "localizations" : {
         "en" : {
