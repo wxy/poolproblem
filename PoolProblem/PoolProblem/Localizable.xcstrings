@@ -1404,6 +1404,38 @@
         }
       }
     },
+    "insights.unknown_space_footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uncovered space means disk usage not yet recognized by any cleanup recipe (for example a new tool's cache, system updates, or other apps' data). It isn't necessarily junk — it just flags a new large consumer."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未覆盖空间 = 磁盘上尚未被任何清理配方识别的占用（如新工具的缓存、系统更新、其他应用数据）。它不一定是垃圾，只是提示出现了新的空间大户。"
+          }
+        }
+      }
+    },
+    "insights.observed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "last %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近%@"
+          }
+        }
+      }
+    },
     "insights.view" : {
       "localizations" : {
         "en" : {
@@ -2447,6 +2479,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不可清理（其余已用）"
+          }
+        }
+      }
+    },
+    "time.days" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 天"
+          }
+        }
+      }
+    },
+    "time.hours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld h"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 小时"
+          }
+        }
+      }
+    },
+    "time.minutes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 分钟"
           }
         }
       }

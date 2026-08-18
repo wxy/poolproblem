@@ -79,6 +79,13 @@ struct GrowthInsightsView: View {
                 ForEach(state.growthInsights.prefix(20)) { entry in
                     growthRow(entry)
                 }
+                if state.growthInsights.contains(where: { $0.kind == .unknownSpace }) {
+                    Text(Localized.string("insights.unknown_space_footer"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
+                }
             }
         }
     }
@@ -102,11 +109,31 @@ struct GrowthInsightsView: View {
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
-            Text(Localized.string("insights.rate", Format.bytes(Int64(entry.rateBytesPerDay))))
+            Text(growthRateText(entry))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()
         }
+    }
+
+    /// 速率展示：观测窗口足够长（≥1 天）才外推为"每天"，
+    /// 否则显示真实观测窗口（如"近 30 分钟"），避免把短时突发外推成夸张的日增量。
+    private func growthRateText(_ entry: GrowthEntry) -> String {
+        if entry.elapsedDays >= 0.9 {
+            return Localized.string("insights.rate", Format.bytes(Int64(entry.rateBytesPerDay)))
+        }
+        return Localized.string("insights.observed", windowText(entry.elapsedDays))
+    }
+
+    private func windowText(_ elapsedDays: Double) -> String {
+        let minutes = Int((elapsedDays * 24 * 60).rounded())
+        if minutes < 60 {
+            return Localized.string("time.minutes", minutes)
+        }
+        if minutes < 24 * 60 {
+            return Localized.string("time.hours", minutes / 60)
+        }
+        return Localized.string("time.days", Int(elapsedDays.rounded()))
     }
 
     private func displayName(_ entry: GrowthEntry) -> String {
