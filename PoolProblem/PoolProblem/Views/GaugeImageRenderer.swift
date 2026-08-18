@@ -27,6 +27,24 @@ enum GaugeImageRenderer {
         return 100
     }
 
+    /// 红区（水线以上）步长：保留区以 10G 一格为主，水线很小时自适应降为 2G/1G，
+    /// 保证红区始终能看到多个 E 刻度。
+    private static func redStepBytes(for waterlineBytes: Double) -> Double {
+        let gb = waterlineBytes / 1_000_000_000
+        if gb >= 10 { return 10_000_000_000 }
+        if gb >= 2 { return 2_000_000_000 }
+        return 1_000_000_000
+    }
+
+    /// 标尺数值归整显示：≥1G 显示整数 G（如 235G），否则显示整数 M。
+    private static func gaugeLabel(_ value: Double) -> String {
+        let gb = value / 1_000_000_000
+        if gb >= 1 {
+            return "\(Int(gb.rounded()))G"
+        }
+        return "\(Int((value / 1_000_000).rounded()))M"
+    }
+
     /// E 字型国际水位标尺（参考水利行业 E-scale staff gauge）：
     /// 白搪瓷底板 + 黑色 E 形刻痕；水线以上为红色警戒区，E 与数字反白。
     private static func drawGauge(
@@ -73,8 +91,11 @@ enum GaugeImageRenderer {
             height: gaugeRect.height
         )
 
-        let stepGB = gaugeStepGB(span)
-        let stepBytes = stepGB * 1_000_000_000
+        // 黑区（水线以下）沿用按窗口跨度选择的步长
+        let blackStepGB = gaugeStepGB(span)
+        let blackStepBytes = blackStepGB * 1_000_000_000
+        // 红区（水线以上保留区）固定 10G 一格（小水线时自适应），保证能显示多个 E
+        let redStepBytes = redStepBytes(for: Double(waterlineBytes))
         let floorValue = max(0, layout.windowBottomBytes)
         var index = 0
 
@@ -102,7 +123,7 @@ enum GaugeImageRenderer {
             )
             drawVerticalText(
                 context: &context,
-                text: Format.bytes(Int64(value)),
+                text: gaugeLabel(value),
                 at: CGPoint(
                     x: isLeft ? rightColumn.midX : leftColumn.midX,
                     y: (topY + bottomY) / 2
@@ -122,8 +143,8 @@ enum GaugeImageRenderer {
         // 红色区（保留空间）位于该值之上，黑色区在其之下。
         let waterlineUsed = total - Double(waterlineBytes)
         var redBottomValue = waterlineUsed
-        while redBottomValue + stepBytes <= total {
-            let rawTopY = yForUsed(redBottomValue + stepBytes)
+        while redBottomValue + redStepBytes <= total {
+            let rawTopY = yForUsed(redBottomValue + redStepBytes)
             let rawBottomY = yForUsed(redBottomValue)
             guard rawBottomY - rawTopY > 2,
                   rawBottomY > gaugeRect.minY,
@@ -131,18 +152,18 @@ enum GaugeImageRenderer {
             drawEBlock(
                 topY: max(rawTopY, gaugeRect.minY),
                 bottomY: min(rawBottomY, gaugeRect.maxY),
-                value: redBottomValue + stepBytes,
+                value: redBottomValue + redStepBytes,
                 red: true,
                 index: index
             )
             index += 1
-            redBottomValue += stepBytes
+            redBottomValue += redStepBytes
         }
 
         var blackTopValue = waterlineUsed
         while blackTopValue > floorValue {
             let rawTopY = yForUsed(blackTopValue)
-            let rawBottomY = yForUsed(max(floorValue, blackTopValue - stepBytes))
+            let rawBottomY = yForUsed(max(floorValue, blackTopValue - blackStepBytes))
             guard rawBottomY - rawTopY > 2,
                   rawBottomY > gaugeRect.minY,
                   rawTopY < gaugeRect.maxY else { break }
@@ -154,7 +175,7 @@ enum GaugeImageRenderer {
                 index: index
             )
             index += 1
-            blackTopValue -= stepBytes
+            blackTopValue -= blackStepBytes
         }
 
         // 水线标记（跨越标尺的实线）与徽标
