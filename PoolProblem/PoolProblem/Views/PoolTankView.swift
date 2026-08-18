@@ -28,7 +28,10 @@ enum PoolLayers {
         Color(red: 0.88, green: 0.97, blue: 0.93),
     ]
 
-    static let nonCleanableColor = Color(red: 0.05, green: 0.12, blue: 0.30)
+    /// 不可清理项：池底深水/沉淀，颜色最重（深蓝）。
+    static let nonCleanableColor = Color(red: 0.03, green: 0.08, blue: 0.24)
+    /// 手动清理项：中性石板蓝灰，与深蓝、蓝绿色系同属水色，靠明度/饱和度区分。
+    static let manualColor = Color(red: 0.36, green: 0.46, blue: 0.55)
     static let trashColor = Color(red: 0.55, green: 0.78, blue: 0.95)
 
     static func layerOpacity(index: Int, count: Int) -> Double {
@@ -43,7 +46,7 @@ enum PoolLayers {
         availableBytes: Int64,
         estimatedRecipeIDs: Set<String>,
         excludedItemIDs: Set<String> = []
-    ) -> (layers: [CleanableLayer], nonCleanableBytes: Int64, trashBytes: Int64) {
+    ) -> PoolLayerModel {
         let used = max(0, totalBytes - availableBytes)
         let cleanable = items
             .filter {
@@ -72,8 +75,29 @@ enum PoolLayers {
         let trashBytes = items
             .filter { $0.recipeID == "trash" && $0.reclaimableBytes > 0 && !excludedItemIDs.contains($0.id) }
             .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
-        return (layers, max(0, used - sum - trashBytes), trashBytes)
+        let manualBytes = items
+            .filter {
+                $0.reclaimableBytes > 0
+                    && $0.recipeID != "trash"
+                    && !excludedItemIDs.contains($0.id)
+                    && CleanupRationale.make(for: $0).isManual
+            }
+            .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
+        return PoolLayerModel(
+            layers: layers,
+            nonCleanableBytes: max(0, used - sum - trashBytes - manualBytes),
+            manualBytes: manualBytes,
+            trashBytes: trashBytes
+        )
     }
+}
+
+/// 水池图层拆分结果。
+struct PoolLayerModel {
+    let layers: [CleanableLayer]
+    let nonCleanableBytes: Int64
+    let manualBytes: Int64
+    let trashBytes: Int64
 }
 
 struct PoolTankView: View {
@@ -88,12 +112,6 @@ struct PoolTankView: View {
     let inflowLabels: [(name: String, bytes: Int64)]
     let excludedItemIDs: Set<String>
     let gaugeImage: Image?
-
-    /// 可视窗口覆盖的"已用空间"跨度：
-    /// 从水面附近（可用 + 可清理）向下再多露出 20GB 不可清理，证明上方都可清理/可用
-    private var windowSpanBytes: Int64 {
-        GaugeImageRenderer.windowSpanBytes(availableBytes: availableBytes, cleanableItems: cleanableItems)
-    }
 
     var body: some View {
         Group {
@@ -118,27 +136,24 @@ struct PoolTankView: View {
         let dark = colorScheme == .dark
         let tankRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
         let tankPath = Path(tankRect)
-        let span = Double(max(windowSpanBytes, 1))
-        let used = Double(max(0, totalBytes - availableBytes))
-        // 标尺顶部留出空间（徽标不顶到窗口圆角）
-        let topInset: CGFloat = 26
-        let usableH = max(1, size.height - topInset)
-
-        // 已用空间越大，越靠近窗口顶部（池顶）；窗口显示 [total-span, total] 这一段
-        func yForUsed(_ value: Double) -> CGFloat {
-            let fraction = (Double(totalBytes) - value) / span
-            return topInset + CGFloat(min(max(fraction, 0), 1)) * usableH
-        }
-
-        let surfaceY = yForUsed(used)
-        let waterlineY = yForUsed(Double(max(0, totalBytes - waterlineBytes)))
-        let (layers, nonCleanable, trashBytes) = PoolLayers.make(
-            items: cleanableItems,
+        // 双锚点布局：水面在中线、水线在 1/4 处，窗口可伸出 total/0（允许显示不全）
+        let made = PoolWindowLayout.make(
             totalBytes: totalBytes,
             availableBytes: availableBytes,
+            waterlineBytes: waterlineBytes,
+            items: cleanableItems,
             estimatedRecipeIDs: estimatedRecipeIDs,
-            excludedItemIDs: excludedItemIDs
+            excludedItemIDs: excludedItemIDs,
+            height: size.height
         )
+        let layout = made.layout
+        let layers = made.model.layers
+        let nonCleanable = made.model.nonCleanableBytes
+        let manualBytes = made.model.manualBytes
+        let trashBytes = made.model.trashBytes
+        let surfaceY = layout.surfaceY
+        let waterlineY = layout.waterlineY
+        let yForUsed: (Double) -> CGFloat = { layout.y(forBytes: $0) }
 
         // 全程只设置一次裁剪
         context.clip(to: tankPath)
@@ -200,7 +215,7 @@ struct PoolTankView: View {
             // 进水管自适应：正常情况下水平段固定在 yTop、竖直下口对准水位线；
             // 当水位线升到管顶之上时，整根管上移，保持竖直段至少 minVerticalLen，
             // 管口始终对准水位线，避免进水口被压缩成水下短桩。
-            let minVerticalLen: CGFloat = 24
+            let minVerticalLen: CGFloat = 36
             let pipeTopMin: CGFloat = 40
             let pipeTopY: CGFloat
             let pipeEndY: CGFloat
@@ -361,10 +376,25 @@ struct PoolTankView: View {
             topUsed: nonCleanableTop,
             yForUsed: yForUsed,
             color: dark
-                ? Color(red: 0.16, green: 0.24, blue: 0.52).opacity(0.9)
+                ? Color(red: 0.10, green: 0.16, blue: 0.38).opacity(0.9)
                 : PoolLayers.nonCleanableColor.opacity(0.9)
         )
         bottomUsed = nonCleanableTop
+        // 手动清理层（石板蓝灰，位于不可清理之上、废纸篓之下）
+        if manualBytes > 0 {
+            let top = bottomUsed + Double(manualBytes)
+            boundaries.append(yForUsed(top))
+            fillLayer(
+                context: &context,
+                bottomUsed: bottomUsed,
+                topUsed: top,
+                yForUsed: yForUsed,
+                color: dark
+                    ? Color(red: 0.45, green: 0.55, blue: 0.64).opacity(0.85)
+                    : PoolLayers.manualColor.opacity(0.85)
+            )
+            bottomUsed = top
+        }
         // 废纸篓层（浅蓝，位于不可清理之上、可清理层之下）
         if trashBytes > 0 {
             let top = bottomUsed + Double(trashBytes)

@@ -154,12 +154,15 @@ final class AppService {
 
     /// 数据变化后预生成 E 字型标尺位图（避免弹窗打开时执行重活）
     private func refreshGaugeImage() {
-        state.poolGaugeImage = GaugeImageRenderer.render(
+        let made = PoolWindowLayout.make(
             totalBytes: state.totalBytes,
-            waterlineBytes: state.waterlineBytes,
             availableBytes: state.availableBytes,
-            cleanableItems: state.items
+            waterlineBytes: state.waterlineBytes,
+            items: state.items,
+            estimatedRecipeIDs: Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id)),
+            excludedItemIDs: state.cleanedItemIDs
         )
+        state.poolGaugeImage = GaugeImageRenderer.render(layout: made.layout)
     }
 
     private func updateFlowMetrics(snapshots: [Snapshot]) async {

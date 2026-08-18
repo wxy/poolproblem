@@ -11,6 +11,7 @@ struct MenuBarView: View {
     @State private var showSettings = false
     @State private var spinning = false
     @State private var showNonCleanableInfo = false
+    @State private var manualExpanded = false
     @State private var showCleanHistory = false
     @State private var cleanFailureNotice: String?
     @State private var quitProcessRunning = false
@@ -384,6 +385,14 @@ struct MenuBarView: View {
             estimatedRecipeIDs: estimatedRecipeIDs,
             excludedItemIDs: state.cleanedItemIDs
         )
+        // 手动清理项：应用无法删除，只能提示用户到对应应用/Finder 清理
+        let manualItems = state.items
+            .filter {
+                $0.reclaimableBytes > 0
+                    && $0.recipeID != "trash"
+                    && CleanupRationale.make(for: $0).isManual
+            }
+            .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         return VStack(alignment: .leading, spacing: 5) {
             Text(Localized.string("section.cleanable_count", poolLayers.layers.count))
                 .font(.caption)
@@ -510,53 +519,65 @@ struct MenuBarView: View {
                     .focusEffectDisabled()
                     .cursorPointingHand()
                 }
-            }
-            .padding(.top, 2)
 
-            // 手动清理项：应用无法删除，只能提示用户到对应应用/Finder 清理
-            let manualItems = state.items
-                .filter {
-                    $0.reclaimableBytes > 0
-                        && CleanupRationale.make(for: $0).isManual
-                }
-                .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
-            if !manualItems.isEmpty {
-                Divider()
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(Localized.string("section.manual_cleanup"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    ForEach(manualItems) { item in
-                        Button {
-                            withAnimation(overlaySpring) { state.detailItem = item }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Rectangle()
-                                    .fill(PoolLayers.nonCleanableColor.opacity(0.5))
-                                    .frame(width: 9, height: 9)
-                                Text(Localized.recipeName(item.recipeID, fallback: item.name) + manualSuffix(for: item))
-                                    .lineLimit(1)
-                                    .font(.caption)
-                                    .foregroundStyle(.primary)
-                                Spacer()
-                                Text(Format.bytes(item.reclaimableBytes))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .monospacedDigit()
-                                Text(Localized.string("badge.manual"))
-                                    .font(.caption2)
-                                    .foregroundStyle(.blue)
-                                    .help(Localized.string("badge.tooltip.xcode_manual"))
-                            }
-                            .frame(height: 22)
+                if !manualItems.isEmpty {
+                    Button {
+                        withAnimation { manualExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.manualColor)
+                                .frame(width: 9, height: 9)
+                            Text(Localized.string("section.manual_cleanup"))
+                                .font(.caption)
+                            Image(systemName: manualExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(Format.bytes(manualItems.reduce(Int64(0)) { $0 + $1.reclaimableBytes }))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
-                        .focusEffectDisabled()
-                        .cursorPointingHand()
+                    }
+                    .buttonStyle(.plain)
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
+                    if manualExpanded {
+                        VStack(alignment: .leading, spacing: 3) {
+                            ForEach(manualItems) { item in
+                                Button {
+                                    withAnimation(overlaySpring) { state.detailItem = item }
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Rectangle()
+                                            .fill(PoolLayers.manualColor.opacity(0.7))
+                                            .frame(width: 9, height: 9)
+                                        Text(Localized.recipeName(item.recipeID, fallback: item.name) + manualSuffix(for: item))
+                                            .lineLimit(1)
+                                            .font(.caption)
+                                            .foregroundStyle(.primary)
+                                        Spacer()
+                                        Text(Format.bytes(item.reclaimableBytes))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .monospacedDigit()
+                                        Text(Localized.string("badge.manual"))
+                                            .font(.caption2)
+                                            .foregroundStyle(.blue)
+                                            .help(Localized.string("badge.tooltip.xcode_manual"))
+                                    }
+                                    .frame(height: 22)
+                                }
+                                .buttonStyle(.plain)
+                                .focusEffectDisabled()
+                                .cursorPointingHand()
+                            }
+                        }
+                        .padding(.leading, 14)
                     }
                 }
-                .padding(.top, 4)
             }
+            .padding(.top, 2)
         }
     }
 
