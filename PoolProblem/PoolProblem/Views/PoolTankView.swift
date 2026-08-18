@@ -30,8 +30,8 @@ enum PoolLayers {
 
     /// 不可清理项：池底深水/沉淀，颜色最重（深蓝）。
     static let nonCleanableColor = Color(red: 0.03, green: 0.08, blue: 0.24)
-    /// 手动清理项：中性石板蓝灰，与深蓝、蓝绿色系同属水色，靠明度/饱和度区分。
-    static let manualColor = Color(red: 0.36, green: 0.46, blue: 0.55)
+    /// 手动清理项：比不可清理项更浅、更偏蓝的钢蓝色，仍属水色系。
+    static let manualColor = Color(red: 0.30, green: 0.48, blue: 0.78)
     static let trashColor = Color(red: 0.55, green: 0.78, blue: 0.95)
 
     static func layerOpacity(index: Int, count: Int) -> Double {
@@ -390,7 +390,7 @@ struct PoolTankView: View {
                 topUsed: top,
                 yForUsed: yForUsed,
                 color: dark
-                    ? Color(red: 0.45, green: 0.55, blue: 0.64).opacity(0.85)
+                    ? Color(red: 0.42, green: 0.60, blue: 0.86).opacity(0.85)
                     : PoolLayers.manualColor.opacity(0.85)
             )
             bottomUsed = top

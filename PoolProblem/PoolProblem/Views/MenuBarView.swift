@@ -498,28 +498,6 @@ struct MenuBarView: View {
                     }
                     .padding(.leading, 14)
                 }
-                if poolLayers.nonCleanableBytes > 0 {
-                    Button {
-                        withAnimation(overlaySpring) { showNonCleanableInfo = true }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Rectangle()
-                                .fill(PoolLayers.nonCleanableColor)
-                                .frame(width: 9, height: 9)
-                            Text(Localized.string("section.non_cleanable"))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text(Format.bytes(poolLayers.nonCleanableBytes))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .focusEffectDisabled()
-                    .cursorPointingHand()
-                }
-
                 if !manualItems.isEmpty {
                     Button {
                         withAnimation { manualExpanded.toggle() }
@@ -575,6 +553,28 @@ struct MenuBarView: View {
                         }
                         .padding(.leading, 14)
                     }
+                }
+
+                if poolLayers.nonCleanableBytes > 0 {
+                    Button {
+                        withAnimation(overlaySpring) { showNonCleanableInfo = true }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.nonCleanableColor)
+                                .frame(width: 9, height: 9)
+                            Text(Localized.string("section.non_cleanable"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(Format.bytes(poolLayers.nonCleanableBytes))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
                 }
             }
             .padding(.top, 2)
