@@ -260,6 +260,7 @@ final class AppService {
         try? growthLedgerStore.saveSurface(merged, scannedAt: Date())
         try? growthLedgerStore.prune(retainingDays: 30)
         state.unknownDrillDown = entries
+        state.unknownDrillDownTopSize = Array(dirs.sorted { $0.sizeBytes > $1.sizeBytes }.prefix(5))
         state.unknownDrillDownBaselineMissing = baselineWasMissing
         // 表面条目进入 L2 候选配方管线
         let allEntries = (try? growthLedgerStore.entries()) ?? []
