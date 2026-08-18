@@ -233,7 +233,7 @@ final class AppService {
             homeDirectory: home
         )
         try? recipeSuggestionStore.merge(candidates)
-        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.growthInsights = Array(uncoveredInsights(allEntries).suffix(30).reversed())
         state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
     }
 
@@ -259,18 +259,15 @@ final class AppService {
         merged.append(contentsOf: dirs)
         try? growthLedgerStore.saveSurface(merged, scannedAt: Date())
         try? growthLedgerStore.prune(retainingDays: 30)
-        state.unknownDrillDown = entries
+        state.unknownDrillDown = uncoveredInsights(entries)
         // 当前占用较大的目录：排除已被配方监控的路径，只留"未知大户"供排查
-        let storagePaths = StoragePaths(baseURL: nil, homeDirectory: home)
-        let coveredPatterns = RecipeRegistry.builtIn()
-            .flatMap { $0.resolvePaths(storagePaths) }
-            .map { PathPatternizer.patternize($0, homeDirectory: home) }
+        let covered = RecipeCoverage.coveredPatterns(
+            recipes: RecipeRegistry.builtIn(),
+            homeDirectory: home
+        )
         state.unknownDrillDownTopSize = Array(
             dirs
-                .filter { dir in
-                    let pattern = PathPatternizer.patternize(dir.path, homeDirectory: home)
-                    return !coveredPatterns.contains { $0 == pattern || pattern.hasPrefix($0 + "/") }
-                }
+                .filter { !RecipeCoverage.isCovered(path: $0.path, coveredPatterns: covered, homeDirectory: home) }
                 .sorted { $0.sizeBytes > $1.sizeBytes }
                 .prefix(5)
         )
@@ -283,7 +280,7 @@ final class AppService {
             homeDirectory: home
         )
         try? recipeSuggestionStore.merge(candidates)
-        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.growthInsights = Array(uncoveredInsights(allEntries).suffix(30).reversed())
         state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
     }
 
@@ -1267,15 +1264,34 @@ final class AppService {
             homeDirectory: home
         )
         try? recipeSuggestionStore.merge(candidates)
-        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.growthInsights = Array(uncoveredInsights(allEntries).suffix(30).reversed())
         state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
     }
 
     /// 启动时从磁盘恢复增长洞察与候选配方状态。
     private func refreshGrowthState() {
         let allEntries = (try? growthLedgerStore.entries()) ?? []
-        state.growthInsights = Array(allEntries.suffix(30).reversed())
+        state.growthInsights = Array(uncoveredInsights(allEntries).suffix(30).reversed())
         state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+    }
+
+    /// 增长洞察展示过滤：只保留配方未覆盖的增长。
+    /// 未知空间桶保留（它不是目录）；其余条目按路径覆盖判定剔除
+    /// （已知配方项、以及表面扫描中位于配方子树内的目录）。
+    private func uncoveredInsights(_ entries: [GrowthEntry]) -> [GrowthEntry] {
+        let home = NSHomeDirectory()
+        let covered = RecipeCoverage.coveredPatterns(
+            recipes: RecipeRegistry.builtIn(),
+            homeDirectory: home
+        )
+        return entries.filter { entry in
+            if entry.kind == .unknownSpace { return true }
+            return !RecipeCoverage.isCovered(
+                path: entry.path,
+                coveredPatterns: covered,
+                homeDirectory: home
+            )
+        }
     }
 
     func acceptCandidate(id: String) {

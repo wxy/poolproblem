@@ -16,9 +16,10 @@ public struct RecipeSuggester: Sendable {
         existingRecipes: [Recipe],
         homeDirectory: String = NSHomeDirectory()
     ) -> [CandidateRecipe] {
-        let covered = existingRecipes
-            .flatMap { $0.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: homeDirectory)) }
-            .map { PathPatternizer.patternize($0, homeDirectory: homeDirectory) }
+        let covered = RecipeCoverage.coveredPatterns(
+            recipes: existingRecipes,
+            homeDirectory: homeDirectory
+        )
         func isCovered(_ pattern: String) -> Bool {
             covered.contains { $0 == pattern || pattern.hasPrefix($0 + "/") }
         }
