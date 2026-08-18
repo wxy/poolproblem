@@ -54,6 +54,8 @@ final class AppState: ObservableObject {
     @Published var showGrowthInsights = false
     /// 未覆盖空间下钻结果：按需表面扫描得到的增长目录（新→旧）。
     @Published var unknownDrillDown: [GrowthEntry] = []
+    /// 下钻时按当前占用大小排序的目录（无显著增长时供排查）。
+    @Published var unknownDrillDownTopSize: [SurfaceDirectory] = []
     /// 下钻时表面基线尚不存在（首次点击只建立基线）。
     @Published var unknownDrillDownBaselineMissing = false
     /// 下钻扫描进行中。

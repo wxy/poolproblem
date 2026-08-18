@@ -1329,13 +1329,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Baseline established. Growth directories will appear after the next drill-down."
+            "value" : "Baseline established. The list below shows currently large directories; growth comparison will work from the next drill-down."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已建立基线。下次下钻即可对比出增长的目录。"
+            "value" : "已建立基线。下方为当前占用较大的目录，供排查；下次下钻即可对比出增长的目录。"
           }
         }
       }
@@ -1361,13 +1361,29 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No significantly growing directories found (below 200MB)."
+            "value" : "No directory grew more than 200MB since the last baseline. The growth may come from unmonitored locations (Documents, Downloads, VMs…), Time Machine local snapshots or system data (invisible as files), or be spread across many small directories."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未发现显著增长的目录（增量低于 200MB）。"
+            "value" : "未发现超过 200MB 增长的目录。增长可能来自未监听的目录（文稿、下载、虚拟机等）、Time Machine 本地快照或系统数据（文件不可见），或分散在多个小目录中。"
+          }
+        }
+      }
+    },
+    "insights.drill_top_size" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Currently large directories (for investigation)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前占用较大的目录（供排查）"
           }
         }
       }

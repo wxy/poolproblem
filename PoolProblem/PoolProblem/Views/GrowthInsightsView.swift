@@ -182,14 +182,17 @@ struct GrowthInsightsView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-            } else if state.unknownDrillDownBaselineMissing {
-                Text(Localized.string("insights.drill_baseline"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             } else if state.unknownDrillDown.isEmpty {
                 Text(Localized.string("insights.drill_empty"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if state.unknownDrillDownBaselineMissing {
+                    Text(Localized.string("insights.drill_baseline"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                topSizeList
             } else {
                 ForEach(state.unknownDrillDown.prefix(10)) { dir in
                     HStack(spacing: 5) {
@@ -204,11 +207,37 @@ struct GrowthInsightsView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                topSizeList
                 Text(Localized.string("insights.drill_caption"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
+            }
+        }
+    }
+
+    private var topSizeList: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if !state.unknownDrillDownTopSize.isEmpty {
+                Text(Localized.string("insights.drill_top_size"))
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 2)
+                ForEach(state.unknownDrillDownTopSize) { dir in
+                    HStack(spacing: 5) {
+                        Text(PathPatternizer.patternize(dir.path))
+                            .font(.caption2)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        Text(Format.bytes(dir.sizeBytes))
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
     }

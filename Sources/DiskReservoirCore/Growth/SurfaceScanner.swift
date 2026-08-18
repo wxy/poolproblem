@@ -13,6 +13,7 @@ public struct SurfaceScanner: Sendable {
             "\(homeDirectory)/Library/Logs",
             "\(homeDirectory)/Library/Developer",
             "\(homeDirectory)/Library/Application Support",
+            "\(homeDirectory)/Library/Containers",
             "\(homeDirectory)/.cache",
         ]
     }
