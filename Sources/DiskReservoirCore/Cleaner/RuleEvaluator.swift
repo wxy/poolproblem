@@ -20,17 +20,22 @@ public struct EvaluatedAction: Equatable, Sendable {
 public struct RuleEvaluator: Sendable {
     private let config: Config
     private let now: @Sendable () -> Date
-    /// 最近有 FSEvents 写活动的项目根：命中则跳过（实时"正在使用"保护）。
-    private let recentlyActiveProjectRoots: Set<String>
+    /// 每个项目配方对应的“活跃窗口内最近有 FSEvents 写活动”的项目根；
+    /// 命中则跳过（实时"正在使用"保护）。窗口长度由 recipe.minimumIdleHours 决定。
+    private let activeProjectRootsByRecipe: [String: Set<String>]
+    /// 每个配方的最短闲置小时数（mtime 判定），未配置时回落 24h。
+    private let idleHoursByRecipe: [String: Double]
 
     public init(
         config: Config,
         now: @escaping @Sendable () -> Date = { Date() },
-        recentlyActiveProjectRoots: Set<String> = []
+        activeProjectRootsByRecipe: [String: Set<String>] = [:],
+        idleHoursByRecipe: [String: Double] = [:]
     ) {
         self.config = config
         self.now = now
-        self.recentlyActiveProjectRoots = recentlyActiveProjectRoots
+        self.activeProjectRootsByRecipe = activeProjectRootsByRecipe
+        self.idleHoursByRecipe = idleHoursByRecipe
     }
 
     public func evaluate(
@@ -45,12 +50,13 @@ public struct RuleEvaluator: Sendable {
         if config.keptItemIDs.contains(item.id) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "kept by user"))
         }
-        // 项目配方：父目录（项目根）最近有写活动 = 正在使用，绝不清理
+        // 项目配方：父目录（项目根）在配方活跃窗口内最近有写活动 = 正在使用，绝不清理
         if item.recipeID.hasPrefix("project-"),
            !item.paths.isEmpty,
+           let activeRoots = activeProjectRootsByRecipe[item.recipeID],
            !Set(item.paths.map {
                URL(fileURLWithPath: $0).deletingLastPathComponent().path
-           }).isDisjoint(with: recentlyActiveProjectRoots) {
+           }).isDisjoint(with: activeRoots) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "project active"))
         }
         if !(rule?.enabled ?? true) {
@@ -93,6 +99,7 @@ public struct RuleEvaluator: Sendable {
         guard CleanabilityRules.isOldEnough(
             lastModified: modified,
             ageLimitDays: ageLimitDays,
+            minimumIdleHours: idleHoursByRecipe[item.recipeID] ?? 24,
             now: now()
         ) else {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "too recent"))

@@ -194,6 +194,7 @@ public struct Scanner: Sendable {
             guard CleanabilityRules.isOldEnough(
                 lastModified: effective,
                 ageLimitDays: ageLimitDays,
+                minimumIdleHours: recipe.minimumIdleHours,
                 now: now()
             ) else { continue }
             existing.append(path)

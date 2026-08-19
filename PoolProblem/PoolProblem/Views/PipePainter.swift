@@ -41,15 +41,17 @@ enum PipePainter {
         let stops = Gradient(colors: [
             Color(white: 0.78), Color(white: 0.63), Color(white: 0.50), Color(white: 0.60),
         ])
+        // 光影方向与所连接的管身一致（管身上亮下暗/左亮右暗），
+        // 端盖在管端，渐变轴应随管身横截面方向，而不是随端盖自身的长边。
         if vertical {
             context.fill(
                 path,
-                with: .linearGradient(stops, startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0))
+                with: .linearGradient(stops, startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY))
             )
         } else {
             context.fill(
                 path,
-                with: .linearGradient(stops, startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY))
+                with: .linearGradient(stops, startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0))
             )
         }
         context.fill(

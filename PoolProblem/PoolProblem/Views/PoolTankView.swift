@@ -197,11 +197,12 @@ struct PoolTankView: View {
         let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)]
         switch pipeCount {
         case 1:
-            pipes = [(390, 120, 160, 180)]
+            // xStart 与池壁左缘（x=387）对齐：管端贴壁，不被壁体压住
+            pipes = [(387, 120, 160, 180)]
         default:
             pipes = [
-                (390, 100, 140, 200),
-                (390, 200, 270, 100),
+                (387, 100, 140, 200),
+                (387, 200, 270, 100),
             ]
         }
         for (index, pipe) in pipes.enumerated() {
@@ -606,15 +607,17 @@ struct PoolTankView: View {
         let stops = Gradient(colors: [
             Color(white: 0.78), Color(white: 0.63), Color(white: 0.50), Color(white: 0.60),
         ])
+        // 光影方向与所连接的管身一致（管身上亮下暗/左亮右暗），
+        // 端盖在管端，渐变轴应随管身横截面方向，而不是随端盖自身的长边。
         if vertical {
             context.fill(
                 path,
-                with: .linearGradient(stops, startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0))
+                with: .linearGradient(stops, startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY))
             )
         } else {
             context.fill(
                 path,
-                with: .linearGradient(stops, startPoint: CGPoint(x: 0, y: rect.minY), endPoint: CGPoint(x: 0, y: rect.maxY))
+                with: .linearGradient(stops, startPoint: CGPoint(x: rect.minX, y: 0), endPoint: CGPoint(x: rect.maxX, y: 0))
             )
         }
         context.fill(
@@ -628,7 +631,9 @@ struct PoolTankView: View {
         )
     }
 
-    /// 拐角连接件：银质圆角块 + 左上径向高光
+    /// 拐角连接件：银质圆角块。
+    /// 90° 弯角的光影沿圆角弧线径向变化：径向渐变以整个弯头的右下角为原点
+    /// （弯角内侧），高光环落在弯角外侧圆弧上，配合管身直线渐变形成连续金属质感。
     private func drawJoint(context: inout GraphicsContext, center: CGPoint, size: CGFloat) {
         let rect = CGRect(x: center.x - size / 2, y: center.y - size / 2, width: size, height: size)
         // 左上角 50% 大圆角，其余角直角
@@ -646,25 +651,22 @@ struct PoolTankView: View {
             clockwise: false
         )
         path.closeSubpath()
-        let metal = Gradient(colors: [
-            Color(white: 0.75), Color(white: 0.63), Color(white: 0.53),
-            Color(white: 0.66), Color(white: 0.50), Color(white: 0.60),
+        // 镜像原点 = 整个弯头的右下角（弯角内侧）；高光落在外侧圆弧
+        let arcCenter = CGPoint(x: rect.maxX, y: rect.maxY)
+        let metal = Gradient(stops: [
+            .init(color: Color(white: 0.42), location: 0),    // 弯角内侧（右下）阴影
+            .init(color: Color(white: 0.58), location: 0.55),
+            .init(color: Color(white: 0.80), location: 0.74),
+            .init(color: Color(white: 0.90), location: 0.85), // 高光环：外侧圆弧
+            .init(color: Color(white: 0.55), location: 1),
         ])
         context.fill(
             path,
-            with: .linearGradient(
-                metal,
-                startPoint: CGPoint(x: rect.minX, y: rect.minY),
-                endPoint: CGPoint(x: rect.maxX, y: rect.maxY)
-            )
-        )
-        context.fill(
-            path,
             with: .radialGradient(
-                Gradient(colors: [.white.opacity(0.25), .clear]),
-                center: CGPoint(x: rect.minX + rect.width * 0.35, y: rect.minY + rect.height * 0.25),
+                metal,
+                center: arcCenter,
                 startRadius: 0,
-                endRadius: size * 0.8
+                endRadius: size * 1.42
             )
         )
         context.stroke(path, with: .color(.black.opacity(0.35)), lineWidth: 1)
