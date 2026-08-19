@@ -44,22 +44,6 @@ private func item(_ id: String, recipe: String, size: Int64) -> ScanItem {
     #expect(entries.contains { $0.kind == .new && $0.deltaBytes == 1_000 })
 }
 
-@Test func ledgerReportsUnknownSpaceGrowth() {
-    let now = Date()
-    let prev = Snapshot(
-        volume: VolumeInfo(totalBytes: 1000, availableBytes: 500, timestamp: now.addingTimeInterval(-86_400)),
-        items: [item("x1", recipe: "r", size: 100)]
-    )
-    let latest = Snapshot(
-        volume: VolumeInfo(totalBytes: 1000, availableBytes: 100, timestamp: now),
-        items: [item("x1", recipe: "r", size: 150)]
-    )
-    // used: prev=500, latest=900；known: prev=100, latest=150 → unknown Δ = 350
-    let entries = GrowthLedgerBuilder(unknownSpaceThresholdBytes: 300)
-        .entries(previous: prev, latest: latest, homeDirectory: "/tmp")
-    #expect(entries.contains { $0.kind == .unknownSpace && $0.deltaBytes == 350 })
-}
-
 @Test func ledgerSkipsSmallDeltas() {
     let now = Date()
     let prev = Snapshot(

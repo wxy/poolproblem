@@ -14,6 +14,8 @@ public struct SurfaceScanner: Sendable {
             "\(homeDirectory)/Library/Developer",
             "\(homeDirectory)/Library/Application Support",
             "\(homeDirectory)/Library/Containers",
+            "\(homeDirectory)/develop",
+            "\(homeDirectory)/Downloads",
             "\(homeDirectory)/.cache",
         ]
     }

@@ -16,11 +16,16 @@ struct PoolWindowLayout {
     let waterlineBytes: Int64
     let cleanableTotalBytes: Int64
     let nonCleanableBytes: Int64
+    let manualBytes: Int64
     let trashBytes: Int64
     let height: CGFloat
     let topInset: CGFloat
     let surfaceFraction: Double
     let waterlineFraction: Double
+    /// 底部三段（不可清理+手动+废纸篓）至少占用的像素高度（供指标卡片放置）。
+    let bottomReserveHeight: CGFloat
+    /// 水线最低位置（顶部以下的最小比例），保证红区可读。
+    let minimumWaterlineFraction: Double
     let minimumSpanBytes: Int64
 
     init(
@@ -29,11 +34,14 @@ struct PoolWindowLayout {
         waterlineBytes: Int64,
         cleanableTotalBytes: Int64 = 0,
         nonCleanableBytes: Int64 = 0,
+        manualBytes: Int64 = 0,
         trashBytes: Int64 = 0,
         height: CGFloat = 560,
         topInset: CGFloat = 26,
         surfaceFraction: Double = 0.50,
         waterlineFraction: Double = 0.24,
+        bottomReserveHeight: CGFloat = 150,
+        minimumWaterlineFraction: Double = 0.15,
         minimumSpanBytes: Int64 = 10_000_000_000
     ) {
         self.totalBytes = totalBytes
@@ -41,11 +49,14 @@ struct PoolWindowLayout {
         self.waterlineBytes = waterlineBytes
         self.cleanableTotalBytes = cleanableTotalBytes
         self.nonCleanableBytes = nonCleanableBytes
+        self.manualBytes = manualBytes
         self.trashBytes = trashBytes
         self.height = height
         self.topInset = topInset
         self.surfaceFraction = surfaceFraction
         self.waterlineFraction = waterlineFraction
+        self.bottomReserveHeight = bottomReserveHeight
+        self.minimumWaterlineFraction = minimumWaterlineFraction
         self.minimumSpanBytes = minimumSpanBytes
     }
 
@@ -61,17 +72,31 @@ struct PoolWindowLayout {
             : surfaceFraction + 0.06
     }
 
-    /// 窗口字节跨度：由"水面 − 水线"的字节距离按比例反解，带最小跨度下限
-    /// （避免磁盘恰好压在水线时无限放大）。
+    /// 窗口字节跨度：由"水面 − 水线"的字节距离按比例反解，带最小跨度下限；
+    /// 另加两个上界，把"水位尺比例"尽量放大：
+    /// ① 底部三段（不可清理+手动+废纸篓）至少占用 `bottomReserveHeight`（供指标卡片）；
+    /// ② 水线不越过顶部（保留红区可读空间）。
     var spanBytes: Double {
         let gap = Double(availableBytes) - Double(waterlineBytes)
         let fractionGap = surfaceFraction - effectiveWaterlineFraction
         let derived = gap / fractionGap
         let floor = Double(max(
             minimumSpanBytes,
-            cleanableTotalBytes + nonCleanableBytes + trashBytes
+            cleanableTotalBytes + nonCleanableBytes + manualBytes + trashBytes
         ))
-        return max(derived, floor)
+        var span = max(derived, floor)
+        // ① 底部三段预留
+        let bottomBytes = Double(nonCleanableBytes + manualBytes + trashBytes)
+        if bottomBytes > 0 {
+            let maxSpanForCard = bottomBytes * Double(usableHeight) / Double(max(bottomReserveHeight, 1))
+            span = min(span, maxSpanForCard)
+        }
+        // ② 水线不越顶（仅当水位高于水线时有效）
+        if gap > 0 {
+            let maxSpanForWaterline = gap / max(surfaceFraction - minimumWaterlineFraction, 0.001)
+            span = min(span, maxSpanForWaterline)
+        }
+        return max(span, floor)
     }
 
     var windowTopBytes: Double {
@@ -120,6 +145,7 @@ extension PoolWindowLayout {
             waterlineBytes: waterlineBytes,
             cleanableTotalBytes: cleanableTotal,
             nonCleanableBytes: model.nonCleanableBytes,
+            manualBytes: model.manualBytes,
             trashBytes: model.trashBytes,
             height: height
         )

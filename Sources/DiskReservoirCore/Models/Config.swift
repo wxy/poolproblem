@@ -7,6 +7,10 @@ public struct Config: Codable, Equatable, Sendable {
     public var enabledRecipes: Set<String>
     public var cloneRatios: [String: Double]
     public var keptItemIDs: Set<String>
+    /// 用户确认的开发目录（增长洞察中确认加入监控）。
+    public var devRoots: [String]
+    /// 用户忽略的开发目录（避免重复提示）。
+    public var declinedDevRoots: [String]
     /// 渐进清理全局保护名单：这些一级子目录即使又大又旧也永远不会被自动删除。
     public var protectedCacheChildren: [String]
 
@@ -19,6 +23,8 @@ public struct Config: Codable, Equatable, Sendable {
         enabledRecipes: [],
         cloneRatios: [:],
         keptItemIDs: [],
+        devRoots: [],
+        declinedDevRoots: [],
         protectedCacheChildren: Config.defaultProtectedCacheChildren
     )
 
@@ -29,6 +35,8 @@ public struct Config: Codable, Equatable, Sendable {
         enabledRecipes: Set<String>,
         cloneRatios: [String: Double] = [:],
         keptItemIDs: Set<String> = [],
+        devRoots: [String] = [],
+        declinedDevRoots: [String] = [],
         protectedCacheChildren: [String] = Config.defaultProtectedCacheChildren
     ) {
         self.waterlineGB = waterlineGB
@@ -37,12 +45,14 @@ public struct Config: Codable, Equatable, Sendable {
         self.enabledRecipes = enabledRecipes
         self.cloneRatios = cloneRatios
         self.keptItemIDs = keptItemIDs
+        self.devRoots = devRoots
+        self.declinedDevRoots = declinedDevRoots
         self.protectedCacheChildren = protectedCacheChildren
     }
 
     private enum CodingKeys: String, CodingKey {
         case waterlineGB, rules, whitelistPaths, enabledRecipes, cloneRatios,
-             keptItemIDs, protectedCacheChildren
+             keptItemIDs, devRoots, declinedDevRoots, protectedCacheChildren
     }
 
     public init(from decoder: Decoder) throws {
@@ -53,6 +63,8 @@ public struct Config: Codable, Equatable, Sendable {
         enabledRecipes = try c.decodeIfPresent(Set<String>.self, forKey: .enabledRecipes) ?? []
         cloneRatios = try c.decodeIfPresent([String: Double].self, forKey: .cloneRatios) ?? [:]
         keptItemIDs = try c.decodeIfPresent(Set<String>.self, forKey: .keptItemIDs) ?? []
+        devRoots = try c.decodeIfPresent([String].self, forKey: .devRoots) ?? []
+        declinedDevRoots = try c.decodeIfPresent([String].self, forKey: .declinedDevRoots) ?? []
         protectedCacheChildren = try c.decodeIfPresent([String].self, forKey: .protectedCacheChildren)
             ?? Config.defaultProtectedCacheChildren
     }
@@ -65,6 +77,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(enabledRecipes, forKey: .enabledRecipes)
         try c.encode(cloneRatios, forKey: .cloneRatios)
         try c.encode(keptItemIDs, forKey: .keptItemIDs)
+        try c.encode(devRoots, forKey: .devRoots)
+        try c.encode(declinedDevRoots, forKey: .declinedDevRoots)
         try c.encode(protectedCacheChildren, forKey: .protectedCacheChildren)
     }
 }

@@ -10,9 +10,9 @@ import Foundation
     // FSEvents 回传真实路径（/private/var/...），与 /var 符号链接路径对齐
     let watchRoot = root.resolvingSymlinksInPath().path
 
-    let monitor = FSEventMonitor(paths: [root.path], latency: 0.2)
+    let monitor = FSEventMonitor(latency: 0.2)
     let events = AsyncStream<String> { continuation in
-        monitor.start { paths in
+        monitor.start(paths: [root.path]) { paths in
             for path in paths { continuation.yield(path) }
         }
         continuation.onTermination = { _ in monitor.stop() }

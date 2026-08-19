@@ -49,4 +49,5 @@ public struct GrowthLedgerStore: Sendable {
     public func lastSurfaceScanAt() -> Date? {
         (try? store.load(SurfaceSnapshot.self, from: paths.surfaceSnapshotURL))?.scannedAt
     }
+
 }

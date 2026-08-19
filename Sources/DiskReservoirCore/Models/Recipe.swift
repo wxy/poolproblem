@@ -13,6 +13,8 @@ public struct Recipe: Sendable {
     public let protectedChildren: [String]
     /// “最后使用时间”的判定来源，默认取目录内最新 mtime。
     public let usageProbe: UsageProbe
+    /// 聚合路径：resolvePaths 返回的多个路径合并为一个条目（用于项目目录聚类）。
+    public let aggregatesPaths: Bool
     public let resolvePaths: @Sendable (StoragePaths) -> [String]
 
     public init(
@@ -28,6 +30,7 @@ public struct Recipe: Sendable {
         cloneProne: Bool = false,
         protectedChildren: [String] = [],
         usageProbe: UsageProbe = .directoryNewestModified,
+        aggregatesPaths: Bool = false,
         resolvePaths: @escaping @Sendable (StoragePaths) -> [String]
     ) {
         self.id = id
@@ -42,6 +45,7 @@ public struct Recipe: Sendable {
         self.cloneProne = cloneProne
         self.protectedChildren = protectedChildren
         self.usageProbe = usageProbe
+        self.aggregatesPaths = aggregatesPaths
         self.resolvePaths = resolvePaths
     }
 }

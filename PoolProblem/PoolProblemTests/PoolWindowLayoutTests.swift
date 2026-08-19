@@ -6,24 +6,30 @@ import CoreGraphics
 private let total = Int64(1_000_000_000_000)  // 1TB
 
 @MainActor
-@Test func layoutPutsSurfaceAtCenterAndWaterlineAtQuarter() {
+@Test func layoutKeepsSurfaceCenteredWithBottomReserve() {
     let layout = PoolWindowLayout(
         totalBytes: total,
         availableBytes: 200_000_000_000,
         waterlineBytes: 30_000_000_000,
         cleanableTotalBytes: 50_000_000_000,
         nonCleanableBytes: 100_000_000_000,
+        manualBytes: 20_000_000_000,
         trashBytes: 10_000_000_000,
         height: 560
     )
     // 中线：26 + 534/2 = 293
     #expect(abs(layout.surfaceY - 293) < 0.5)
-    // 水线：26 + 0.24×534 ≈ 154
-    #expect(abs(layout.waterlineY - (26 + 0.24 * 534)) < 0.5)
+    // 水线至少保留红区可读空间（≥ 26 + 0.15×534）
+    #expect(layout.waterlineY >= 26 + 0.15 * 534)
+    #expect(layout.waterlineY < layout.surfaceY)
+    // 底部三段（不可清理+手动+废纸篓）至少占用 bottomReserveHeight（150pt）
+    let bottomBytes = 100_000_000_000 + 20_000_000_000 + 10_000_000_000
+    let bandHeight = layout.y(forBytes: 0) - layout.y(forBytes: Double(bottomBytes))
+    #expect(bandHeight >= 145)
 }
 
 @MainActor
-@Test func layoutAllowsWindowToExtendBeyondTotalAndZero() {
+@Test func layoutZoomsInWhenBottomBandsAreSmall() {
     let layout = PoolWindowLayout(
         totalBytes: total,
         availableBytes: 800_000_000_000,
@@ -33,13 +39,12 @@ private let total = Int64(1_000_000_000_000)  // 1TB
         trashBytes: 10_000_000_000,
         height: 560
     )
-    // 可用空间很大时：窗口上界超过 total（上方可用空间显示不全）
-    #expect(layout.windowTopBytes > Double(total))
-    // 窗口下界低于 0（下方不可清理项显示不全）
-    #expect(layout.windowBottomBytes < 0)
-    // 水面与水线仍在目标位置
+    // 底部三段预留把跨度缩小（水位尺比例放大）：
+    // 窗口仍包含全部图层（span ≥ 图层合计），水面保持居中
+    #expect(layout.spanBytes >= 160_000_000_000)
     #expect(abs(layout.surfaceY - 293) < 0.5)
-    #expect(abs(layout.waterlineY - (26 + 0.24 * 534)) < 0.5)
+    #expect(layout.waterlineY < layout.surfaceY)
+    #expect(layout.windowBottomBytes >= 0)
 }
 
 @MainActor
@@ -70,12 +75,16 @@ private let total = Int64(1_000_000_000_000)  // 1TB
         trashBytes: 10_000_000_000,
         height: 560
     )
-    let higher = layout.y(forBytes: 500_000_000_000)  // 已用更多 → 更靠上
-    let lower = layout.y(forBytes: 100_000_000_000)
+    // 窗口被底部预留收窄后，用窗口内的两个值验证单调性
+    let windowTop = layout.windowTopBytes
+    let windowBottom = layout.windowBottomBytes
+    let mid = (windowTop + windowBottom) / 2
+    let lower = layout.y(forBytes: windowBottom + (windowTop - windowBottom) * 0.2)
+    let higher = layout.y(forBytes: mid)
     #expect(higher < lower)
     #expect(higher >= 26 && lower <= 560)
     #expect(layout.y(forBytes: 10_000_000_000_000) >= 26)  // 窗口外 → 钳制
-    #expect(layout.y(forBytes: 0) <= 560)
+    #expect(layout.y(forBytes: -1) <= 560)
 }
 
 @MainActor

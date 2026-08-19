@@ -18,15 +18,20 @@ public struct Scanner: Sendable {
     private let now: @Sendable () -> Date
     private let includeHidden: Bool
     private let cloneRatios: [String: Double]
+    /// 每个配方覆盖的年龄阈值（天），来自 Config.rules 的用户设置；
+    /// 未配置时回落到 recipe.defaultAgeDays。
+    private let ageDaysByRecipe: [String: Int]
 
     public init(
         now: @escaping @Sendable () -> Date = { Date() },
         includeHidden: Bool = true,
-        cloneRatios: [String: Double] = [:]
+        cloneRatios: [String: Double] = [:],
+        ageDaysByRecipe: [String: Int] = [:]
     ) {
         self.now = now
         self.includeHidden = includeHidden
         self.cloneRatios = cloneRatios
+        self.ageDaysByRecipe = ageDaysByRecipe
     }
 
     public func scan(recipes: [Recipe], homeDirectory: String) throws -> ScanResult {
@@ -34,7 +39,14 @@ public struct Scanner: Sendable {
         var items: [ScanItem] = []
         var records: [FileRecord] = []
         for recipe in recipes {
-            for path in recipe.resolvePaths(paths) {
+            let resolved = recipe.resolvePaths(paths)
+            if recipe.aggregatesPaths {
+                if let item = aggregateItem(recipe: recipe, paths: resolved, homeDirectory: homeDirectory) {
+                    items.append(item)
+                }
+                continue
+            }
+            for path in resolved {
                 guard FileManager.default.fileExists(atPath: path) else { continue }
                 if recipe.usageProbe == .simulatorRuntimeLastBooted {
                     items.append(contentsOf: runtimeItems(
@@ -65,7 +77,7 @@ public struct Scanner: Sendable {
                     allocatedBytes: allocated,
                     reclaimableBytes: allocated,
                     fileCount: count,
-                    lastModified: modified
+                    lastModified: effectiveLastModified(modified, recipe: recipe, path: path)
                 ))
                 records.append(contentsOf: files)
             }
@@ -83,6 +95,7 @@ public struct Scanner: Sendable {
                 recipeID: item.recipeID,
                 name: item.name,
                 path: item.path,
+                paths: item.paths,
                 category: item.category,
                 safety: item.safety,
                 disposition: item.disposition,
@@ -108,6 +121,10 @@ public struct Scanner: Sendable {
         homeDirectory: String
     ) -> [ScanItem] {
         guard FileManager.default.fileExists(atPath: path) else { return [] }
+        if recipe.aggregatesPaths {
+            let resolved = recipe.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: homeDirectory))
+            return aggregateItem(recipe: recipe, paths: resolved, homeDirectory: homeDirectory).map { [$0] } ?? []
+        }
         if recipe.usageProbe == .simulatorRuntimeLastBooted {
             return runtimeItems(recipe: recipe, parentPath: path, homeDirectory: homeDirectory)
         }
@@ -130,7 +147,7 @@ public struct Scanner: Sendable {
             allocatedBytes: allocated,
             reclaimableBytes: allocated,
             fileCount: count,
-            lastModified: modified,
+            lastModified: effectiveLastModified(modified, recipe: recipe, path: path),
             cleanability: recipe.cleanability
         )
         if recipe.cloneProne {
@@ -151,6 +168,81 @@ public struct Scanner: Sendable {
             )
         }
         return [item]
+    }
+
+    /// 聚合路径配方：把 resolvePaths 的多个路径合并为一个条目
+    /// （项目目录聚类：一个"项目 node_modules"条目汇总所有项目）。
+    private func aggregateItem(recipe: Recipe, paths: [String], homeDirectory: String) -> ScanItem? {
+        var size: Int64 = 0
+        var allocated: Int64 = 0
+        var count = 0
+        var newest: Date?
+        var existing: [String] = []
+        let ageLimitDays = ageDaysByRecipe[recipe.id] ?? recipe.defaultAgeDays
+        for path in paths {
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            let url = URL(fileURLWithPath: path, isDirectory: true)
+            let itemID = "\(recipe.id):\(path)"
+            guard let (s, a, c, m, _) = try? measureDirectory(
+                url,
+                itemID: itemID,
+                lightWeight: recipe.disposition == .none
+            ) else { continue }
+            // 只聚合“足够老”的子路径：未达到年龄阈值或最近 24h 有修改的
+            // 项目不进入可清理清单（也不参与清理）。
+            let effective = effectiveLastModified(m, recipe: recipe, path: path)
+            guard CleanabilityRules.isOldEnough(
+                lastModified: effective,
+                ageLimitDays: ageLimitDays,
+                now: now()
+            ) else { continue }
+            existing.append(path)
+            size += s
+            allocated += a
+            count += c
+            if let effective, effective > (newest ?? .distantPast) {
+                newest = effective
+            }
+        }
+        guard !existing.isEmpty else { return nil }
+        var reclaimable = allocated
+        if recipe.cloneProne {
+            reclaimable = Int64(Double(allocated) * (cloneRatios[recipe.id] ?? 0.2))
+        }
+        return ScanItem(
+            id: "\(recipe.id):aggregate",
+            recipeID: recipe.id,
+            name: recipe.name,
+            path: paths.first ?? "",
+            paths: existing,
+            category: recipe.category,
+            // 聚合条目里的路径都已通过年龄门槛，视为可直接清理，不再要求用户逐次确认
+            safety: .safeWhileRunning,
+            disposition: recipe.disposition,
+            sizeBytes: size,
+            allocatedBytes: allocated,
+            reclaimableBytes: reclaimable,
+            fileCount: count,
+            lastModified: newest,
+            cleanability: recipe.cleanability
+        )
+    }
+
+    /// parentAndSelfNewestModified 探针：最后使用时间取 自身 与 上级目录 最新 mtime 的较新者。
+    private func effectiveLastModified(_ modified: Date?, recipe: Recipe, path: String) -> Date? {
+        guard recipe.usageProbe == .parentAndSelfNewestModified else { return modified }
+        let parent = URL(fileURLWithPath: path).deletingLastPathComponent()
+        guard let walk = POSIXDirectoryWalker.walk(
+            url: parent,
+            itemID: parent.path,
+            includeRecords: false
+        ) else { return modified }
+        switch (modified, walk.newest) {
+        case let (a?, b?): return max(a, b)
+        case let (a?, nil): return a
+        case let (nil, b?): return b
+        case (nil, nil): return nil
+        }
     }
 
     /// 运行时镜像/缓存配方：把父路径的一级子目录展开为独立条目，

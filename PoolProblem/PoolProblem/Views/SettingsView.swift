@@ -58,6 +58,68 @@ struct SettingsView: View {
                     }
                 }
 
+                let projectRecipes = ProjectRecipes.make(
+                    devRoots: config.devRoots,
+                    homeDirectory: NSHomeDirectory()
+                )
+                if !projectRecipes.isEmpty {
+                    Section(Localized.string("settings.project_recipes_section")) {
+                        ForEach(projectRecipes, id: \.id) { recipe in
+                            HStack {
+                                Toggle("", isOn: Binding(
+                                    get: { isEnabled(recipe) },
+                                    set: { setEnabled(recipe, $0) }
+                                ))
+                                .labelsHidden()
+                                Text(Localized.recipeName(recipe.id, fallback: recipe.name))
+                                    .lineLimit(1)
+                                Text(Localized.string("settings.project_badge"))
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 1)
+                                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(.separator))
+                                Spacer()
+                                Text(Localized.string("settings.keep_days", age(recipe)))
+                                    .font(.caption)
+                                    .monospacedDigit()
+                                    .frame(width: 74, alignment: .trailing)
+                                Stepper("", value: Binding(
+                                    get: { age(recipe) },
+                                    set: { setAge(recipe, $0) }
+                                ), in: 1...365)
+                                .labelsHidden()
+                            }
+                        }
+                    }
+                }
+
+                Section(Localized.string("settings.devroots_section")) {
+                    if config.devRoots.isEmpty {
+                        Text(Localized.string("settings.devroots_empty"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(config.devRoots, id: \.self) { path in
+                            HStack {
+                                Text(path)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer()
+                                Button(Localized.string("common.remove")) {
+                                    service.removeDevRoot(path)
+                                    config.devRoots.removeAll { $0 == path }
+                                }
+                                .cursorPointingHand()
+                            }
+                        }
+                        Text(Localized.string("settings.devroots_recipes_hint"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 Section(Localized.string("settings.candidates_section")) {
                     let pending = state.candidateRecipes.filter { $0.status == .pending }
                     if pending.isEmpty {

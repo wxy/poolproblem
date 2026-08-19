@@ -196,10 +196,9 @@ struct MenuBarView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if !state.growthInsights.isEmpty || !state.candidateRecipes.isEmpty {
-                        Divider()
-                        insightsCard
-                    }
+                    // 增长洞察入口常驻：任何数据（增长/候选配方/开发目录建议）都点亮卡片
+                    Divider()
+                    insightsCard
                 }
                 .padding(14)
             }
@@ -217,12 +216,21 @@ struct MenuBarView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(Color.primary)
                     if pendingCandidateCount > 0 {
-                        Text("\(pendingCandidateCount)")
+                        Text(verbatim: "\(pendingCandidateCount)")
                             .font(.caption2)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
                             .background(Capsule().fill(Color.accentColor))
+                    }
+                    if pendingDevRootCount > 0 {
+                        Text(verbatim: "\(pendingDevRootCount)")
+                            .font(.caption2)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.orange))
+                            .help(Localized.string("devroot.section_title"))
                     }
                     Spacer()
                     Text(Localized.string("insights.view"))
@@ -235,13 +243,11 @@ struct MenuBarView: View {
 
             ForEach(state.growthInsights.prefix(2)) { entry in
                 HStack(spacing: 5) {
-                    Text(entry.kind == .unknownSpace
-                         ? Localized.string("insights.unknown_space")
-                         : entry.pattern)
+                    Text(entry.pattern)
                         .font(.caption2)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    if entry.kind == .unknownSpace || entry.kind == .surface {
+                    if entry.kind == .surface {
                         Text(Localized.string("insights.new_badge"))
                             .font(.caption2)
                             .foregroundStyle(.white)
@@ -255,11 +261,22 @@ struct MenuBarView: View {
                         .monospacedDigit()
                 }
             }
+            if state.growthInsights.isEmpty
+                && state.candidateRecipes.filter({ $0.status == .pending }).isEmpty
+                && state.pendingDevRoots.isEmpty {
+                Text(Localized.string("insights.empty"))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
     private var pendingCandidateCount: Int {
         state.candidateRecipes.filter { $0.status == .pending }.count
+    }
+
+    private var pendingDevRootCount: Int {
+        state.pendingDevRoots.count
     }
 
     private var autoCleanPlanList: some View {
@@ -759,23 +776,31 @@ struct MenuBarView: View {
 
             Divider()
 
-            HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(Localized.string("detail.path"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button {
-                    revealInFinder(item.path)
-                } label: {
-                    Text(item.path)
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                let paths = item.paths.count > 1 ? item.paths : [item.path]
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(paths, id: \.self) { path in
+                            Button {
+                                revealInFinder(path)
+                            } label: {
+                                Text(path)
+                                    .font(.caption)
+                                    .foregroundStyle(.blue)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.plain)
+                            .focusEffectDisabled()
+                            .cursorPointingHand()
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
-                .focusEffectDisabled()
-                .cursorPointingHand()
-                Spacer()
+                .frame(maxHeight: 150)
             }
 
             Divider()

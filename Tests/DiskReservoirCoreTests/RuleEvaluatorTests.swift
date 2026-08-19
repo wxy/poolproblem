@@ -26,6 +26,24 @@ private func item(
     }
 }
 
+@Test func projectItemSkipsWhenParentRecentlyActive() {
+    let projectItem = ScanItem(
+        id: "p1", recipeID: "project-node-modules", name: "NM", path: "/Users/alice/dev/A/node_modules",
+        category: .project, safety: .userConfirm, disposition: .trash,
+        sizeBytes: 1_000, allocatedBytes: 1_000, reclaimableBytes: 1_000,
+        fileCount: 1, lastModified: Date().addingTimeInterval(-90 * 86_400)
+    )
+    let evaluator = RuleEvaluator(
+        config: .default,
+        recentlyActiveProjectRoots: ["/Users/alice/dev/A"]
+    )
+    let result = evaluator.evaluate(item: projectItem, isProcessRunning: { _ in false })
+    guard case .skip = result.action else {
+        Issue.record("expected skip for active project, got \(result.action)")
+        return
+    }
+}
+
 @Test func requiresQuitWithRunningProcessNotifies() {
     let evaluator = RuleEvaluator(config: .default)
     let result = evaluator.evaluate(
