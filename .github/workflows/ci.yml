@@ -13,5 +13,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Cache SwiftPM build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+
       - name: Swift Package Tests
-        run: swift test
+        # cliScan* 端到端测试会扫描系统内的模拟器运行时（数十万文件），
+        # 在 CI 上非常昂贵；跳过它们，保留其余 134 个 Core/CLI 测试
+        run: swift test --skip cliScan
