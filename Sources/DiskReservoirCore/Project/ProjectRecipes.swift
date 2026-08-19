@@ -18,6 +18,9 @@ public enum ProjectRecipes {
                 processName: nil,
                 usageProbe: .parentAndSelfNewestModified,
                 aggregatesPaths: true,
+                // node_modules 重建需要重新下载依赖：活跃窗口放长，只有真正
+                // 长期闲置（30 天无修改且 3 天无写活动）才建议清理
+                minimumIdleHours: 72,
                 resolvePaths: { _ in
                     paths.filter { URL(fileURLWithPath: $0).lastPathComponent == "node_modules" }
                 }
@@ -29,10 +32,13 @@ public enum ProjectRecipes {
                 safety: .userConfirm,
                 disposition: .trash,
                 cleanability: .regenerable,
-                defaultAgeDays: 30,
+                // 构建产物可随时重新生成：默认保持 1 天，活跃窗口 6h，
+                // 短期闲置即可清理
+                defaultAgeDays: 1,
                 minimumSizeMB: 100,
                 processName: nil,
                 aggregatesPaths: true,
+                minimumIdleHours: 6,
                 resolvePaths: { _ in
                     paths.filter { ["dist", "build", ".build", ".dist"]
                         .contains(URL(fileURLWithPath: $0).lastPathComponent) }

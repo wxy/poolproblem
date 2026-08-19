@@ -13,14 +13,15 @@ enum PoolStatusIcon {
     static func image(
         availableBytes: Int64,
         waterlineBytes: Int64,
-        activity: Activity = .idle
+        activity: Activity = .idle,
+        bubbleProgress: Double? = nil
     ) -> NSImage {
         let image = NSImage(size: NSSize(width: 18, height: 18))
         image.isTemplate = true
         image.lockFocus()
         if let ctx = NSGraphicsContext.current?.cgContext {
             draw(level: level(availableBytes: availableBytes, waterlineBytes: waterlineBytes), ctx: ctx)
-            draw(activity: activity, ctx: ctx)
+            draw(activity: activity, bubbleProgress: bubbleProgress, ctx: ctx)
         }
         image.unlockFocus()
         return image
@@ -95,27 +96,30 @@ enum PoolStatusIcon {
         }
     }
 
-    private static func draw(activity: Activity, ctx: CGContext) {
+    private static func draw(activity: Activity, bubbleProgress: Double?, ctx: CGContext) {
         switch activity {
         case .idle:
             break
-        case .scanning:
-            let center = CGPoint(x: 13.2, y: 4.8)
+        case .scanning, .cleaning:
+            // 扫描/清理中：气泡圆环从罐底升到罐顶（循环），内部反色留空与白色背景对比，
+            // 像水缸里不断冒起的水泡
+            let progress = CGFloat(min(max(bubbleProgress ?? 0.5, 0), 1))
+            // AppKit 图标坐标 y 轴向上：罐底 y≈6.5（下缘 4），罐顶 y≈12.5（上缘 14）
+            let bottomY: CGFloat = 6.5
+            let topY: CGFloat = 12.5
+            let center = CGPoint(x: 9, y: bottomY + progress * (topY - bottomY))
             ctx.setStrokeColor(CGColor(gray: 0, alpha: 1))
             ctx.setLineWidth(1)
-            ctx.strokeEllipse(in: CGRect(x: center.x - 2.2, y: center.y - 2.2, width: 4.4, height: 4.4))
-            ctx.move(to: CGPoint(x: center.x + 1.4, y: center.y + 1.4))
-            ctx.addLine(to: CGPoint(x: center.x + 3.4, y: center.y + 3.4))
-            ctx.strokePath()
-        case .cleaning:
-            let path = CGMutablePath()
-            path.move(to: CGPoint(x: 13.0, y: 16.4))
-            path.addLine(to: CGPoint(x: 15.2, y: 12.0))
-            path.addLine(to: CGPoint(x: 10.8, y: 12.0))
-            path.closeSubpath()
-            ctx.setFillColor(CGColor(gray: 0, alpha: 1))
-            ctx.addPath(path)
-            ctx.fillPath()
+            // 裁到罐体矩形内：气泡从罐底边缘“冒出”，到罐顶被边缘截断
+            ctx.saveGState()
+            ctx.clip(to: CGRect(x: 3, y: 4, width: 12, height: 10))
+            ctx.strokeEllipse(in: CGRect(
+                x: center.x - 2.5,
+                y: center.y - 2.5,
+                width: 5,
+                height: 5
+            ))
+            ctx.restoreGState()
         }
     }
 }

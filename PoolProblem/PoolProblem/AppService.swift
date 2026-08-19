@@ -447,7 +447,8 @@ final class AppService {
             state.deletingItemID = firstPlannedItem()?.id
         }
         let recipes = activeRecipes()
-        let activeRoots = Set(devActivityTracker.activeProjects(since: 24 * 3600).map(\.projectRoot))
+        let activeRootsByRecipe = projectActiveRootsByRecipe(recipes: recipes)
+        let idleHours = idleHoursByRecipe(recipes: recipes)
         let ageRules = ageDaysByRecipe()
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? DiskReservoirCore.Scanner(
@@ -458,7 +459,11 @@ final class AppService {
                 homeDirectory: NSHomeDirectory()
             ) else { return nil }
             if dryRun {
-                let evaluator = RuleEvaluator(config: config, recentlyActiveProjectRoots: activeRoots)
+                let evaluator = RuleEvaluator(
+                    config: config,
+                    activeProjectRootsByRecipe: activeRootsByRecipe,
+                    idleHoursByRecipe: idleHours
+                )
                 let suggestions = result.items.compactMap { item -> (ScanItem, EvaluatedAction)? in
                     let action = evaluator.evaluate(item: item) { name in
                         name.map { PGrepProcessInspector().isRunning($0) } ?? false
@@ -486,7 +491,11 @@ final class AppService {
                 return (result, outcome)
             }
             let outcome = try? Cleaner(
-                evaluator: RuleEvaluator(config: config, recentlyActiveProjectRoots: activeRoots),
+                evaluator: RuleEvaluator(
+                    config: config,
+                    activeProjectRootsByRecipe: activeRootsByRecipe,
+                    idleHoursByRecipe: idleHours
+                ),
                 deleter: FileManagerFileDeleter(),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
@@ -920,10 +929,16 @@ final class AppService {
         )?.id
         let logStore = self.logStore
         let state = self.state
-        let activeRoots = Set(devActivityTracker.activeProjects(since: 24 * 3600).map(\.projectRoot))
+        let recipes = activeRecipes()
+        let activeRootsByRecipe = projectActiveRootsByRecipe(recipes: recipes)
+        let idleHours = idleHoursByRecipe(recipes: recipes)
         let work = Task.detached(priority: .utility) { () -> CleanOutcome? in
             let cleaner = Cleaner(
-                evaluator: RuleEvaluator(config: config, recentlyActiveProjectRoots: activeRoots),
+                evaluator: RuleEvaluator(
+                    config: config,
+                    activeProjectRootsByRecipe: activeRootsByRecipe,
+                    idleHoursByRecipe: idleHours
+                ),
                 deleter: FileManagerFileDeleter(),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
@@ -1327,8 +1342,15 @@ final class AppService {
             recipes: activeRecipes(),
             homeDirectory: home
         )
+        let devRoots = loadConfig().devRoots
         return entries.filter { entry in
             if entry.kind == .unknownSpace { return false }
+            // 已列入监控的开发目录整棵子树视为已覆盖：其中的项目 node_modules /
+            // 构建产物即使已被清理删除（不再出现在配方路径里），其历史增长也不再
+            // 显示——否则会看到一条“无法采取进一步动作”的项目增长记录。
+            if devRoots.contains(where: { entry.path == $0 || entry.path.hasPrefix($0 + "/") }) {
+                return false
+            }
             return !RecipeCoverage.isCovered(
                 path: entry.path,
                 coveredPatterns: covered,
@@ -1352,6 +1374,25 @@ final class AppService {
             }
         }
         return result
+    }
+
+    /// 各项目配方在“各自活跃窗口”内最近有 FSEvents 写活动的项目根：
+    /// 构建产物窗口短（6h），node_modules 窗口长（72h），由 recipe.minimumIdleHours 决定。
+    private func projectActiveRootsByRecipe(recipes: [Recipe]) -> [String: Set<String>] {
+        Dictionary(uniqueKeysWithValues: recipes.compactMap { recipe in
+            guard recipe.id.hasPrefix("project-") else { return nil }
+            let roots = Set(
+                devActivityTracker
+                    .activeProjects(since: recipe.minimumIdleHours * 3600)
+                    .map(\.projectRoot)
+            )
+            return (recipe.id, roots)
+        })
+    }
+
+    /// 各配方最短闲置小时数（mtime 判定），供 RuleEvaluator 使用。
+    private func idleHoursByRecipe(recipes: [Recipe]) -> [String: Double] {
+        Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0.minimumIdleHours) })
     }
 
     /// 用户确认把某个目录加入开发目录监控。

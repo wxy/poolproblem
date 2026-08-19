@@ -7,7 +7,12 @@ import Foundation
     try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dataDir) }
 
-    let output = try runCLI(arguments: ["scan", "--json"], environment: ["POOLPROBLEM_DATA_DIR": dataDir.path])
+    // HOME 指向临时目录：CLI 扫描的是这个小目录而非真实主目录，
+    // 避免在 CI（预装 Xcode 的大主目录）上把测试拖到分钟级
+    let output = try runCLI(
+        arguments: ["scan", "--json"],
+        environment: ["POOLPROBLEM_DATA_DIR": dataDir.path, "POOLPROBLEM_HOME": dataDir.path]
+    )
     let object = try JSONSerialization.jsonObject(with: output) as? [String: Any]
     #expect(object?["version"] as? Int == 1)
     #expect(object?["volume"] is [String: Any])
@@ -19,7 +24,10 @@ import Foundation
         .appendingPathComponent("pp-cli-status-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dataDir) }
-    let output = try runCLI(arguments: ["status", "--json"], environment: ["POOLPROBLEM_DATA_DIR": dataDir.path])
+    let output = try runCLI(
+        arguments: ["status", "--json"],
+        environment: ["POOLPROBLEM_DATA_DIR": dataDir.path, "POOLPROBLEM_HOME": dataDir.path]
+    )
     let object = try JSONSerialization.jsonObject(with: output) as? [String: Any]
     #expect(object?["version"] as? Int == 1)
     #expect(object?["snapshotCount"] as? Int == 0)
@@ -30,7 +38,10 @@ import Foundation
         .appendingPathComponent("pp-cli-snap-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dataDir) }
-    _ = try runCLI(arguments: ["scan", "--json"], environment: ["POOLPROBLEM_DATA_DIR": dataDir.path])
+    _ = try runCLI(
+        arguments: ["scan", "--json"],
+        environment: ["POOLPROBLEM_DATA_DIR": dataDir.path, "POOLPROBLEM_HOME": dataDir.path]
+    )
     let snapshotsURL = dataDir.appendingPathComponent("snapshots.json")
     #expect(FileManager.default.fileExists(atPath: snapshotsURL.path))
 }

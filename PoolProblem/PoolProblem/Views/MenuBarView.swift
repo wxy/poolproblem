@@ -52,18 +52,20 @@ struct MenuBarView: View {
                 .position(x: 545, y: 515)
                 .allowsHitTesting(false)
 
-            // 水池右缘池壁：内侧受光高光 + 深色壁体（出水管左端盖对齐壁体右缘 x=392）
+            // 水池右缘池壁：内侧受光高光 + 深色壁体。
+            // 壁体整体位于右侧面板左缘（x=390）左侧，避免被面板压住一半；
+            // 完全不透明，作为水池与右侧栏之间的实体分隔。
             Rectangle()
-                .fill(Color.white.opacity(colorScheme == .dark ? 0.32 : 0.70))
+                .fill(colorScheme == .dark ? Color(white: 0.55) : Color.white)
                 .frame(width: 3)
                 .frame(maxHeight: .infinity)
-                .position(x: 390, y: 280)
+                .position(x: 388.5, y: 280)
             .allowsHitTesting(false)
 
             // 出水管：跨在水池右缘、画在面板之上（从池里往外流水），点击触发智能清理
             OutletPipeView(weeklyCleanedBytes: state.weeklyCleanedBytes)
                 .frame(width: 380, height: 90)
-                .position(x: 480, y: 515)
+                .position(x: 478, y: 515)
                 .allowsHitTesting(false)
 
             // 点击区只覆盖出水管本身及上方的"排水"标签（窗口坐标约 x 388–488 / y 480–530），
@@ -71,7 +73,7 @@ struct MenuBarView: View {
             Color.clear
                 .contentShape(Rectangle())
                 .frame(width: 100, height: 50)
-                .position(x: 438, y: 505)
+                .position(x: 436, y: 505)
                 .onTapGesture { runSmartClean() }
                 .cursorPointingHand(enabled: !state.isScanning)
                 .disabled(state.isScanning)
@@ -80,7 +82,7 @@ struct MenuBarView: View {
             // 清理完成反馈：出水口处的绿色闪光（水花）
             CleanCelebrationView(celebrationID: state.cleanCelebrationID)
                 .frame(width: 380, height: 90)
-                .position(x: 480, y: 515)
+                .position(x: 478, y: 515)
                 .allowsHitTesting(false)
 
             if showSettings {

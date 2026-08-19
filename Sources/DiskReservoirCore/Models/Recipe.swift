@@ -15,6 +15,10 @@ public struct Recipe: Sendable {
     public let usageProbe: UsageProbe
     /// 聚合路径：resolvePaths 返回的多个路径合并为一个条目（用于项目目录聚类）。
     public let aggregatesPaths: Bool
+    /// “活跃窗口”小时数：最后修改 / FSEvents 写活动距今不足该值时视为项目仍在
+    /// 使用，不清理。构建产物可随时重建，窗口宜短（如 6h）；node_modules 重建需
+    /// 重新下载依赖，窗口宜长（如 72h）。
+    public let minimumIdleHours: Double
     public let resolvePaths: @Sendable (StoragePaths) -> [String]
 
     public init(
@@ -31,6 +35,7 @@ public struct Recipe: Sendable {
         protectedChildren: [String] = [],
         usageProbe: UsageProbe = .directoryNewestModified,
         aggregatesPaths: Bool = false,
+        minimumIdleHours: Double = 24,
         resolvePaths: @escaping @Sendable (StoragePaths) -> [String]
     ) {
         self.id = id
@@ -46,6 +51,7 @@ public struct Recipe: Sendable {
         self.protectedChildren = protectedChildren
         self.usageProbe = usageProbe
         self.aggregatesPaths = aggregatesPaths
+        self.minimumIdleHours = minimumIdleHours
         self.resolvePaths = resolvePaths
     }
 }

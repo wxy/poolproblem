@@ -15,7 +15,7 @@ struct ScanCommand: ParsableCommand {
         let paths = StoragePaths()
         let config = try JSONStore().load(Config.self, from: paths.configURL) ?? .default
         let scanner = DiskReservoirCore.Scanner(cloneRatios: config.cloneRatios)
-        let result = try scanner.scan(recipes: RecipeRegistry.builtIn(), homeDirectory: NSHomeDirectory())
+        let result = try scanner.scan(recipes: RecipeRegistry.builtIn(), homeDirectory: paths.homeDirectory)
         try SnapshotStore(paths: paths).append(Snapshot(volume: result.volume, items: result.items))
         if json {
             let data = try JSONOutput.scan(result: result)

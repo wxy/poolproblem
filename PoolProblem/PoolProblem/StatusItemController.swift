@@ -8,6 +8,9 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
     private let popover: NSPopover
     private let state: AppState
     private var cancellables: Set<AnyCancellable> = []
+    /// 清理时驱动气泡上升的定时器与当前进度（0 = 罐底，1 = 罐顶）
+    private var bubbleTimer: Timer?
+    private var bubbleProgress: Double = 0
 
     init(state: AppState, service: AppService) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -48,10 +51,38 @@ final class StatusItemController: NSObject, NSPopoverDelegate {
         } else {
             activity = .idle
         }
+        if activity != .idle {
+            if bubbleTimer == nil {
+                bubbleProgress = 0
+                bubbleTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 24.0, repeats: true) { [weak self] _ in
+                    MainActor.assumeIsolated {
+                        self?.advanceBubble()
+                    }
+                }
+            }
+        } else {
+            bubbleTimer?.invalidate()
+            bubbleTimer = nil
+        }
         statusItem.button?.image = PoolStatusIcon.image(
             availableBytes: state.availableBytes,
             waterlineBytes: state.waterlineBytes,
-            activity: activity
+            activity: activity,
+            bubbleProgress: activity != .idle ? bubbleProgress : nil
+        )
+    }
+
+    /// 气泡进度推进：约 1.5 秒从罐底升到罐顶，然后循环。
+    private func advanceBubble() {
+        bubbleProgress += 1.0 / 36.0
+        if bubbleProgress >= 1 {
+            bubbleProgress = 0
+        }
+        statusItem.button?.image = PoolStatusIcon.image(
+            availableBytes: state.availableBytes,
+            waterlineBytes: state.waterlineBytes,
+            activity: .cleaning,
+            bubbleProgress: bubbleProgress
         )
     }
 

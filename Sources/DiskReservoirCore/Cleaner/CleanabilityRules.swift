@@ -6,10 +6,13 @@ public enum CleanabilityRules {
     public static func isOldEnough(
         lastModified: Date?,
         ageLimitDays: Int,
+        minimumIdleHours: Double = 24,
         now: Date
     ) -> Bool {
         guard let lastModified else { return false }
         let age = now.timeIntervalSince(lastModified)
-        return age > Double(ageLimitDays) * 86_400 && age > 86_400
+        // 年龄阈值（保持天数）与活跃窗口（最短闲置时长）是两个独立约束：
+        // 构建产物窗口短、node_modules 窗口长，由 recipe.minimumIdleHours 决定
+        return age > Double(ageLimitDays) * 86_400 && age > minimumIdleHours * 3_600
     }
 }

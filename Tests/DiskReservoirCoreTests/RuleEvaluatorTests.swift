@@ -35,11 +35,52 @@ private func item(
     )
     let evaluator = RuleEvaluator(
         config: .default,
-        recentlyActiveProjectRoots: ["/Users/alice/dev/A"]
+        activeProjectRootsByRecipe: [
+            "project-node-modules": ["/Users/alice/dev/A"],
+        ]
     )
     let result = evaluator.evaluate(item: projectItem, isProcessRunning: { _ in false })
     guard case .skip = result.action else {
         Issue.record("expected skip for active project, got \(result.action)")
+        return
+    }
+}
+
+@Test func idleWindowDiffersByArtifactType() {
+    // 相同的修改时间（48h 前）与相同的保持天数（1 天）：
+    // 构建产物活跃窗口 6h → 可清理；node_modules 活跃窗口 72h → 仍受保护
+    let buildItem = ScanItem(
+        id: "b1", recipeID: "project-build-output", name: "Build", path: "/Users/alice/dev/A/dist",
+        category: .project, safety: .safeWhileRunning, disposition: .trash,
+        sizeBytes: 1_000, allocatedBytes: 1_000, reclaimableBytes: 1_000,
+        fileCount: 1, lastModified: Date().addingTimeInterval(-48 * 3600)
+    )
+    let nodeItem = ScanItem(
+        id: "n1", recipeID: "project-node-modules", name: "NM", path: "/Users/alice/dev/B/node_modules",
+        category: .project, safety: .safeWhileRunning, disposition: .trash,
+        sizeBytes: 1_000, allocatedBytes: 1_000, reclaimableBytes: 1_000,
+        fileCount: 1, lastModified: Date().addingTimeInterval(-48 * 3600)
+    )
+    var config = Config.default
+    config.rules = [
+        CleanRule(recipeID: "project-build-output", enabled: true, maxAgeDays: 1),
+        CleanRule(recipeID: "project-node-modules", enabled: true, maxAgeDays: 1),
+    ]
+    let evaluator = RuleEvaluator(
+        config: config,
+        idleHoursByRecipe: [
+            "project-build-output": 6,
+            "project-node-modules": 72,
+        ]
+    )
+    let buildAction = evaluator.evaluate(item: buildItem, isProcessRunning: { _ in false })
+    let nodeAction = evaluator.evaluate(item: nodeItem, isProcessRunning: { _ in false })
+    guard case .trash = buildAction.action else {
+        Issue.record("expected build output cleanable, got \(buildAction.action)")
+        return
+    }
+    guard case .skip = nodeAction.action else {
+        Issue.record("expected node_modules skipped while active, got \(nodeAction.action)")
         return
     }
 }

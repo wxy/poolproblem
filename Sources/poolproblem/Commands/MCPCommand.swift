@@ -143,7 +143,7 @@ private final class MCPServer {
         let config = try JSONStore().load(Config.self, from: paths.configURL) ?? .default
         let result = try DiskReservoirCore.Scanner(cloneRatios: config.cloneRatios).scan(
             recipes: RecipeRegistry.builtIn(),
-            homeDirectory: NSHomeDirectory()
+            homeDirectory: paths.homeDirectory
         )
         try SnapshotStore(paths: paths).append(Snapshot(volume: result.volume, items: result.items))
         return string(try JSONOutput.scan(result: result))
@@ -154,7 +154,7 @@ private final class MCPServer {
         let config = try JSONStore().load(Config.self, from: paths.configURL) ?? .default
         let result = try DiskReservoirCore.Scanner(cloneRatios: config.cloneRatios).scan(
             recipes: RecipeRegistry.builtIn(),
-            homeDirectory: NSHomeDirectory()
+            homeDirectory: paths.homeDirectory
         )
         let evaluator = RuleEvaluator(config: config)
         let suggestions = result.items.compactMap { item -> (ScanItem, EvaluatedAction)? in
@@ -176,7 +176,7 @@ private final class MCPServer {
         let config = try JSONStore().load(Config.self, from: paths.configURL) ?? .default
         let result = try DiskReservoirCore.Scanner(cloneRatios: config.cloneRatios).scan(
             recipes: RecipeRegistry.builtIn(),
-            homeDirectory: NSHomeDirectory()
+            homeDirectory: paths.homeDirectory
         )
         let evaluator = RuleEvaluator(config: config)
         let waterlineBytes = Int64(config.waterlineGB * 1_000_000_000)
