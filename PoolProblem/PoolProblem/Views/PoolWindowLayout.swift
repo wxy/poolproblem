@@ -10,6 +10,12 @@ import DiskReservoirCore
 ///   进水管有足够下伸空间；
 /// - 通过这两个锚点反解窗口的字节上下界 `windowTop/windowBottom`，窗口可以伸出
 ///   `total`/`0` 之外——即"上方可用空间与下方不可清理项可能无法完全显示"。
+///
+/// 水位尺比例（字节/像素）的放大规则：
+/// - 底部可见预算：可清理 + 手动 + 废纸篓 必须完整可见，不可清理项只保留
+///   `sedimentPeekBytes` 的沉底窥视（深部沉淀直接切出窗口下缘）；
+/// - 指标卡片：窗口切入底部三段时，可见带高度仍 ≥ `bottomReserveHeight`；
+///   底部带完全可见时，跨度过大也不会把卡片压扁。
 struct PoolWindowLayout {
     let totalBytes: Int64
     let availableBytes: Int64
@@ -24,6 +30,8 @@ struct PoolWindowLayout {
     let waterlineFraction: Double
     /// 底部三段（不可清理+手动+废纸篓）至少占用的像素高度（供指标卡片放置）。
     let bottomReserveHeight: CGFloat
+    /// 不可清理项保留的“沉底窥视”字节量；更深部分允许被窗口下缘切掉。
+    let sedimentPeekBytes: Int64
     /// 水线最低位置（顶部以下的最小比例），保证红区可读。
     let minimumWaterlineFraction: Double
     let minimumSpanBytes: Int64
@@ -41,6 +49,7 @@ struct PoolWindowLayout {
         surfaceFraction: Double = 0.50,
         waterlineFraction: Double = 0.24,
         bottomReserveHeight: CGFloat = 150,
+        sedimentPeekBytes: Int64 = 10_000_000_000,
         minimumWaterlineFraction: Double = 0.15,
         minimumSpanBytes: Int64 = 10_000_000_000
     ) {
@@ -56,6 +65,7 @@ struct PoolWindowLayout {
         self.surfaceFraction = surfaceFraction
         self.waterlineFraction = waterlineFraction
         self.bottomReserveHeight = bottomReserveHeight
+        self.sedimentPeekBytes = sedimentPeekBytes
         self.minimumWaterlineFraction = minimumWaterlineFraction
         self.minimumSpanBytes = minimumSpanBytes
     }
@@ -73,30 +83,33 @@ struct PoolWindowLayout {
     }
 
     /// 窗口字节跨度：由"水面 − 水线"的字节距离按比例反解，带最小跨度下限；
-    /// 另加两个上界，把"水位尺比例"尽量放大：
-    /// ① 底部三段（不可清理+手动+废纸篓）至少占用 `bottomReserveHeight`（供指标卡片）；
-    /// ② 水线不越过顶部（保留红区可读空间）。
+    /// 再按底部可见性与指标卡片约束调整，把"水位尺比例"尽量放大。
     var spanBytes: Double {
+        let usable = usableHeight
         let gap = Double(availableBytes) - Double(waterlineBytes)
         let fractionGap = surfaceFraction - effectiveWaterlineFraction
         let derived = gap / fractionGap
-        let floor = Double(max(
-            minimumSpanBytes,
-            cleanableTotalBytes + nonCleanableBytes + manualBytes + trashBytes
-        ))
-        var span = max(derived, floor)
-        // ① 底部三段预留
-        let bottomBytes = Double(nonCleanableBytes + manualBytes + trashBytes)
-        if bottomBytes > 0 {
-            let maxSpanForCard = bottomBytes * Double(usableHeight) / Double(max(bottomReserveHeight, 1))
-            span = min(span, maxSpanForCard)
-        }
-        // ② 水线不越顶（仅当水位高于水线时有效）
+        var span = max(derived, Double(minimumSpanBytes))
+        // 水线不越顶（红区保留可读下限；仅当水位高于水线时有效）
         if gap > 0 {
             let maxSpanForWaterline = gap / max(surfaceFraction - minimumWaterlineFraction, 0.001)
             span = min(span, maxSpanForWaterline)
         }
-        return max(span, floor)
+        // 底部可见预算：可清理 + 手动 + 废纸篓 完整可见，
+        // 不可清理只保留沉底窥视（水面以下可见字节 = (1 - surfaceFraction) × span）
+        let visibleBottom = Double(cleanableTotalBytes + manualBytes + trashBytes + sedimentPeekBytes)
+        span = max(span, visibleBottom / max(1 - surfaceFraction, 0.001))
+        // 指标卡片下限：窗口切入底部带时，可见带高度仍 ≥ bottomReserveHeight
+        let cardFraction = Double(bottomReserveHeight) / usable
+        let cardDenominator = max((1 - surfaceFraction) - cardFraction, 0.001)
+        span = max(span, Double(cleanableTotalBytes) / cardDenominator)
+        // 指标卡片上限：底部带完全可见时，跨度过大也会把带压扁
+        let bandBytes = Double(nonCleanableBytes + manualBytes + trashBytes)
+        if bandBytes > 0 {
+            let maxSpanForCard = bandBytes * usable / Double(max(bottomReserveHeight, 1))
+            span = min(span, max(maxSpanForCard, Double(minimumSpanBytes)))
+        }
+        return max(span, Double(minimumSpanBytes))
     }
 
     var windowTopBytes: Double {
