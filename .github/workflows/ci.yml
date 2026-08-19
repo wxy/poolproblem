@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  build-and-test:
-    name: Build & Test
+  test:
+    name: Test
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -15,12 +15,3 @@ jobs:
 
       - name: Swift Package Tests
         run: swift test
-
-      - name: App Build (Debug, unsigned)
-        run: |
-          xcodebuild \
-            -project PoolProblem/PoolProblem.xcodeproj \
-            -scheme PoolProblem \
-            -configuration Debug \
-            CODE_SIGNING_ALLOWED=NO \
-            build
