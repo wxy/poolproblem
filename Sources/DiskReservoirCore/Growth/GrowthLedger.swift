@@ -3,34 +3,19 @@ import Foundation
 /// 从相邻快照（以及相邻表面快照）对比出增长条目。
 public struct GrowthLedgerBuilder: Sendable {
     public let minimumDeltaBytes: Int64
-    public let unknownSpaceThresholdBytes: Int64
     public let surfaceMinimumDeltaBytes: Int64
 
     public init(
         minimumDeltaBytes: Int64 = 100 << 20,
-        unknownSpaceThresholdBytes: Int64 = 300 << 20,
         surfaceMinimumDeltaBytes: Int64 = 200 << 20
     ) {
         self.minimumDeltaBytes = minimumDeltaBytes
-        self.unknownSpaceThresholdBytes = unknownSpaceThresholdBytes
         self.surfaceMinimumDeltaBytes = surfaceMinimumDeltaBytes
     }
 
-    public static func usedBytes(_ snapshot: Snapshot) -> Int64 {
-        snapshot.volume.totalBytes - snapshot.volume.availableBytes
-    }
-
-    public static func knownBytes(_ snapshot: Snapshot) -> Int64 {
-        snapshot.items.reduce(Int64(0)) { $0 + max(0, $1.sizeBytes) }
-    }
-
-    /// 未覆盖空间增量 = 卷已用增量 − 已知配方项增量。
-    public func unknownSpaceDelta(previous: Snapshot, latest: Snapshot) -> Int64 {
-        (Self.usedBytes(latest) - Self.knownBytes(latest))
-            - (Self.usedBytes(previous) - Self.knownBytes(previous))
-    }
-
-    /// 相邻快照 diff：已知项增长、新出现项、未覆盖空间增长。
+    /// 相邻快照 diff：已知项增长、新出现项。
+    /// 注：残差（未覆盖空间）不再生成条目——它无法归因到目录，
+    /// 目录级归因由表面扫描/FSEvents/主动发现承担。
     public func entries(
         previous: Snapshot?,
         latest: Snapshot,
@@ -56,19 +41,6 @@ public struct GrowthLedgerBuilder: Sendable {
                 kind: kind,
                 deltaBytes: delta,
                 rateBytesPerDay: Double(delta) / elapsed
-            ))
-        }
-        let unknown = unknownSpaceDelta(previous: previous, latest: latest)
-        if unknown >= unknownSpaceThresholdBytes {
-            result.append(GrowthEntry(
-                observedAt: latest.volume.timestamp,
-                elapsedDays: elapsed,
-                name: "Unknown space",
-                path: "",
-                pattern: "unknown://space",
-                kind: .unknownSpace,
-                deltaBytes: unknown,
-                rateBytesPerDay: Double(unknown) / elapsed
             ))
         }
         return result

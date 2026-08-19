@@ -30,6 +30,7 @@ public struct ReclaimableEstimator: Sendable {
                 recipeID: item.recipeID,
                 name: item.name,
                 path: item.path,
+                paths: item.paths,
                 category: item.category,
                 safety: item.safety,
                 disposition: item.disposition,

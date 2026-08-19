@@ -4,9 +4,6 @@
     "" : {
 
     },
-    "%lld" : {
-
-    },
     "0KB" : {
       "localizations" : {
         "en" : {
@@ -1084,6 +1081,183 @@
         }
       }
     },
+    "devroot.active" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "recently active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近期活跃"
+          }
+        }
+      }
+    },
+    "devroot.add" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to monitoring"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入监控"
+          }
+        }
+      }
+    },
+    "devroot.cleanable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cleanable ≈ %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可清理约 %@"
+          }
+        }
+      }
+    },
+    "devroot.current" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "currently %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前 %@"
+          }
+        }
+      }
+    },
+    "devroot.group_subtitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld projects: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个项目：%@"
+          }
+        }
+      }
+    },
+    "devroot.growth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grew %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增长 %@"
+          }
+        }
+      }
+    },
+    "devroot.hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After adding, its node_modules / dist / build are monitored and cleanup suggestions appear when they haven't changed recently."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入后自动监控其中的 node_modules / dist / build，并在长期未变化时给出清理建议。"
+          }
+        }
+      }
+    },
+    "devroot.ignore" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignore"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忽略"
+          }
+        }
+      }
+    },
+    "devroot.marker" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detected %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "检测到 %@"
+          }
+        }
+      }
+    },
+    "devroot.rescan" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rescan"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新扫描"
+          }
+        }
+      }
+    },
+    "devroot.section_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suggested dev directories"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开发目录建议"
+          }
+        }
+      }
+    },
     "header.not_scanned" : {
       "localizations" : {
         "en" : {
@@ -1309,6 +1483,7 @@
       }
     },
     "insights.drill" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1325,6 +1500,7 @@
       }
     },
     "insights.drill_baseline" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1340,7 +1516,25 @@
         }
       }
     },
+    "insights.drill_baseline_note" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baseline established %@; growth before it cannot be attributed to directories. The list below shows currently large uncovered directories."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目录基线建立于 %@，此前的增长无法归因到目录。下方为当前占用较大的未覆盖目录。"
+          }
+        }
+      }
+    },
     "insights.drill_caption" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1357,6 +1551,7 @@
       }
     },
     "insights.drill_empty" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1373,6 +1568,7 @@
       }
     },
     "insights.drill_top_size" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1389,6 +1585,7 @@
       }
     },
     "insights.drilling" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1400,6 +1597,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在定位增长的目录…"
+          }
+        }
+      }
+    },
+    "insights.drilling_elapsed" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%llds"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 秒"
           }
         }
       }
@@ -1452,6 +1666,22 @@
         }
       }
     },
+    "insights.observed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "last %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近%@"
+          }
+        }
+      }
+    },
     "insights.rate" : {
       "localizations" : {
         "en" : {
@@ -1464,6 +1694,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@/天"
+          }
+        }
+      }
+    },
+    "insights.reset_baseline" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset baseline"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置基线"
+          }
+        }
+      }
+    },
+    "insights.reset_baseline_help" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dismiss this report and treat the current level as the new baseline; only future growth will be reported."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以此处为新基线，不再报告此前累积的增长；以后只报告新增长。"
           }
         }
       }
@@ -1485,6 +1749,7 @@
       }
     },
     "insights.unknown_space" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1501,6 +1766,7 @@
       }
     },
     "insights.unknown_space_footer" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1512,22 +1778,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未覆盖空间 = 磁盘上尚未被任何清理配方识别的占用（如新工具的缓存、系统更新、其他应用数据）。它不一定是垃圾，只是提示出现了新的空间大户。"
-          }
-        }
-      }
-    },
-    "insights.observed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "last %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "近%@"
           }
         }
       }
@@ -2291,6 +2541,38 @@
         }
       }
     },
+    "recipe.project-build-output" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project build output"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目构建产物"
+          }
+        }
+      }
+    },
+    "recipe.project-node-modules" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "node_modules"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "node_modules"
+          }
+        }
+      }
+    },
     "recipe.simulator-dyld-cache" : {
       "localizations" : {
         "en" : {
@@ -2579,54 +2861,6 @@
         }
       }
     },
-    "time.days" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld days"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 天"
-          }
-        }
-      }
-    },
-    "time.hours" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld h"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 小时"
-          }
-        }
-      }
-    },
-    "time.minutes" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld min"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 分钟"
-          }
-        }
-      }
-    },
     "settings.candidates_section" : {
       "localizations" : {
         "en" : {
@@ -2639,6 +2873,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "候选配方"
+          }
+        }
+      }
+    },
+    "settings.devroots_empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dev directories you confirm in Growth Insights will appear here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在增长洞察中确认的开发目录会自动出现在这里。"
+          }
+        }
+      }
+    },
+    "settings.devroots_recipes_hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These directories automatically enable the “node_modules” and “Project build output” recipes, aggregated into one cleanable entry each."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些目录会自动启用“node_modules”与“项目构建产物”配方，各聚合为一个清理条目。"
+          }
+        }
+      }
+    },
+    "settings.devroots_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your dev directories"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你添加的项目目录"
           }
         }
       }
@@ -2883,6 +3165,22 @@
         }
       }
     },
+    "settings.project_badge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "project"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目"
+          }
+        }
+      }
+    },
     "settings.protected_children_footer" : {
       "localizations" : {
         "en" : {
@@ -2943,6 +3241,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "清理配方"
+          }
+        }
+      }
+    },
+    "settings.project_recipes_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project recipes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目配方"
           }
         }
       }
@@ -3103,6 +3417,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本周净变"
+          }
+        }
+      }
+    },
+    "time.days" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 天"
+          }
+        }
+      }
+    },
+    "time.hours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld h"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 小时"
+          }
+        }
+      }
+    },
+    "time.minutes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 分钟"
           }
         }
       }

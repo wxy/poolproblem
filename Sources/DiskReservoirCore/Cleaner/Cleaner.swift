@@ -121,22 +121,31 @@ public struct Cleaner: Sendable {
                       cleanability: item.cleanability
                   ) else { continue }
             onItemWillDelete?(item.id)
-            let deletion = try deleter.deleteReturningResult(
-                url: URL(fileURLWithPath: item.path),
-                disposition: disposition
-            )
+            let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
+            var itemFreed: Int64 = 0
+            var trashPaths: [String] = []
+            for target in targetPaths {
+                let deletion = try deleter.deleteReturningResult(
+                    url: URL(fileURLWithPath: target),
+                    disposition: disposition
+                )
+                itemFreed += deletion.freedBytes
+                if let trash = deletion.resultingURL?.path {
+                    trashPaths.append(trash)
+                }
+            }
             onItemCleaned?(item.id, disposition)
-            freedTotal += deletion.freedBytes
-            deficit -= deletion.freedBytes
+            freedTotal += itemFreed
+            deficit -= itemFreed
             entries.append(CleanLogEntry(
                 id: UUID(),
                 timestamp: now(),
                 itemIDs: [item.id],
                 itemNames: [item.name],
-                originalPaths: [item.path],
-                trashPaths: disposition == .trash ? [deletion.resultingURL?.path ?? ""] : [],
+                originalPaths: targetPaths,
+                trashPaths: disposition == .trash ? trashPaths : [],
                 batchID: batchID,
-                freedBytes: deletion.freedBytes,
+                freedBytes: itemFreed,
                 disposition: disposition,
                 source: source
             ))

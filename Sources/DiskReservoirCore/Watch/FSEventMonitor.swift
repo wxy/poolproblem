@@ -6,7 +6,6 @@ import CoreServices
 /// - 只报告"哪些路径变了"，扫描/归因交给上层；
 /// - `@unchecked Sendable`：所有可变状态只在 `queue` 上访问。
 public final class FSEventMonitor: @unchecked Sendable {
-    private let paths: [String]
     private let latency: TimeInterval
     /// fileprivate：同一文件的 C 回调需要访问。
     fileprivate let queue: DispatchQueue
@@ -15,17 +14,22 @@ public final class FSEventMonitor: @unchecked Sendable {
     fileprivate var handler: (@Sendable ([String]) -> Void)?
 
     public init(
-        paths: [String],
         latency: TimeInterval = 1.0,
         queue: DispatchQueue = DispatchQueue(label: "com.poolproblem.fsevents")
     ) {
-        self.paths = paths
         self.latency = latency
         self.queue = queue
     }
 
-    public func start(handler: @escaping @Sendable ([String]) -> Void) {
+    /// 监听路径在 start 时传入（监听范围随扫描结果变化）。
+    /// 空数组直接忽略：FSEventStreamCreate 无法处理 0 路径，会报
+    /// "could not allocate 0 bytes for array of path strings"。
+    public func start(
+        paths: [String],
+        handler: @escaping @Sendable ([String]) -> Void
+    ) {
         stop()
+        guard !paths.isEmpty else { return }
         self.handler = handler
         var context = FSEventStreamContext(
             version: 0,

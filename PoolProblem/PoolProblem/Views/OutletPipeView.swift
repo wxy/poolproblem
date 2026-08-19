@@ -26,7 +26,7 @@ struct OutletPipeView: View {
             )
 
             // 排水标签直接放在水平管道上
-            drawPill(
+            drawEngraved(
                 context: &context,
                 text: Localized.string("outlet.drain"),
                 center: CGPoint(x: pipeRect.midX, y: pipeRect.midY)
@@ -36,7 +36,7 @@ struct OutletPipeView: View {
             let dataText = weeklyCleanedBytes > 0
                 ? Localized.string("outlet.cleaned_this_week", Format.bytes(weeklyCleanedBytes))
                 : Localized.string("outlet.not_cleaned")
-            drawPill(
+            drawEngraved(
                 context: &context,
                 text: dataText,
                 center: CGPoint(x: pipeRect.maxX + 66, y: pipeRect.midY),
@@ -45,12 +45,17 @@ struct OutletPipeView: View {
         }
     }
 
-    private func drawPill(
+    private func drawEngraved(
         context: inout GraphicsContext,
         text: String,
         center: CGPoint,
         anchorLeading: Bool = false
     ) {
-        PipePainter.drawLabel(context: &context, text: text, center: center, anchorLeading: anchorLeading)
+        PipePainter.drawEngravedText(
+            context: &context,
+            text: text,
+            center: center,
+            anchorLeading: anchorLeading
+        )
     }
 }

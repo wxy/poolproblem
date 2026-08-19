@@ -35,6 +35,8 @@ import Foundation
     #expect(roots.contains("/Users/alice/Library/Caches"))
     #expect(roots.contains("/Users/alice/.cache"))
     #expect(roots.contains("/Users/alice/Library/Containers"))
+    #expect(roots.contains("/Users/alice/develop"))
+    #expect(roots.contains("/Users/alice/Downloads"))
 }
 
 @Test func surfaceScannerMeasuresExplicitPaths() throws {

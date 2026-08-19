@@ -220,3 +220,115 @@ import Foundation
     #expect(info.totalBytes > 0)
     #expect(info.availableBytes > 0)
 }
+
+@Test func parentAndSelfProbeUsesParentNewest() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-probe-\(UUID().uuidString)", isDirectory: true)
+    let project = root.appendingPathComponent("Proj", isDirectory: true)
+    let nm = project.appendingPathComponent("node_modules", isDirectory: true)
+    try FileManager.default.createDirectory(at: nm, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Data().write(to: nm.appendingPathComponent("old.bin"))
+    Thread.sleep(forTimeInterval: 1.1)
+    // 上级项目根新增文件 → 项目仍活跃，条目 lastModified 应反映上级的新 mtime
+    try Data().write(to: project.appendingPathComponent("new.swift"))
+    let recipe = Recipe(
+        id: "project-node-modules", name: "NM", category: .project, safety: .userConfirm,
+        disposition: .trash, cleanability: .regenerable,
+        defaultAgeDays: 30, minimumSizeMB: 100, processName: nil,
+        usageProbe: .parentAndSelfNewestModified,
+        resolvePaths: { _ in [nm.path] }
+    )
+    let items = Scanner().rescan(path: nm.path, recipe: recipe, homeDirectory: root.path)
+    let parentNewest = (try? FileManager.default.attributesOfItem(atPath: project.path)[.modificationDate] as? Date) ?? .distantPast
+    let itemNewest = (try? FileManager.default.attributesOfItem(atPath: nm.path)[.modificationDate] as? Date) ?? .distantPast
+    #expect((items.first?.lastModified ?? .distantPast) >= max(parentNewest, itemNewest).addingTimeInterval(-2))
+}
+
+@Test func scannerAggregatesMultiplePathsIntoOneItem() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-agg-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let projA = root.appendingPathComponent("A/node_modules", isDirectory: true)
+    let projB = root.appendingPathComponent("B/node_modules", isDirectory: true)
+    try FileManager.default.createDirectory(at: projA, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: projB, withIntermediateDirectories: true)
+    try Fixtures.makeTree(root: projA, files: [("pkg.bin", 4096)])
+    try Fixtures.makeTree(root: projB, files: [("pkg.bin", 8192)])
+    // 两个目录都足够老，才应进入聚合条目
+    let oldDate = Date().addingTimeInterval(-100 * 86_400)
+    try FileManager.default.setAttributes(
+        [.modificationDate: oldDate],
+        ofItemAtPath: projA.appendingPathComponent("pkg.bin").path
+    )
+    try FileManager.default.setAttributes(
+        [.modificationDate: oldDate],
+        ofItemAtPath: projB.appendingPathComponent("pkg.bin").path
+    )
+
+    let recipe = Recipe(
+        id: "project-node-modules", name: "Project node_modules", category: .project,
+        safety: .userConfirm, disposition: .trash, cleanability: .regenerable,
+        defaultAgeDays: 30, minimumSizeMB: 100, processName: nil,
+        aggregatesPaths: true,
+        resolvePaths: { _ in [projA.path, projB.path] }
+    )
+    let result = try Scanner().scan(recipes: [recipe], homeDirectory: root.path)
+    #expect(result.items.count == 1)
+    let item = result.items[0]
+    #expect(item.paths == [projA.path, projB.path])
+    #expect(item.sizeBytes == Int64(4096 + 8192))
+    #expect(item.fileCount == 2)
+    #expect(item.safety == .safeWhileRunning)
+
+    // 增量重扫：任一项目路径变脏 → 仍返回唯一聚合条目
+    let fresh = Scanner().rescan(path: projB.path, recipe: recipe, homeDirectory: root.path)
+    #expect(fresh.count == 1)
+    #expect(fresh[0].paths == [projA.path, projB.path])
+    #expect(fresh[0].id.hasSuffix(":aggregate"))
+}
+
+@Test func scannerAggregatesOnlyOldEnoughPaths() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-agg2-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let oldProj = root.appendingPathComponent("Old/node_modules", isDirectory: true)
+    let recentProj = root.appendingPathComponent("Recent/node_modules", isDirectory: true)
+    try FileManager.default.createDirectory(at: oldProj, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: recentProj, withIntermediateDirectories: true)
+    try Fixtures.makeTree(root: oldProj, files: [("pkg.bin", 4096)])
+    try Fixtures.makeTree(root: recentProj, files: [("pkg.bin", 8192)])
+    try FileManager.default.setAttributes(
+        [.modificationDate: Date().addingTimeInterval(-100 * 86_400)],
+        ofItemAtPath: oldProj.appendingPathComponent("pkg.bin").path
+    )
+    // recentProj 保持"刚刚修改"，不应进入可清理清单
+
+    let recipe = Recipe(
+        id: "project-node-modules", name: "node_modules", category: .project,
+        safety: .userConfirm, disposition: .trash, cleanability: .regenerable,
+        defaultAgeDays: 30, minimumSizeMB: 100, processName: nil,
+        aggregatesPaths: true,
+        resolvePaths: { _ in [oldProj.path, recentProj.path] }
+    )
+    let result = try Scanner().scan(recipes: [recipe], homeDirectory: root.path)
+    #expect(result.items.count == 1)
+    let item = result.items[0]
+    #expect(item.paths == [oldProj.path])
+    #expect(item.sizeBytes == 4096)
+    #expect(item.safety == .safeWhileRunning)
+}
+
+@Test func scanItemDecodesLegacySnapshotWithoutPaths() throws {
+    // 旧快照 JSON 没有 paths 字段：应回退为 [path]，保证兼容
+    let json = """
+    {"id":"r:/tmp/x","recipeID":"r","name":"R","path":"/tmp/x",
+     "category":"common","safety":"safeWhileRunning","disposition":"trash",
+     "sizeBytes":1,"allocatedBytes":1,"reclaimableBytes":1,"fileCount":0,
+     "lastModified":null,"cleanability":"regenerable"}
+    """
+    let item = try JSONDecoder().decode(ScanItem.self, from: Data(json.utf8))
+    #expect(item.paths == ["/tmp/x"])
+}

@@ -6,6 +6,19 @@ private struct MockDeleter: FileDeleting {
     func delete(url: URL, disposition: CleanDisposition) throws -> Int64 { 1024 }
 }
 
+private final class RecordingDeleter: FileDeleting, @unchecked Sendable {
+    let lock = NSLock()
+    var urls: [URL] = []
+    var freed = 1024
+
+    func delete(url: URL, disposition: CleanDisposition) throws -> Int64 {
+        lock.lock()
+        urls.append(url)
+        lock.unlock()
+        return Int64(freed)
+    }
+}
+
 private struct AlwaysTrueProcessInspector: ProcessInspecting {
     func isRunning(_ processName: String) -> Bool { true }
 }
@@ -80,6 +93,49 @@ final class CaptureBox: @unchecked Sendable {
     #expect(outcome.entries.isEmpty)
     #expect(outcome.freedBytes == 0)
     #expect(outcome.stillBelowWaterline == false)
+}
+
+@Test func cleanerDeletesEveryPathOfAggregateItem() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-cleanagg-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let paths = StoragePaths(baseURL: dir)
+    let logStore = CleanLogStore(paths: paths)
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    let item = ScanItem(
+        id: "project-node-modules:aggregate",
+        recipeID: "project-node-modules",
+        name: "Project node_modules",
+        path: "/tmp/A/node_modules",
+        paths: ["/tmp/A/node_modules", "/tmp/B/node_modules"],
+        category: .project,
+        safety: .safeWhileRunning,
+        disposition: .trash,
+        sizeBytes: 10_000,
+        allocatedBytes: 10_000,
+        reclaimableBytes: 10_000,
+        fileCount: 2,
+        lastModified: now.addingTimeInterval(-40 * 86_400)
+    )
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000, availableBytes: 20_000, timestamp: now),
+        items: [item],
+        records: [],
+        volumeURL: URL(fileURLWithPath: "/")
+    )
+    let deleter = RecordingDeleter()
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: deleter,
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: logStore,
+        now: { now }
+    )
+    let outcome = try cleaner.run(scan: scan, config: .default, waterlineBytes: 30_000, forceClean: true)
+    #expect(outcome.freedBytes == 2048)
+    #expect(Set(deleter.urls.map(\.path)) == Set(["/tmp/A/node_modules", "/tmp/B/node_modules"]))
+    let entry = try logStore.entries().first
+    #expect(entry?.originalPaths == ["/tmp/A/node_modules", "/tmp/B/node_modules"])
 }
 
 @Test func cleanerSkipsRequiresQuitWhenRunning() throws {

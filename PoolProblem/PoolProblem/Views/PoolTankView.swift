@@ -439,12 +439,14 @@ struct PoolTankView: View {
             context.stroke(still, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
         }
 
-        // 7) 右下角指标面板：放在不可清理深蓝色区域内
-        let nonCleanableTopY = yForUsed(Double(nonCleanable))
-        let nonCleanableBottomY = yForUsed(0)
+        // 7) 右下角指标面板：放在 不可清理 + 手动清理 + 废纸篓 三段合计高度内，
+        // 避免面板被限制在不可清理段内、导致该段高度被撑高。
+        let combinedBandBytes = Double(nonCleanable) + Double(manualBytes) + Double(trashBytes)
+        let bandTopY = yForUsed(combinedBandBytes)
+        let bandBottomY = yForUsed(0)
         let metricsPanelTop = min(
-            max((nonCleanableTopY + nonCleanableBottomY) / 2 - 62, nonCleanableTopY + 8),
-            nonCleanableBottomY - 132
+            max((bandTopY + bandBottomY) / 2 - 62, bandTopY + 8),
+            bandBottomY - 132
         )
         let metricsPanelRect = CGRect(
             x: 232,
@@ -669,6 +671,6 @@ struct PoolTankView: View {
     }
 
     private func drawBadge(context: inout GraphicsContext, text: String, center: CGPoint) {
-        PipePainter.drawLabel(context: &context, text: text, center: center)
+        PipePainter.drawEngravedText(context: &context, text: text, center: center)
     }
 }

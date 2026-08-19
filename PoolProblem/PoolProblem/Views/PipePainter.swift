@@ -96,4 +96,30 @@ enum PipePainter {
             anchor: .center
         )
     }
+
+    /// 雕刻铭文式文字（供管道使用）：无底色，暗色文字 + 下方 1px 高光，
+    /// 模拟刻入金属表面，与管道本体明显区分。
+    static func drawEngravedText(
+        context: inout GraphicsContext,
+        text: String,
+        center: CGPoint,
+        anchorLeading: Bool = false,
+        fontSize: CGFloat = 9,
+        weight: Font.Weight = .medium
+    ) {
+        func resolved(_ color: Color) -> GraphicsContext.ResolvedText {
+            context.resolve(
+                Text(text)
+                    .font(.system(size: fontSize, weight: weight))
+                    .foregroundStyle(color)
+                    .monospacedDigit()
+            )
+        }
+        let dark = resolved(Color.black.opacity(0.55))
+        let highlight = resolved(Color.white.opacity(0.6))
+        let point = CGPoint(x: center.x, y: center.y)
+        // 高光在右下偏移 0.5pt，形成"刻入"的明暗边缘
+        context.draw(highlight, at: CGPoint(x: point.x + 0.5, y: point.y + 0.5), anchor: .center)
+        context.draw(dark, at: point, anchor: anchorLeading ? .leading : .center)
+    }
 }

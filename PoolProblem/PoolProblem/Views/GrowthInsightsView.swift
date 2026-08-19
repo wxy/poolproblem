@@ -5,7 +5,6 @@ import DiskReservoirCore
 struct GrowthInsightsView: View {
     @ObservedObject var state: AppState
     let service: AppService
-    @State private var expandedUnknownID: UUID?
 
     private var pendingCandidates: [CandidateRecipe] {
         state.candidateRecipes.filter { $0.status == .pending }
@@ -25,6 +24,10 @@ struct GrowthInsightsView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     growthLogSection
                     Divider()
+                    if !state.pendingDevRoots.isEmpty {
+                        devRootSection
+                        Divider()
+                    }
                     candidateSection
                 }
             }
@@ -47,8 +50,13 @@ struct GrowthInsightsView: View {
         )
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
         .padding(40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.15))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black.opacity(0.15))
+            .onAppear {
+                if state.pendingDevRoots.isEmpty {
+                    Task { await service.refreshDevSuggestions(force: true) }
+                }
+            }
     }
 
     private var header: some View {
@@ -80,79 +88,17 @@ struct GrowthInsightsView: View {
                 ForEach(state.growthInsights.prefix(20)) { entry in
                     growthRow(entry)
                 }
-                if state.growthInsights.contains(where: { $0.kind == .unknownSpace }) {
-                    Text(Localized.string("insights.unknown_space_footer"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 2)
-                }
             }
         }
     }
 
     private func growthRow(_ entry: GrowthEntry) -> some View {
-        if entry.kind == .unknownSpace {
-            return AnyView(unknownSpaceRow(entry))
-        }
-        return AnyView(regularRow(entry))
-    }
-
-    private func unknownSpaceRow(_ entry: GrowthEntry) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    if expandedUnknownID == entry.id {
-                        expandedUnknownID = nil
-                    } else {
-                        expandedUnknownID = entry.id
-                        Task { await service.drillDownUnknownSpace() }
-                    }
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: expandedUnknownID == entry.id ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    Text(displayName(entry))
-                        .font(.caption)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Text(Localized.string("insights.new_badge"))
-                        .font(.caption2)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
-                    Spacer()
-                    Text(Format.bytes(entry.deltaBytes))
-                        .font(.caption)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                    Text(growthRateText(entry))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .monospacedDigit()
-                }
-            }
-            .buttonStyle(.plain)
-            .cursorPointingHand()
-            .help(Localized.string("insights.drill"))
-
-            if expandedUnknownID == entry.id {
-                drillDownList
-                    .padding(.leading, 12)
-            }
-        }
-    }
-
-    private func regularRow(_ entry: GrowthEntry) -> some View {
         HStack(spacing: 6) {
             Text(displayName(entry))
                 .font(.caption)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            if entry.kind == .unknownSpace || entry.kind == .surface {
+            if entry.kind == .surface {
                 Text(Localized.string("insights.new_badge"))
                     .font(.caption2)
                     .foregroundStyle(.white)
@@ -169,76 +115,6 @@ struct GrowthInsightsView: View {
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()
-        }
-    }
-
-    private var drillDownList: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if state.isDrillingDown {
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(Localized.string("insights.drilling"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            } else if state.unknownDrillDown.isEmpty {
-                Text(Localized.string("insights.drill_empty"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if state.unknownDrillDownBaselineMissing {
-                    Text(Localized.string("insights.drill_baseline"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                topSizeList
-            } else {
-                ForEach(state.unknownDrillDown.prefix(10)) { dir in
-                    HStack(spacing: 5) {
-                        Text(dir.pattern)
-                            .font(.caption2)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer()
-                        Text(Format.bytes(dir.deltaBytes))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                topSizeList
-                Text(Localized.string("insights.drill_caption"))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
-            }
-        }
-    }
-
-    private var topSizeList: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if !state.unknownDrillDownTopSize.isEmpty {
-                Text(Localized.string("insights.drill_top_size"))
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 2)
-                ForEach(state.unknownDrillDownTopSize) { dir in
-                    HStack(spacing: 5) {
-                        Text(PathPatternizer.patternize(dir.path))
-                            .font(.caption2)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer()
-                        Text(Format.bytes(dir.sizeBytes))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
         }
     }
 
@@ -263,7 +139,7 @@ struct GrowthInsightsView: View {
     }
 
     private func displayName(_ entry: GrowthEntry) -> String {
-        entry.kind == .unknownSpace ? Localized.string("insights.unknown_space") : entry.pattern
+        entry.pattern
     }
 
     private var candidateSection: some View {
@@ -287,6 +163,85 @@ struct GrowthInsightsView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var devRootSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(Localized.string("devroot.section_title"))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(Localized.string("devroot.rescan")) {
+                    Task { await service.refreshDevSuggestions(force: true) }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .cursorPointingHand()
+            }
+            Text(Localized.string("devroot.hint"))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(state.pendingDevRoots) { candidate in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(PathPatternizer.patternize(candidate.path))
+                            .font(.caption)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer()
+                        if candidate.childNames.isEmpty {
+                            Text(Localized.string("devroot.marker", candidate.marker))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(Localized.string(
+                                "devroot.group_subtitle",
+                                candidate.childNames.count,
+                                candidate.childNames.prefix(3).joined(separator: ", ")
+                                    + (candidate.childNames.count > 3 ? "…" : "")
+                            ))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        }
+                    }
+                    HStack {
+                        Text(devRootBytesText(candidate))
+                            .font(.caption2)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button(Localized.string("devroot.add")) {
+                            service.confirmDevRoot(candidate.path)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .cursorPointingHand()
+                        Button(Localized.string("devroot.ignore")) {
+                            service.declineDevRoot(candidate.path)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .cursorPointingHand()
+                    }
+                }
+            }
+        }
+    }
+
+    private func devRootBytesText(_ candidate: DevRootCandidate) -> String {
+        switch candidate.source {
+        case .growth:
+            return Localized.string("devroot.growth", Format.bytes(candidate.bytes))
+        case .discovery:
+            return Localized.string("devroot.cleanable", Format.bytes(candidate.bytes))
+        case .activity:
+            return Localized.string("devroot.active")
         }
     }
 

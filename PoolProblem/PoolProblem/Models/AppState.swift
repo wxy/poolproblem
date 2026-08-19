@@ -10,6 +10,38 @@ struct AutoCleanPlanItem: Identifiable {
     let progress: Double
 }
 
+/// 增长洞察中检测到的"疑似开发目录"，等待用户确认加入监控。
+enum DevRootSource {
+    case growth      // 增长量
+    case discovery   // 主动发现的可重建内容
+    case activity    // FSEvents 写活动（近期活跃）
+}
+
+struct DevRootCandidate: Identifiable, Equatable {
+    let path: String
+    let marker: String
+    /// 展示的字节数：含义由 source 决定（增长/当前占用/可清理约）。
+    let bytes: Int64
+    let source: DevRootSource
+    /// 归并到父目录的建议：列出其下项目名（供"含 N 个项目"展示）。
+    let childNames: [String]
+    var id: String { path }
+
+    init(
+        path: String,
+        marker: String,
+        bytes: Int64,
+        source: DevRootSource,
+        childNames: [String] = []
+    ) {
+        self.path = path
+        self.marker = marker
+        self.bytes = bytes
+        self.source = source
+        self.childNames = childNames
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     @Published var availableBytes: Int64 = 0
@@ -52,14 +84,8 @@ final class AppState: ObservableObject {
     @Published var candidateRecipes: [CandidateRecipe] = []
     /// 菜单栏面板"增长洞察"明细 sheet 开关。
     @Published var showGrowthInsights = false
-    /// 未覆盖空间下钻结果：按需表面扫描得到的增长目录（新→旧）。
-    @Published var unknownDrillDown: [GrowthEntry] = []
-    /// 下钻时按当前占用大小排序的目录（无显著增长时供排查）。
-    @Published var unknownDrillDownTopSize: [SurfaceDirectory] = []
-    /// 下钻时表面基线尚不存在（首次点击只建立基线）。
-    @Published var unknownDrillDownBaselineMissing = false
-    /// 下钻扫描进行中。
-    @Published var isDrillingDown = false
+    /// 待确认的开发目录建议（增长洞察中发现，等待用户加入/忽略）。
+    @Published var pendingDevRoots: [DevRootCandidate] = []
 }
 
 enum Format {

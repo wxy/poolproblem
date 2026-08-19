@@ -29,6 +29,8 @@ enum Localized {
         case "xcode-devicesupport": return string("recipe.xcode-devicesupport")
         case "simulator-runtimes": return string("recipe.simulator-runtimes")
         case "simulator-dyld-cache": return string("recipe.simulator-dyld-cache")
+        case "project-node-modules": return string("recipe.project-node-modules")
+        case "project-build-output": return string("recipe.project-build-output")
         case "trash": return string("recipe.trash")
         default: return fallback
         }
