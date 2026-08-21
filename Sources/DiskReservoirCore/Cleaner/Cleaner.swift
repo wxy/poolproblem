@@ -69,6 +69,7 @@ public struct Cleaner: Sendable {
         config: Config,
         waterlineBytes: Int64,
         forceClean: Bool = false,
+        ignoreAge: Bool = false,
         source: CleanSource = .manual,
         minimumItemBytes: Int64? = nil,
         itemGrowthRates: [String: Double] = [:],
@@ -82,11 +83,20 @@ public struct Cleaner: Sendable {
         let availableBefore = availableBytesReader(scan.volumeURL)
         let candidates = scan.items
             .filter { !config.whitelistPaths.contains($0.path) }
+            // 应用无法删除的手动项（Xcode/Finder）不进入自动/强制清理候选
+            .filter { !CleanupRationale.make(for: $0).isManual }
             .filter { item in
                 minimumItemBytes.map { item.reclaimableBytes >= $0 } ?? true
             }
-            // 自动清理优先处理大项；同样大小时优先处理增速更快的项。
+            // 第一性原理：水线目标是“现在释放空间”。
+            // 永久删除立即可释放，移入废纸篓不改变可用空间（待用户清空），
+            // 因此优先清理永久删除类；同类内优先大项、再按增速。
             .sorted { left, right in
+                let leftReal = left.disposition == .deletePermanently
+                let rightReal = right.disposition == .deletePermanently
+                if leftReal != rightReal {
+                    return leftReal
+                }
                 if left.reclaimableBytes != right.reclaimableBytes {
                     return left.reclaimableBytes > right.reclaimableBytes
                 }
@@ -104,7 +114,8 @@ public struct Cleaner: Sendable {
                 isProcessRunning: { name in
                     name.map { inspector.isRunning($0) } ?? false
                 },
-                force: forceClean
+                force: forceClean,
+                ignoreAge: ignoreAge
             )
             let rawDisposition: CleanDisposition?
             switch decision.action {

@@ -837,6 +837,19 @@ final class AppService {
             }
         }
 
+        // 3. 废纸篓积累：自动清理移入废纸篓的项并不释放空间，提示清空
+        let trashBytes = result.items
+            .filter { $0.recipeID == "trash" }
+            .reduce(Int64(0)) { $0 + max(0, $1.reclaimableBytes) }
+        if trashBytes >= 5_000_000_000 {
+            plans.append(AutoCleanPlanItem(
+                id: UUID(),
+                title: Localized.string("countdown.plan_trash", Format.bytes(trashBytes)),
+                estimatedDate: nil,
+                progress: 1
+            ))
+        }
+
         return plans
             .filter { plan in
                 guard let estimatedDate = plan.estimatedDate else { return true }
@@ -875,17 +888,20 @@ final class AppService {
         }
 
         let emergency = result.volume.availableBytes < waterline + proactiveCleanTriggerBytes
-        if let target, !emergency {
+        if let target {
             if let outcome = await runAutoWaterlineClean(
                 scan: result,
                 config: config,
                 waterlineBytes: target,
                 forceClean: false,
+                // 紧急（低于水位附近）时忽略年龄/最近修改保护，但保留处置方式
+                ignoreAge: emergency,
                 minimumItemBytes: autoMinimumCleanItemBytes,
                 itemGrowthRates: state.growthRates
             ) {
                 totalCount += outcome.entries.count
-                totalFreed += outcome.freedBytes
+                // 以实测释放为准：移入废纸篓的项实际不释放空间，不虚报
+                totalFreed += outcome.actualFreedBytes
                 if !outcome.calibrationUpdates.isEmpty {
                     var updated = config
                     for (recipeID, ratio) in outcome.calibrationUpdates {
@@ -917,6 +933,7 @@ final class AppService {
         config: Config,
         waterlineBytes: Int64,
         forceClean: Bool = false,
+        ignoreAge: Bool = false,
         minimumItemBytes: Int64? = nil,
         itemGrowthRates: [String: Double] = [:]
     ) async -> CleanOutcome? {
@@ -948,6 +965,7 @@ final class AppService {
                 config: config,
                 waterlineBytes: waterlineBytes,
                 forceClean: forceClean,
+                ignoreAge: ignoreAge,
                 source: .auto,
                 minimumItemBytes: minimumItemBytes,
                 itemGrowthRates: itemGrowthRates,
@@ -1086,7 +1104,8 @@ final class AppService {
                     disposition: .trash,
                     source: .auto,
                     reclaimableRatio: ratio,
-                    minimumCleanBytes: 0,
+                    minimumCleanBytes: autoMinimumCleanItemBytes,
+                    minimumCandidateBytes: autoMinimumCleanItemBytes,
                     protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
                         recipe: recipe,
                         config: config
@@ -1109,6 +1128,7 @@ final class AppService {
                 source: .auto,
                 reclaimableRatio: ratio,
                 minimumCleanBytes: autoMinimumCleanItemBytes,
+                minimumCandidateBytes: autoMinimumCleanItemBytes,
                 protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
                     recipe: recipe,
                     config: config

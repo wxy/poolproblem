@@ -3484,6 +3484,22 @@
           }
         }
       }
+    },
+    "countdown.plan_trash" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty the Trash to free %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空废纸篓可释放 %@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
