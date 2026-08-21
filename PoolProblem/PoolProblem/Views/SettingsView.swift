@@ -36,24 +36,29 @@ struct SettingsView: View {
             if expertMode {
                 Section(Localized.string("settings.recipes_section")) {
                     ForEach(RecipeRegistry.builtIn(), id: \.id) { recipe in
-                        HStack {
-                            Toggle("", isOn: Binding(
-                                get: { isEnabled(recipe) },
-                                set: { setEnabled(recipe, $0) }
-                            ))
-                            .labelsHidden()
-                            Text(Localized.recipeName(recipe.id, fallback: recipe.name))
-                                .lineLimit(1)
-                            Spacer()
-                            Text(Localized.string("settings.keep_days", age(recipe)))
-                                .font(.caption)
-                                .monospacedDigit()
-                                .frame(width: 74, alignment: .trailing)
-                            Stepper("", value: Binding(
-                                get: { age(recipe) },
-                                set: { setAge(recipe, $0) }
-                            ), in: 1...365)
-                            .labelsHidden()
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Toggle("", isOn: Binding(
+                                    get: { isEnabled(recipe) },
+                                    set: { setEnabled(recipe, $0) }
+                                ))
+                                .labelsHidden()
+                                Text(Localized.recipeName(recipe.id, fallback: recipe.name))
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(Localized.string("settings.keep_days", age(recipe)))
+                                    .font(.caption)
+                                    .monospacedDigit()
+                                    .frame(width: 74, alignment: .trailing)
+                                Stepper("", value: Binding(
+                                    get: { age(recipe) },
+                                    set: { setAge(recipe, $0) }
+                                ), in: 1...365)
+                                .labelsHidden()
+                            }
+                            ForEach(recipePaths(recipe), id: \.self) { path in
+                                recipePathRow(path)
+                            }
                         }
                     }
                 }
@@ -65,30 +70,35 @@ struct SettingsView: View {
                 if !projectRecipes.isEmpty {
                     Section(Localized.string("settings.project_recipes_section")) {
                         ForEach(projectRecipes, id: \.id) { recipe in
-                            HStack {
-                                Toggle("", isOn: Binding(
-                                    get: { isEnabled(recipe) },
-                                    set: { setEnabled(recipe, $0) }
-                                ))
-                                .labelsHidden()
-                                Text(Localized.recipeName(recipe.id, fallback: recipe.name))
-                                    .lineLimit(1)
-                                Text(Localized.string("settings.project_badge"))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 4)
-                                    .padding(.vertical, 1)
-                                    .overlay(RoundedRectangle(cornerRadius: 3).stroke(.separator))
-                                Spacer()
-                                Text(Localized.string("settings.keep_days", age(recipe)))
-                                    .font(.caption)
-                                    .monospacedDigit()
-                                    .frame(width: 74, alignment: .trailing)
-                                Stepper("", value: Binding(
-                                    get: { age(recipe) },
-                                    set: { setAge(recipe, $0) }
-                                ), in: 1...365)
-                                .labelsHidden()
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Toggle("", isOn: Binding(
+                                        get: { isEnabled(recipe) },
+                                        set: { setEnabled(recipe, $0) }
+                                    ))
+                                    .labelsHidden()
+                                    Text(Localized.recipeName(recipe.id, fallback: recipe.name))
+                                        .lineLimit(1)
+                                    Text(Localized.string("settings.project_badge"))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(.separator))
+                                    Spacer()
+                                    Text(Localized.string("settings.keep_days", age(recipe)))
+                                        .font(.caption)
+                                        .monospacedDigit()
+                                        .frame(width: 74, alignment: .trailing)
+                                    Stepper("", value: Binding(
+                                        get: { age(recipe) },
+                                        set: { setAge(recipe, $0) }
+                                    ), in: 1...365)
+                                    .labelsHidden()
+                                }
+                                ForEach(recipePaths(recipe), id: \.self) { path in
+                                    recipePathRow(path)
+                                }
                             }
                         }
                     }
@@ -362,5 +372,40 @@ struct SettingsView: View {
         var rules = config.rules.filter { $0.recipeID != newRule.recipeID }
         rules.append(newRule)
         config.rules = rules
+    }
+
+    /// 配方解析出的具体路径（可能为空：路径不存在时配方不生效）。
+    private func recipePaths(_ recipe: Recipe) -> [String] {
+        recipe.resolvePaths(StoragePaths(homeDirectory: NSHomeDirectory()))
+    }
+
+    /// 路径行：具体存在的路径可点击打开 Finder；不存在的路径（如模式/容器）仅展示。
+    @ViewBuilder
+    private func recipePathRow(_ path: String) -> some View {
+        if FileManager.default.fileExists(atPath: path) {
+            Button {
+                revealInFinder(path)
+            } label: {
+                Text(path)
+                    .font(.caption2)
+                    .foregroundStyle(.blue)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .cursorPointingHand()
+            .help(path)
+        } else {
+            Text(path)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    private func revealInFinder(_ path: String) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 }
