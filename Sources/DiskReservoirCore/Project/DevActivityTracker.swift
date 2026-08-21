@@ -36,6 +36,10 @@ public final class DevActivityTracker: @unchecked Sendable {
         var changed: [DevActivity] = []
         for path in eventPaths {
             guard let root = projectRoot(for: path) else { continue }
+            // 废纸篓 / 系统库与缓存 / 家目录隐藏目录里出现可再生产物名不算开发活动
+            guard !DevDirectoryDiscovery.isExcludedPath(root, homeDirectory: NSHomeDirectory()) else {
+                continue
+            }
             let activity = DevActivity(
                 projectRoot: root,
                 artifact: lastArtifactComponent(path),
