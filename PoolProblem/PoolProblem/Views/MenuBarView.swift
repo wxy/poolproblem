@@ -1196,7 +1196,7 @@ struct MenuBarView: View {
     }
 
     private func revealInFinder(_ path: String) {
-        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        FinderReveal.reveal(path)
     }
 
     private func predictionText(_ days: Double) -> String {

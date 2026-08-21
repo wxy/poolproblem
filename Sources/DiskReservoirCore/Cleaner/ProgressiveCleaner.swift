@@ -10,6 +10,8 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
     public let source: CleanSource
     public let reclaimableRatio: Double
     public let minimumCleanBytes: Int64
+    /// 单个候选子项的最小规模：过小的清理目标收益小于固定开销，直接跳过。
+    public let minimumCandidateBytes: Int64
     public let protectedChildNames: Set<String>
 
     public init(
@@ -22,6 +24,7 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
         source: CleanSource = .auto,
         reclaimableRatio: Double = 1,
         minimumCleanBytes: Int64 = 0,
+        minimumCandidateBytes: Int64 = 0,
         protectedChildNames: Set<String> = []
     ) {
         self.recipeID = recipeID
@@ -33,6 +36,7 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
         self.source = source
         self.reclaimableRatio = reclaimableRatio
         self.minimumCleanBytes = minimumCleanBytes
+        self.minimumCandidateBytes = minimumCandidateBytes
         self.protectedChildNames = protectedChildNames
     }
 }
@@ -232,7 +236,9 @@ public struct ProgressiveCleaner: Sendable {
             )
         }
         let candidates = Array(
+            // 过小的目标收益不抵固定开销（统计/移动/日志），跳过
             measuredCandidates
+                .filter { $0.estimatedBytes >= policy.minimumCandidateBytes }
                 .sorted { $0.estimatedBytes > $1.estimatedBytes }
                 .prefix(policy.maxItemsPerRun)
         )

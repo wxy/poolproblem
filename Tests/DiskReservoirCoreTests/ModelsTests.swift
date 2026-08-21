@@ -69,6 +69,38 @@ import Foundation
     #expect(decoded.protectedCacheChildren == ["org.swift.swiftpm", "custom-cache"])
 }
 
+@Test func configDefaultsMinimumCleanSizeAndRoundTrips() throws {
+    var config = Config.default
+    #expect(config.minimumCleanItemMB == 500)
+    config.minimumCleanItemMB = 1200
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(Config.self, from: data)
+    #expect(decoded.minimumCleanItemMB == 1200)
+}
+
+@Test func legacyConfigWithoutMinimumCleanSizeDefaultsTo500() throws {
+    let json = """
+    {
+      "waterlineGB": 30,
+      "rules": [],
+      "whitelistPaths": [],
+      "cloneRatios": {},
+      "keptItemIDs": []
+    }
+    """.data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(Config.self, from: json)
+    #expect(decoded.minimumCleanItemMB == 500)
+}
+
+@Test func configDefaultsAutoEmptyBatchesOffAndRoundTrips() throws {
+    var config = Config.default
+    #expect(config.autoEmptyOwnTrashBatches == false)
+    config.autoEmptyOwnTrashBatches = true
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(Config.self, from: data)
+    #expect(decoded.autoEmptyOwnTrashBatches == true)
+}
+
 @Test func cleanLogEntryRoundTrip() throws {
     let entry = CleanLogEntry(
         id: UUID(), timestamp: Date(timeIntervalSince1970: 1_000_000),

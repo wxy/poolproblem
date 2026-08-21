@@ -190,6 +190,42 @@ private struct RecorderDeleter: FileDeleting {
     #expect(outcome.trimmedCount == 3)
 }
 
+@Test func progressiveCleanerSkipsCandidatesBelowFloor() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-progressive-floor-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let sizes: [Int64] = [600_000_000, 120_000_000, 50_000_000]
+    for (index, bytes) in sizes.enumerated() {
+        let child = root.appendingPathComponent("child-\(index)", isDirectory: true)
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        try Data(repeating: 0xAB, count: Int(bytes)).write(to: child.appendingPathComponent("data.bin"))
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-30 * 86_400)],
+            ofItemAtPath: child.path
+        )
+    }
+
+    let paths = StoragePaths(baseURL: root.appendingPathComponent("logs", isDirectory: true))
+    let outcome = try ProgressiveCleaner(
+        deleter: FileManagerFileDeleter(),
+        logStore: CleanLogStore(paths: paths)
+    ).run(policy: ProgressiveCleanupPolicy(
+        recipeID: "xctestdevices",
+        parentPath: root.path,
+        maxChildren: 0,
+        maxItemsPerRun: 3,
+        minimumAgeSeconds: 86_400,
+        disposition: .deletePermanently,
+        minimumCleanBytes: 0,
+        minimumCandidateBytes: 500_000_000
+    ))
+
+    #expect(outcome.trimmedCount == 1)
+    #expect(outcome.entries.first?.itemNames == ["child-0"])
+}
+
 @Test func mergedProtectedChildNamesCombinesRecipeAndConfig() {
     let recipe = Recipe(
         id: "library-caches", name: "Caches", category: .common,

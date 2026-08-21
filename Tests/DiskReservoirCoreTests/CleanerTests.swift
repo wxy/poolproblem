@@ -263,6 +263,132 @@ final class CaptureBox: @unchecked Sendable {
     #expect(capture.cleaned == ["big", "small"])
 }
 
+@Test func cleanerPrefersPermanentDeletesForRealFreedSpace() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-clean-perm-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let paths = StoragePaths(baseURL: dir)
+    let logStore = CleanLogStore(paths: paths)
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    func item(_ id: String, bytes: Int64, disposition: CleanDisposition) -> ScanItem {
+        ScanItem(
+            id: id, recipeID: "library-caches", name: id, path: "/tmp/\(id)",
+            category: .common, safety: .safeWhileRunning, disposition: disposition,
+            sizeBytes: bytes, allocatedBytes: bytes, reclaimableBytes: bytes,
+            fileCount: 1, lastModified: now.addingTimeInterval(-40 * 86_400)
+        )
+    }
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000_000, availableBytes: 10_000_000, timestamp: now),
+        items: [
+            // 大项走废纸篓（实际不释放空间），小项永久删除（立即释放）
+            item("big-trash", bytes: 2_000_000_000, disposition: .trash),
+            item("small-perm", bytes: 600_000_000, disposition: .deletePermanently),
+        ],
+        records: [],
+        volumeURL: URL(fileURLWithPath: "/")
+    )
+    let box = ReaderBox()
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: MockDeleter(),
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: logStore,
+        availableBytesReader: { _ in
+            box.calls += 1
+            return box.calls == 1 ? 20_000_000 : 60_000_000
+        },
+        now: { now }
+    )
+    let capture = CaptureBox()
+    _ = try cleaner.run(
+        scan: scan,
+        config: .default,
+        waterlineBytes: 30_000_000,
+        onItemWillDelete: { capture.will.append($0) },
+        onItemCleaned: { itemID, _ in capture.cleaned.append(itemID) }
+    )
+    #expect(capture.will == ["small-perm", "big-trash"])
+    #expect(capture.cleaned == ["small-perm", "big-trash"])
+}
+
+@Test func cleanerSkipsManualItemsEvenWhenForced() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-clean-manual-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let paths = StoragePaths(baseURL: dir)
+    let logStore = CleanLogStore(paths: paths)
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    let item = ScanItem(
+        id: "simulator-runtimes:/Library/Developer/CoreSimulator/Volumes/iOS_23F77",
+        recipeID: "simulator-runtimes", name: "模拟器运行时镜像", path: "/Library/Developer/CoreSimulator/Volumes/iOS_23F77",
+        category: .simulator, safety: .userConfirm, disposition: .trash,
+        sizeBytes: 1_000_000_000, allocatedBytes: 1_000_000_000, reclaimableBytes: 1_000_000_000,
+        fileCount: 1, lastModified: now.addingTimeInterval(-40 * 86_400)
+    )
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000_000, availableBytes: 10_000_000, timestamp: now),
+        items: [item],
+        records: [],
+        volumeURL: URL(fileURLWithPath: "/")
+    )
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: MockDeleter(),
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: logStore,
+        availableBytesReader: { _ in 20_000_000 },
+        now: { now }
+    )
+    let outcome = try cleaner.run(
+        scan: scan,
+        config: .default,
+        waterlineBytes: 30_000_000,
+        forceClean: true
+    )
+    #expect(outcome.entries.isEmpty)
+}
+
+@Test func cleanerIgnoresAgeInEmergencyButKeepsDisposition() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-clean-ignoreage-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let paths = StoragePaths(baseURL: dir)
+    let logStore = CleanLogStore(paths: paths)
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    let item = ScanItem(
+        id: "fresh", recipeID: "npm-cache", name: "npm", path: "/tmp/fresh",
+        category: .packageManager, safety: .safeWhileRunning, disposition: .deletePermanently,
+        sizeBytes: 1_000_000_000, allocatedBytes: 1_000_000_000, reclaimableBytes: 1_000_000_000,
+        fileCount: 1, lastModified: now  // 刚修改过：正常情况下会被年龄保护跳过
+    )
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000_000, availableBytes: 10_000_000, timestamp: now),
+        items: [item],
+        records: [],
+        volumeURL: URL(fileURLWithPath: "/")
+    )
+    let capture = CaptureBox()
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: MockDeleter(),
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: logStore,
+        availableBytesReader: { _ in 20_000_000 },
+        now: { now }
+    )
+    let outcome = try cleaner.run(
+        scan: scan,
+        config: .default,
+        waterlineBytes: 30_000_000,
+        ignoreAge: true,
+        onItemWillDelete: { capture.will.append($0) },
+        onItemCleaned: { itemID, disposition in capture.cleaned.append(itemID) }
+    )
+    #expect(capture.will == ["fresh"])
+    #expect(outcome.entries.first?.disposition == .deletePermanently)
+}
+
 @Test func cleanabilityGuardDowngradesPermanentDeleteToTrash() {
     #expect(Cleaner.guardedDisposition(for: .deletePermanently, cleanability: .trashOnly) == .trash)
     #expect(Cleaner.guardedDisposition(for: .deletePermanently, cleanability: .regenerable) == .deletePermanently)

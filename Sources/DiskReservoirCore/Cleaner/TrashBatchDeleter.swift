@@ -10,6 +10,9 @@ public final class TrashBatchDeleter: FileDeleting, @unchecked Sendable {
     private let lock = NSLock()
     private var groupURL: URL?
 
+    /// 本应用创建的回收站批次的名称前缀。
+    public static let batchNamePrefix = "PoolProblem Cleanup "
+
     public init(trashRoot: URL? = nil, batchName: String? = nil) {
         self.trashRoot = trashRoot
             ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".Trash", isDirectory: true)
@@ -36,6 +39,23 @@ public final class TrashBatchDeleter: FileDeleting, @unchecked Sendable {
         }
         try FileManager.default.moveItem(at: url, to: destination)
         return FileDeletionResult(freedBytes: allocated, resultingURL: destination)
+    }
+
+    /// 删除本应用创建的回收站批次目录（名称以 `batchNamePrefix` 开头）。
+    /// 只清自己产生的批次，不碰用户手动放入的任何内容。
+    /// 返回删除的批次数量。
+    @discardableResult
+    public static func emptyOwnBatches(trashRoot: URL? = nil) throws -> Int {
+        let root = trashRoot
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".Trash", isDirectory: true)
+        let fm = FileManager.default
+        let children = try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+        var removed = 0
+        for child in children where child.lastPathComponent.hasPrefix(batchNamePrefix) {
+            try fm.removeItem(at: child)
+            removed += 1
+        }
+        return removed
     }
 
     private func groupDirectory() throws -> URL {

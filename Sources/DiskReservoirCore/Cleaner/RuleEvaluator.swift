@@ -41,7 +41,8 @@ public struct RuleEvaluator: Sendable {
     public func evaluate(
         item: ScanItem,
         isProcessRunning: (String?) -> Bool,
-        force: Bool = false
+        force: Bool = false,
+        ignoreAge: Bool = false
     ) -> EvaluatedAction {
         let rule = config.rules.first { $0.recipeID == item.recipeID }
         if config.whitelistPaths.contains(item.path) {
@@ -96,7 +97,8 @@ public struct RuleEvaluator: Sendable {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "no modification date"))
         }
         let ageLimitDays = rule?.maxAgeDays ?? recipeDefaultAge(for: item)
-        guard CleanabilityRules.isOldEnough(
+        // 紧急清理可跳过年龄/最近修改保护，但保留处置方式与可清理性底线
+        guard ignoreAge || CleanabilityRules.isOldEnough(
             lastModified: modified,
             ageLimitDays: ageLimitDays,
             minimumIdleHours: idleHoursByRecipe[item.recipeID] ?? 24,
