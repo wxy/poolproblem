@@ -3500,6 +3500,102 @@
           }
         }
       }
+    },
+    "settings.auto_empty_batches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty app-created Trash batches after auto cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动清理后清空本应用创建的回收站批次"
+          }
+        }
+      }
+    },
+    "settings.auto_empty_batches_footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only deletes folders named \"PoolProblem Cleanup …\" created by this app; items you put in the Trash manually are never touched. Requires Full Disk Access."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅删除本应用创建的 “PoolProblem Cleanup …” 批次；手动放入废纸篓的内容不受影响。需要完全磁盘访问。"
+          }
+        }
+      }
+    },
+    "settings.builtin" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内置"
+          }
+        }
+      }
+    },
+    "settings.minimum_clean_size_footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto cleanup skips targets below this size (progressive and waterline paths); too-small targets cost more than they free."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动清理跳过低于该规模的清理目标（渐进与水线共用）；过小目标收益不抵开销。"
+          }
+        }
+      }
+    },
+    "settings.minimum_clean_size_label" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip items smaller than"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过小于以下规模的项"
+          }
+        }
+      }
+    },
+    "settings.minimum_clean_size_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum clean size"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最小清理规模"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

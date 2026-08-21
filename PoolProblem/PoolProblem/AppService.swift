@@ -20,12 +20,18 @@ final class AppService {
     private var timer: Timer?
     private var lowSpaceNotified = false
     private var trashAccumulationNotified = false
-    private let proactiveCleanTriggerBytes: Int64 = 5 * 1_000_000_000
-    private let earlyProactiveTriggerBytes: Int64 = 8 * 1_000_000_000
-    private let proactiveCleanBatchBytes: Int64 = 3 * 1_000_000_000
     private let fastGrowthTriggerBytesPerDay: Double = 500_000_000
-    private let autoMinimumCleanItemBytes: Int64 = 500_000_000
     private let emergencyProgressiveMinimumAgeSeconds: TimeInterval = 2 * 3600
+
+    /// 与水位线成比例的自动清理阈值（见 CleanThresholds）。
+    private func thresholds(for config: Config) -> CleanThresholds {
+        CleanThresholds(waterlineGB: config.waterlineGB)
+    }
+
+    /// 最小清理规模（MB → bytes），专家设置，默认 500MB。
+    private func minimumCleanItemBytes(_ config: Config) -> Int64 {
+        Int64(config.minimumCleanItemMB * 1_000_000)
+    }
 
     init(state: AppState, paths: StoragePaths = StoragePaths(), automationEnabled: Bool = true) {
         self.state = state
@@ -124,7 +130,12 @@ final class AppService {
         let plans = upcomingAutoCleanPlans(result: result)
         state.autoCleanPlans = plans
         state.autoCleanPlan = plans.first?.title
-            ?? Localized.string("countdown.plan_idle", Format.bytes(earlyProactiveTriggerBytes))
+            ?? Localized.string(
+                "countdown.plan_idle",
+                Format.bytes(CleanThresholds(
+                    waterlineGB: Double(waterlineBytes()) / 1_000_000_000
+                ).earlyTriggerBytes)
+            )
         if !state.isCleaning {
             state.cleanedItemIDs = []
         }
@@ -746,6 +757,7 @@ final class AppService {
     private func upcomingAutoCleanPlans(result: ScanResult) -> [AutoCleanPlanItem] {
         let now = Date()
         let waterline = waterlineBytes()
+        let thresholds = CleanThresholds(waterlineGB: Double(waterline) / 1_000_000_000)
         let nextScan = now.addingTimeInterval(30 * 60)
         let oneWeek: Double = 7 * 86_400
         var plans: [AutoCleanPlanItem] = []
@@ -770,13 +782,13 @@ final class AppService {
                 estimatedDate: nextScan,
                 progress: 1
             ))
-        } else if result.volume.availableBytes < waterline + proactiveCleanTriggerBytes {
+        } else if result.volume.availableBytes < waterline + thresholds.proactiveTriggerBytes {
             let distance = Double(max(0, result.volume.availableBytes - waterline))
-            let span = Double(proactiveCleanTriggerBytes)
+            let span = Double(thresholds.proactiveTriggerBytes)
             let progress = 1 - min(1, distance / span)
             plans.append(AutoCleanPlanItem(
                 id: UUID(),
-                title: Localized.string("countdown.plan_near", Format.bytes(proactiveCleanBatchBytes)),
+                title: Localized.string("countdown.plan_near", Format.bytes(thresholds.batchBytes)),
                 estimatedDate: nextScan,
                 progress: progress
             ))
@@ -814,7 +826,7 @@ final class AppService {
                 ))
         }
 
-        if plans.count < 2, safeReclaimableBytes >= earlyProactiveTriggerBytes {
+        if plans.count < 2, safeReclaimableBytes >= thresholds.earlyTriggerBytes {
             plans.append(AutoCleanPlanItem(
                 id: UUID(),
                 title: Localized.string("countdown.plan_large_reclaimable", Format.bytes(safeReclaimableBytes)),
@@ -824,7 +836,7 @@ final class AppService {
         }
 
         if plans.count < 2, safeGrowthRate > 0 {
-            let remainingBytes = max(0, earlyProactiveTriggerBytes - safeReclaimableBytes)
+            let remainingBytes = max(0, thresholds.earlyTriggerBytes - safeReclaimableBytes)
             let daysToThreshold = Double(remainingBytes) / safeGrowthRate
             if daysToThreshold <= 7 {
                 let estimatedDate = now.addingTimeInterval(daysToThreshold * 86_400)
@@ -832,7 +844,7 @@ final class AppService {
                     id: UUID(),
                     title: Localized.string("countdown.plan_inventory_waiting"),
                     estimatedDate: estimatedDate,
-                    progress: min(1, Double(safeReclaimableBytes) / Double(earlyProactiveTriggerBytes))
+                    progress: min(1, Double(safeReclaimableBytes) / Double(thresholds.earlyTriggerBytes))
                 ))
             }
         }
@@ -862,6 +874,8 @@ final class AppService {
     private func maybeAutoClean(result: ScanResult) async {
         guard !state.isCleaning else { return }
         let config = loadConfig()
+        let thresholds = thresholds(for: config)
+        let minItemBytes = minimumCleanItemBytes(config)
         var totalCount = 0
         var totalFreed: Int64 = 0
         let waterline = waterlineBytes()
@@ -871,23 +885,23 @@ final class AppService {
                 && $0.reclaimableBytes > 0
         }
         let safeReclaimableBytes = safeItems.reduce(Int64(0)) { $0 + $1.reclaimableBytes }
-        let earlyTrigger = safeReclaimableBytes >= earlyProactiveTriggerBytes
+        let earlyTrigger = safeReclaimableBytes >= thresholds.earlyTriggerBytes
 
         let target: Int64?
         if result.volume.availableBytes < waterline {
             target = waterline
-        } else if result.volume.availableBytes < waterline + proactiveCleanTriggerBytes {
+        } else if result.volume.availableBytes < waterline + thresholds.proactiveTriggerBytes {
             target = min(
-                result.volume.availableBytes + proactiveCleanBatchBytes,
-                waterline + proactiveCleanTriggerBytes
+                result.volume.availableBytes + thresholds.batchBytes,
+                waterline + thresholds.proactiveTriggerBytes
             )
         } else if earlyTrigger {
-            target = result.volume.availableBytes + proactiveCleanBatchBytes
+            target = result.volume.availableBytes + thresholds.batchBytes
         } else {
             target = nil
         }
 
-        let emergency = result.volume.availableBytes < waterline + proactiveCleanTriggerBytes
+        let emergency = result.volume.availableBytes < waterline + thresholds.proactiveTriggerBytes
         if let target {
             if let outcome = await runAutoWaterlineClean(
                 scan: result,
@@ -896,7 +910,7 @@ final class AppService {
                 forceClean: false,
                 // 紧急（低于水位附近）时忽略年龄/最近修改保护，但保留处置方式
                 ignoreAge: emergency,
-                minimumItemBytes: autoMinimumCleanItemBytes,
+                minimumItemBytes: minItemBytes,
                 itemGrowthRates: state.growthRates
             ) {
                 totalCount += outcome.entries.count
@@ -915,6 +929,11 @@ final class AppService {
         let progressive = await runProgressiveCleanup(config: config, emergency: emergency)
         totalCount += progressive.entries.count
         totalFreed += progressive.freedBytes
+
+        // 开关开启时：清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）
+        if config.autoEmptyOwnTrashBatches {
+            try? TrashBatchDeleter.emptyOwnBatches()
+        }
 
         if totalCount > 0 {
             state.lastCleanSummary = Localized.string(
@@ -1104,8 +1123,8 @@ final class AppService {
                     disposition: .trash,
                     source: .auto,
                     reclaimableRatio: ratio,
-                    minimumCleanBytes: autoMinimumCleanItemBytes,
-                    minimumCandidateBytes: autoMinimumCleanItemBytes,
+                    minimumCleanBytes: minimumCleanItemBytes(config),
+                    minimumCandidateBytes: minimumCleanItemBytes(config),
                     protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
                         recipe: recipe,
                         config: config
@@ -1127,8 +1146,8 @@ final class AppService {
                 disposition: .trash,
                 source: .auto,
                 reclaimableRatio: ratio,
-                minimumCleanBytes: autoMinimumCleanItemBytes,
-                minimumCandidateBytes: autoMinimumCleanItemBytes,
+                minimumCleanBytes: minimumCleanItemBytes(config),
+                minimumCandidateBytes: minimumCleanItemBytes(config),
                 protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
                     recipe: recipe,
                     config: config
@@ -1238,7 +1257,9 @@ final class AppService {
         existing.waterlineGB = config.waterlineGB
         existing.rules = config.rules
         existing.whitelistPaths = config.whitelistPaths
-        existing.enabledRecipes = config.enabledRecipes
+        existing.protectedCacheChildren = config.protectedCacheChildren
+        existing.minimumCleanItemMB = config.minimumCleanItemMB
+        existing.autoEmptyOwnTrashBatches = config.autoEmptyOwnTrashBatches
         writeConfig(existing)
     }
 

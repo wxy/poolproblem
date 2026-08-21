@@ -94,6 +94,25 @@ struct SettingsView: View {
                     }
                 }
 
+                Section(Localized.string("settings.minimum_clean_size_section")) {
+                    HStack {
+                        Text(Localized.string("settings.minimum_clean_size_label"))
+                        Spacer()
+                        Stepper("", value: Binding(
+                            get: { config.minimumCleanItemMB },
+                            set: { config.minimumCleanItemMB = $0 }
+                        ), in: 100...5000, step: 100)
+                        .labelsHidden()
+                        Text("\(Int(config.minimumCleanItemMB)) MB")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .frame(width: 64, alignment: .trailing)
+                    }
+                    Text(Localized.string("settings.minimum_clean_size_footer"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section(Localized.string("settings.devroots_section")) {
                     if config.devRoots.isEmpty {
                         Text(Localized.string("settings.devroots_empty"))
@@ -201,11 +220,21 @@ struct SettingsView: View {
                 ForEach(config.protectedCacheChildren, id: \.self) { name in
                     HStack {
                         Text(name).font(.caption).lineLimit(1)
-                        Spacer()
-                        Button(Localized.string("common.remove")) {
-                            config.protectedCacheChildren.removeAll { $0 == name }
+                        if Config.defaultProtectedCacheChildren.contains(name) {
+                            Text(Localized.string("settings.builtin"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .overlay(RoundedRectangle(cornerRadius: 3).stroke(.separator))
                         }
-                        .cursorPointingHand()
+                        Spacer()
+                        if !Config.defaultProtectedCacheChildren.contains(name) {
+                            Button(Localized.string("common.remove")) {
+                                config.protectedCacheChildren.removeAll { $0 == name }
+                            }
+                            .cursorPointingHand()
+                        }
                     }
                 }
                 HStack {
@@ -274,6 +303,13 @@ struct SettingsView: View {
                     .onChange(of: launchAtLogin) { _, newValue in
                         try? LaunchAtLoginService.setEnabled(newValue)
                     }
+                Toggle(Localized.string("settings.auto_empty_batches"), isOn: Binding(
+                    get: { config.autoEmptyOwnTrashBatches },
+                    set: { config.autoEmptyOwnTrashBatches = $0 }
+                ))
+                Text(Localized.string("settings.auto_empty_batches_footer"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

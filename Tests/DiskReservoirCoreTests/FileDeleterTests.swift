@@ -52,3 +52,22 @@ import Foundation
     #expect(!FileManager.default.fileExists(atPath: sourceA.path))
     #expect(!FileManager.default.fileExists(atPath: sourceB.path))
 }
+
+@Test func trashBatchDeleterEmptiesOnlyOwnBatches() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-batch-empty-\(UUID().uuidString)", isDirectory: true)
+    let trash = root.appendingPathComponent(".Trash", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let ownBatch = trash.appendingPathComponent("PoolProblem Cleanup 2026-08-14 18.36.12", isDirectory: true)
+    let otherDir = trash.appendingPathComponent("user-manual-file", isDirectory: true)
+    try FileManager.default.createDirectory(at: ownBatch, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: otherDir, withIntermediateDirectories: true)
+    try Data(repeating: 1, count: 16).write(to: trash.appendingPathComponent("notes.txt"))
+
+    let removed = try TrashBatchDeleter.emptyOwnBatches(trashRoot: trash)
+    #expect(removed == 1)
+    #expect(!FileManager.default.fileExists(atPath: ownBatch.path))
+    #expect(FileManager.default.fileExists(atPath: otherDir.path))
+    #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent("notes.txt").path))
+}
