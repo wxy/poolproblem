@@ -93,29 +93,40 @@ struct GrowthInsightsView: View {
     }
 
     private func growthRow(_ entry: GrowthEntry) -> some View {
-        HStack(spacing: 6) {
-            Text(displayName(entry))
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            if entry.kind == .surface {
-                Text(Localized.string("insights.new_badge"))
-                    .font(.caption2)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
+        Button {
+            if !entry.path.isEmpty {
+                revealInFinder(entry.path)
             }
-            Spacer()
-            Text(Format.bytes(entry.deltaBytes))
-                .font(.caption)
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-            Text(growthRateText(entry))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
+        } label: {
+            HStack(spacing: 6) {
+                Text(displayName(entry))
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if entry.kind == .surface {
+                    Text(Localized.string("insights.new_badge"))
+                        .font(.caption2)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
+                }
+                Spacer()
+                Text(Format.bytes(entry.deltaBytes))
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                Text(growthRateText(entry))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+            }
+            .frame(height: 22)
         }
+        .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .cursorPointingHand()
+        .help(entry.path)
     }
 
     /// 速率展示：观测窗口足够长（≥1 天）才外推为"每天"，
@@ -188,10 +199,18 @@ struct GrowthInsightsView: View {
             ForEach(state.pendingDevRoots) { candidate in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
-                        Text(PathPatternizer.patternize(candidate.path))
-                            .font(.caption)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                        Button {
+                            revealInFinder(candidate.path)
+                        } label: {
+                            Text(PathPatternizer.patternize(candidate.path))
+                                .font(.caption)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .buttonStyle(.plain)
+                        .focusEffectDisabled()
+                        .cursorPointingHand()
+                        .help(candidate.path)
                         Spacer()
                         if candidate.childNames.isEmpty {
                             Text(Localized.string("devroot.marker", candidate.marker))
@@ -248,10 +267,18 @@ struct GrowthInsightsView: View {
     private func candidateRow(_ candidate: CandidateRecipe) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Text(candidate.pattern)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                Button {
+                    revealInFinder(candidate.samplePath)
+                } label: {
+                    Text(candidate.pattern)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+                .help(candidate.samplePath)
                 Spacer()
                 Text(candidate.suggestedSafety == .safeWhileRunning
                      ? Localized.string("candidate.safety_safe")
@@ -283,10 +310,18 @@ struct GrowthInsightsView: View {
 
     private func acceptedRow(_ candidate: CandidateRecipe) -> some View {
         HStack(spacing: 6) {
-            Text(candidate.pattern)
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            Button {
+                revealInFinder(candidate.samplePath)
+            } label: {
+                Text(candidate.pattern)
+                    .font(.caption)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .cursorPointingHand()
+            .help(candidate.samplePath)
             Spacer()
             Button(Localized.string("common.remove")) {
                 service.dismissCandidate(id: candidate.id)
@@ -295,5 +330,9 @@ struct GrowthInsightsView: View {
             .controlSize(.small)
             .cursorPointingHand()
         }
+    }
+
+    private func revealInFinder(_ path: String) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 }

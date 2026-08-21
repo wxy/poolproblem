@@ -51,3 +51,12 @@ import Foundation
     let found = DevDirectoryDiscovery.discover(homeDirectory: home.path, minimumRegenerableBytes: 100_000)
     #expect(found.map(\.path).contains(proj.path))
 }
+
+@Test func excludedPathPolicySkipsTrashLibraryAndHiddenDirs() {
+    let home = "/Users/alice"
+    #expect(DevDirectoryDiscovery.isExcludedPath("\(home)/.Trash/proj", homeDirectory: home))
+    #expect(DevDirectoryDiscovery.isExcludedPath("\(home)/Library/Caches/foo/build", homeDirectory: home))
+    #expect(DevDirectoryDiscovery.isExcludedPath("\(home)/.cache/npm/node_modules", homeDirectory: home))
+    #expect(!DevDirectoryDiscovery.isExcludedPath("\(home)/develop/proj", homeDirectory: home))
+    #expect(!DevDirectoryDiscovery.isExcludedPath("\(home)/Documents/proj/node_modules", homeDirectory: home))
+}
