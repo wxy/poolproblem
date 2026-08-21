@@ -406,6 +406,6 @@ struct SettingsView: View {
     }
 
     private func revealInFinder(_ path: String) {
-        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        FinderReveal.reveal(path)
     }
 }
