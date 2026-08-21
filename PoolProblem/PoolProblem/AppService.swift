@@ -1427,7 +1427,11 @@ final class AppService {
     /// 增长洞察展示：过滤配方覆盖项后，把多条"未覆盖空间"聚合成
     /// 只保留可归因的目录级增长（最新 30 条，新→旧）。
     private func growthInsights(from allEntries: [GrowthEntry]) -> [GrowthEntry] {
-        Array(uncoveredInsights(allEntries).suffix(30).reversed())
+        Array(
+            GrowthInsightMerger.merge(uncoveredInsights(allEntries))
+                .sorted { $0.observedAt > $1.observedAt }
+                .prefix(30)
+        )
     }
 
     /// 增长来源的开发目录建议：表面扫描发现的未覆盖增长中，命中项目标记的
