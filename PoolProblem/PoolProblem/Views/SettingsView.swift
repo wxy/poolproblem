@@ -418,38 +418,41 @@ struct SettingsView: View {
         recipe.resolvePaths(StoragePaths(homeDirectory: NSHomeDirectory()))
     }
 
-    /// 路径行：具体路径始终可点击。路径存在时在 Finder 中打开它本身；
-    /// 路径当前不存在时打开其上级目录，并给出提示。
+    /// 路径行：文件夹图标 + 路径文本。存在的路径可点击打开 Finder；
+    /// 不存在的路径不可点击，用删除线区分。
     @ViewBuilder
     private func recipePathRow(_ path: String) -> some View {
         if FileManager.default.fileExists(atPath: path) {
             Button {
                 FinderReveal.reveal(path)
             } label: {
-                Text(path)
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                HStack(spacing: 4) {
+                    Image(systemName: "folder")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(path)
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
             .buttonStyle(.plain)
             .focusEffectDisabled()
             .cursorPointingHand()
             .help(path)
         } else {
-            Button {
-                let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
-                FinderReveal.reveal(parent)
-            } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "folder")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 Text(path)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .strikethrough()
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .buttonStyle(.plain)
-            .focusEffectDisabled()
-            .cursorPointingHand()
             .help(Localized.string("settings.path_missing"))
         }
     }
