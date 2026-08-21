@@ -38,3 +38,16 @@ import Foundation
     #expect(active.count == 1)
     #expect(active[0].artifact == "node_modules")
 }
+
+@Test func activityTrackerIgnoresTrashAndSystemPaths() {
+    let tracker = DevActivityTracker()
+    let home = NSHomeDirectory()
+    // 误粘到废纸篓的项目、系统缓存 / DerivedData 里的 build，都不应记为开发活动
+    tracker.record(eventPaths: [
+        "\(home)/.Trash/old-proj/node_modules/pkg/x.js",
+        "\(home)/Library/Caches/com.foo/build/obj/a.o",
+        "\(home)/Library/Developer/Xcode/DerivedData/App-xyz/Build/Products/a",
+        "\(home)/.cache/some/node_modules/x",
+    ], at: Date())
+    #expect(tracker.activeProjects(since: 24 * 3600).isEmpty)
+}

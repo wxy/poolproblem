@@ -28,6 +28,32 @@ public enum DevDirectoryDiscovery {
         "Public", "Desktop", ".Trash", ".localized",
     ]
 
+    /// 不应纳入开发目录监测的路径：废纸篓、系统库/缓存（Library）、
+    /// 家目录下的隐藏目录（.Trash/.cache/.npm 等）以及系统根目录。
+    public static func isExcludedPath(_ path: String, homeDirectory: String) -> Bool {
+        let home = URL(fileURLWithPath: homeDirectory, isDirectory: true)
+        let excludedRoots = [
+            home.appendingPathComponent(".Trash").path,
+            home.appendingPathComponent("Library").path,
+            "/System",
+            "/private",
+            "/Applications",
+        ]
+        if excludedRoots.contains(where: { $0 == path || path.hasPrefix($0 + "/") }) {
+            return true
+        }
+        // 家目录下第一级为隐藏目录的路径整体排除
+        let prefix = homeDirectory.hasSuffix("/") ? homeDirectory : homeDirectory + "/"
+        if path.hasPrefix(prefix) {
+            let rest = String(path.dropFirst(prefix.count))
+            if let first = rest.split(separator: "/").first,
+               first.hasPrefix(".") {
+                return true
+            }
+        }
+        return false
+    }
+
     public static func discover(
         homeDirectory: String,
         minimumRegenerableBytes: Int64 = 200 << 20
@@ -38,6 +64,7 @@ public enum DevDirectoryDiscovery {
 
         func examine(_ path: String) {
             guard seen.insert(path).inserted else { return }
+            guard !isExcludedPath(path, homeDirectory: homeDirectory) else { return }
             guard let kind = DevDirectoryDetector.detect(path: path) else { return }
             let regenerable = regenerableBytes(in: path)
             guard regenerable >= minimumRegenerableBytes else { return }
