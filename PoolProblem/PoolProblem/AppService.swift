@@ -156,12 +156,11 @@ final class AppService {
         let recipePaths = activeRecipes()
             .flatMap { $0.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: home)) }
         let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
-        // 收窄监听范围：排除系统/模拟器挂载卷、~/Library 与 ~/.Trash ——
-        // 这些区域会被自动清理高频改动，且包含只读挂载卷，正是 FileID 噪音的来源。
+        // 只排除系统级 /Library（模拟器挂载卷等只读系统卷）；
+        // ~/Library 保留监听——构建缓存/日志等快速增长源需要增量识别。
+        // FileID 噪音已通过“目录级事件”根治，与监听范围无关。
         let paths = Array(Set(recipePaths + roots)).filter { path in
             !path.hasPrefix("/Library/")
-                && !path.hasPrefix(home + "/Library/")
-                && !path.hasPrefix(home + "/.Trash")
         }
         dirtyTracker = DirtyTracker(trackedPaths: paths)
         fseventMonitor.start(paths: paths) { [weak self] eventPaths in
