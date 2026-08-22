@@ -618,6 +618,31 @@ final class AppService {
         await scanNow(autoClean: false)
     }
 
+    /// 清空单个本应用批次。
+    func emptyOwnBatch(named name: String) async {
+        try? TrashBatchDeleter.emptyBatch(named: name)
+        await scanNow(autoClean: false)
+    }
+
+    /// 恢复单个本应用批次（依据清理记录），返回恢复的条目数。
+    @discardableResult
+    func restoreOwnBatch(named name: String) async -> Int {
+        let batchPath = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".Trash", isDirectory: true)
+            .appendingPathComponent(name, isDirectory: true)
+            .path
+        let entries = (try? logStore.entries()) ?? []
+        var restoredCount = 0
+        for entry in entries where entry.disposition == .trash {
+            let inBatch = entry.trashPaths.contains { $0.hasPrefix(batchPath) }
+            guard inBatch else { continue }
+            if await undoCleanup(entry) {
+                restoredCount += 1
+            }
+        }
+        return restoredCount
+    }
+
     /// 废纸篓当前一级条目（名称 + 大小），本应用批次优先。
     /// 需要完全磁盘访问才能枚举；无权限时返回空列表。
     func trashEntries() async -> [TrashEntry] {

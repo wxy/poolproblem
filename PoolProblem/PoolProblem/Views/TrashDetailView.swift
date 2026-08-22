@@ -12,7 +12,9 @@ struct TrashDetailView: View {
 
     var body: some View {
         let own = entries.filter(\.isOwnBatch)
-        let others = entries.filter { !$0.isOwnBatch }
+        let othersTotal = entries
+            .filter { !$0.isOwnBatch }
+            .reduce(Int64(0)) { $0 + $1.bytes }
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -43,17 +45,28 @@ struct TrashDetailView: View {
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.secondary)
                             ForEach(own) { entry in
-                                entryRow(entry)
+                                ownBatchRow(entry)
                             }
                         }
-                        if !others.isEmpty {
+                        if othersTotal > 0 {
                             Text(Localized.string("trash.section_others"))
                                 .font(.caption)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(.secondary)
-                            ForEach(others) { entry in
-                                entryRow(entry)
+                            HStack(spacing: 6) {
+                                Image(systemName: "doc")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text(Format.bytes(othersTotal))
+                                    .font(.caption)
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
                             }
+                            .frame(height: 20)
+                            Text(Localized.string("trash.manual_note"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -148,9 +161,9 @@ struct TrashDetailView: View {
         entries = await service.trashEntries()
     }
 
-    private func entryRow(_ entry: TrashEntry) -> some View {
+    private func ownBatchRow(_ entry: TrashEntry) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: entry.isOwnBatch ? "shippingbox" : "doc")
+            Image(systemName: "shippingbox")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
             Text(entry.name)
@@ -162,6 +175,35 @@ struct TrashDetailView: View {
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
+            Button {
+                Task {
+                    let count = await service.restoreOwnBatch(named: entry.name)
+                    notice = Localized.string("trash.restore_done", count)
+                    await reload()
+                }
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .help(Localized.string("trash.restore_own"))
+            .focusEffectDisabled()
+            .cursorPointingHand()
+            Button {
+                Task {
+                    await service.emptyOwnBatch(named: entry.name)
+                    notice = Localized.string("trash.empty_done")
+                    await reload()
+                }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .tint(.red)
+            .help(Localized.string("trash.empty_own"))
+            .focusEffectDisabled()
+            .cursorPointingHand()
         }
         .frame(height: 20)
     }

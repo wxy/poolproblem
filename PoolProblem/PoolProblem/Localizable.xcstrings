@@ -3682,13 +3682,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Empty app batches"
+            "value" : "Empty all"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "清空本应用批次"
+            "value" : "全部清空"
           }
         }
       }
@@ -3810,13 +3810,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Restore app batches"
+            "value" : "Restore all"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "恢复本应用批次"
+            "value" : "全部恢复"
           }
         }
       }
@@ -3881,6 +3881,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "为什么需要手动"
+          }
+        }
+      }
+    },
+    "trash.manual_note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content you deleted manually must be emptied by you in the Trash."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动删除的内容需要用户自己在废纸篓里清空。"
           }
         }
       }
