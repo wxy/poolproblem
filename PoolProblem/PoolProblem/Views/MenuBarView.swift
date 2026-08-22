@@ -111,9 +111,15 @@ struct MenuBarView: View {
             }
 
             if let item = state.detailItem {
-                detailOverlay(item)
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
-                    .zIndex(12)
+                Group {
+                    if item.recipeID == "trash" {
+                        TrashDetailView(state: state, service: service)
+                    } else {
+                        detailOverlay(item)
+                    }
+                }
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
+                .zIndex(12)
             }
 
             if showNonCleanableInfo {
@@ -412,11 +418,6 @@ struct MenuBarView: View {
                     && CleanupRationale.make(for: $0).isManual
             }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
-        // 本应用自己创建的回收站批次：可安全清空（不影响用户手动放入的内容）
-        let ownBatchItems = state.items.filter {
-            $0.recipeID == "own-trash-batches" && $0.reclaimableBytes > 0
-        }
-        let ownBatchBytes = ownBatchItems.reduce(Int64(0)) { $0 + $1.reclaimableBytes }
         return VStack(alignment: .leading, spacing: 5) {
             Text(Localized.string("section.cleanable_count", poolLayers.layers.count))
                 .font(.caption)
@@ -483,7 +484,9 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 5) {
                     Button {
-                        withAnimation { state.trashExpanded.toggle() }
+                        if let trashItem = state.items.first(where: { $0.recipeID == "trash" }) {
+                            withAnimation(overlaySpring) { state.detailItem = trashItem }
+                        }
                     } label: {
                         HStack(spacing: 5) {
                             Rectangle()
@@ -491,54 +494,18 @@ struct MenuBarView: View {
                                 .frame(width: 9, height: 9)
                             Text(Localized.string("recipe.trash"))
                                 .font(.caption)
-                            Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
                         }
                     }
                     .buttonStyle(.plain)
                     .focusEffectDisabled()
                     .cursorPointingHand()
                     Spacer()
-                    if ownBatchBytes > 0 {
-                        Button(Localized.string("trash.empty_own")) {
-                            Task { await service.emptyOwnTrashBatches() }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .cursorPointingHand()
-                        .help(Localized.string("trash.empty_own_help"))
-                    }
                     Text(Format.bytes(poolLayers.trashBytes))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if ownBatchBytes > 0 {
-                        Text(Localized.string("badge.cleanable"))
-                            .font(.caption2)
-                            .foregroundStyle(.green)
-                            .help(Localized.string("badge.tooltip.cleanable"))
-                    } else {
-                        Text(Localized.string("badge.manual"))
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
-                    }
-                }
-                if state.trashExpanded {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if !state.ourTrashNames.isEmpty {
-                            ForEach(state.ourTrashNames, id: \.self) { name in
-                                Text(verbatim: "· \(name)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        if state.trashOthersBytes > 0 {
-                            Text(Localized.string("trash.others", Format.bytes(state.trashOthersBytes)))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.leading, 14)
+                    Text(Localized.string("badge.manual"))
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
                 }
                 if !manualItems.isEmpty {
                     Button {
@@ -701,6 +668,8 @@ struct MenuBarView: View {
             .filter {
                 $0.reclaimableBytes > 0
                     && !CleanupRationale.make(for: $0).isManual
+                    && $0.recipeID != "own-trash-batches"
+                    && $0.recipeID != "trash"
             }
             .compactMap { item -> (ScanItem, EvaluatedAction)? in
             let action = evaluator.evaluate(

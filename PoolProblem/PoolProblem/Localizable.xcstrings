@@ -3469,22 +3469,6 @@
         }
       }
     },
-    "trash.others" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Others (moved manually): %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "其他（手动放入）：%@"
-          }
-        }
-      }
-    },
     "countdown.plan_trash" : {
       "localizations" : {
         "en" : {
@@ -3709,18 +3693,194 @@
         }
       }
     },
-    "trash.empty_own_help" : {
+    "trash.empty_consequence" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Permanently delete the batches this app moved to the Trash; items you put there manually are never touched."
+            "value" : "Consequences of emptying"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "永久删除本应用移入废纸篓的批次；你手动放入的内容不受影响。"
+            "value" : "清空的后果"
+          }
+        }
+      }
+    },
+    "trash.empty_consequence_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App batches (regenerable caches/build products) are permanently deleted, freeing space immediately; this cannot be undone. Items you added manually are never touched."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用批次（来自可再生缓存/构建产物）会被永久删除，立即释放空间且不可恢复；你手动放入的内容不受影响。"
+          }
+        }
+      }
+    },
+    "trash.empty_done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App batches emptied"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已清空本应用批次"
+          }
+        }
+      }
+    },
+    "trash.fda_note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Disk Access is required to list Trash contents."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要完全磁盘访问才能列出废纸篓内容。"
+          }
+        }
+      }
+    },
+    "trash.restore_consequence" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consequences of restoring"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复的后果"
+          }
+        }
+      }
+    },
+    "trash.restore_consequence_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App batches are moved back to their original locations based on cleanup records, occupying space again; this only applies to items this app cleaned."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用批次按清理记录恢复到原始位置，恢复后重新占用空间；仅对应用清理过的条目有效。"
+          }
+        }
+      }
+    },
+    "trash.restore_done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restored %d app batch(es)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已恢复 %d 个本应用批次"
+          }
+        }
+      }
+    },
+    "trash.restore_own" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore app batches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复本应用批次"
+          }
+        }
+      }
+    },
+    "trash.section_others" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Others (manually added)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他（手动放入）"
+          }
+        }
+      }
+    },
+    "trash.section_own_batches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App batches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用批次"
+          }
+        }
+      }
+    },
+    "trash.why_manual_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Trash is a safety staging area that gives you a chance to undo. The app never auto-cleans or restores it; emptying only affects app-created batches and never touches items you deleted manually."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "废纸篓是安全过渡区，给你挽回的机会。应用不会自动清理或恢复它；清空只作用于本应用批次，绝不会碰你手动删除的内容。"
+          }
+        }
+      }
+    },
+    "trash.why_manual_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why manual"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么需要手动"
           }
         }
       }

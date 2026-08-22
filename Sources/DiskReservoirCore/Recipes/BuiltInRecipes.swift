@@ -259,7 +259,8 @@ enum BuiltInRecipes {
             id: "own-trash-batches",
             name: "本应用回收站批次",
             category: .common,
-            safety: .safeWhileRunning,
+            // 废纸篓是特殊过渡区，不参与自动清理；只在废纸篓详情页手动管理
+            safety: .userConfirm,
             disposition: .deletePermanently,
             cleanability: .regenerable,
             defaultAgeDays: 1,

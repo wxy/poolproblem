@@ -341,30 +341,6 @@ final class AppService {
         state.weeklyCleanedBytes = entries
             .filter { $0.timestamp >= cutoff }
             .reduce(0) { $0 + $1.freedBytes }
-        // 废纸篓详情：只展示当前仍留在回收站里的、本应用清理过的项；
-        // 用户清空废纸篓后，这里不再显示历史清理记录。
-        var names: [String] = []
-        var ourBytes: Int64 = 0
-        for entry in entries where entry.disposition == .trash {
-            let stillPresent = !entry.trashPaths.isEmpty
-                ? entry.trashPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) }
-                : false
-            guard stillPresent else { continue }
-            let entryNames = entry.itemNames.isEmpty
-                ? entry.itemIDs.map(itemName(for:))
-                : entry.itemNames
-            for name in entryNames {
-                names.append(name)
-            }
-            ourBytes += entry.freedBytes
-        }
-        state.ourTrashNames = Array(names.prefix(20))
-        state.ourTrashBytes = ourBytes
-        // 废纸篓可能同时包含本机 ~/.Trash 与 iCloud Drive 废纸篓，合并计算
-        let totalTrashBytes = state.items
-            .filter { $0.recipeID == "trash" }
-            .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
-        state.trashOthersBytes = max(0, totalTrashBytes - ourBytes)
         state.keptItemIDs = loadConfig().keptItemIDs
         let sorted = snapshots.sorted { $0.volume.timestamp < $1.volume.timestamp }
         state.availableHistory = sorted.map { $0.volume.availableBytes }
@@ -562,7 +538,10 @@ final class AppService {
         // 详情页点击“立即清理”即用户确认：
         // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
         // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
-        guard item.cleanability != .displayOnly else {
+        guard item.cleanability != .displayOnly,
+              // 废纸篓是特殊过渡区：只通过废纸篓详情页管理，不走通用清理
+              item.recipeID != "own-trash-batches",
+              item.recipeID != "trash" else {
             return nil
         }
         switch item.safety {
@@ -637,6 +616,58 @@ final class AppService {
     func emptyOwnTrashBatches() async {
         _ = try? TrashBatchDeleter.emptyOwnBatches()
         await scanNow(autoClean: false)
+    }
+
+    /// 废纸篓当前一级条目（名称 + 大小），本应用批次优先。
+    /// 需要完全磁盘访问才能枚举；无权限时返回空列表。
+    func trashEntries() async -> [TrashEntry] {
+        let trash = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".Trash", isDirectory: true)
+        guard let children = try? FileManager.default.contentsOfDirectory(
+            at: trash,
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey]
+        ) else { return [] }
+        let work = Task.detached(priority: .utility) { () -> [TrashEntry] in
+            var entries: [TrashEntry] = []
+            for child in children {
+                let isDir = ((try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory) ?? false
+                let bytes: Int64
+                if isDir {
+                    bytes = POSIXDirectoryWalker.walk(
+                        url: child,
+                        itemID: "trash-entry",
+                        includeRecords: false
+                    )?.allocatedBytes ?? 0
+                } else {
+                    bytes = Int64((try? child.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+                }
+                entries.append(TrashEntry(
+                    name: child.lastPathComponent,
+                    bytes: bytes,
+                    isOwnBatch: child.lastPathComponent.hasPrefix(TrashBatchDeleter.batchNamePrefix)
+                ))
+            }
+            return entries.sorted { lhs, rhs in
+                if lhs.isOwnBatch != rhs.isOwnBatch { return lhs.isOwnBatch }
+                return lhs.bytes > rhs.bytes
+            }
+        }
+        return await work.value
+    }
+
+    /// 恢复仍留在废纸篓里的本应用批次（依据清理记录），返回成功恢复的条数。
+    @discardableResult
+    func restoreOwnTrashBatches() async -> Int {
+        let entries = (try? logStore.entries()) ?? []
+        var restoredCount = 0
+        for entry in entries where entry.disposition == .trash && !entry.trashPaths.isEmpty {
+            let stillPresent = entry.trashPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) }
+            guard stillPresent else { continue }
+            if await undoCleanup(entry) {
+                restoredCount += 1
+            }
+        }
+        return restoredCount
     }
 
     private static func processName(for item: ScanItem) -> String? {

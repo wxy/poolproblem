@@ -42,6 +42,14 @@ struct DevRootCandidate: Identifiable, Equatable {
     }
 }
 
+/// 废纸篓详情页里的一条一级条目。
+struct TrashEntry: Identifiable, Equatable {
+    let name: String
+    let bytes: Int64
+    let isOwnBatch: Bool
+    var id: String { name }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     @Published var availableBytes: Int64 = 0
@@ -62,10 +70,6 @@ final class AppState: ObservableObject {
     /// 正在删除的条目剩余比例：1 → 0，用于列表里大小逐渐缩小到消失的动画。
     @Published var deletingProgress: Double = 1
     @Published var lastCleanSummary: String?
-    @Published var trashExpanded = false
-    @Published var ourTrashNames: [String] = []
-    @Published var ourTrashBytes: Int64 = 0
-    @Published var trashOthersBytes: Int64 = 0
     @Published var detailItem: ScanItem?
     @Published var keptItemIDs: Set<String> = []
     @Published var availableHistory: [Int64] = []
