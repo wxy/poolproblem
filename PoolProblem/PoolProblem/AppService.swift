@@ -504,7 +504,7 @@ final class AppService {
                     activeProjectRootsByRecipe: activeRootsByRecipe,
                     idleHoursByRecipe: idleHours
                 ),
-                deleter: FileManagerFileDeleter(),
+                deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
             ).run(
@@ -578,13 +578,14 @@ final class AppService {
         state.cleanedItemIDs = []
         state.deletingItemID = item.id
         let logStore = self.logStore
+        let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
         let work = Task.detached(priority: .userInitiated) { () -> CleanOutcome? in
             do {
                 let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
                 var freedBytes: Int64 = 0
                 var trashPaths: [String] = []
                 for target in targetPaths {
-                    let deletion = try FileManagerFileDeleter().deleteReturningResult(
+                    let deletion = try deleter.deleteReturningResult(
                         url: URL(fileURLWithPath: target),
                         disposition: .trash
                     )
@@ -835,6 +836,15 @@ final class AppService {
         return "PoolProblem Cleanup \(sourceName) \(formatter.string(from: Date()))"
     }
 
+    /// 通用清理批次名：智能清理 / 水线自动清理 / 详情页一键清理共用。
+    /// 所有“移入废纸篓”都进批次文件夹，才能在废纸篓详情里被识别为本应用批次。
+    nonisolated private static func cleanupBatchName() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return "PoolProblem Cleanup \(formatter.string(from: Date()))"
+    }
+
     // MARK: - Proactive auto-clean
 
     private func upcomingAutoCleanPlans(result: ScanResult) -> [AutoCleanPlanItem] {
@@ -1058,7 +1068,7 @@ final class AppService {
                     activeProjectRootsByRecipe: activeRootsByRecipe,
                     idleHoursByRecipe: idleHours
                 ),
-                deleter: FileManagerFileDeleter(),
+                deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
             )
