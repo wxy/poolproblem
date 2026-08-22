@@ -637,6 +637,8 @@ final class AppService {
             state.deletingProgress = 1
             return nil
         }
+        // 乐观更新后立即重绘标尺；scanNow 会在重新扫描后再次刷新
+        refreshGaugeImage()
         await scanNow(autoClean: false)
         state.lastCleanSummary = Localized.string(
             "clean.summary",
@@ -1081,6 +1083,9 @@ final class AppService {
             state.autoCleanPlans = []
             refreshCleanLogEntries()
         }
+        // 自动清理会乐观更新可用空间/废纸篓/项目条目，立即重绘标尺，
+        // 避免菜单栏图标、水池标尺与状态卡在下次扫描前不一致。
+        refreshGaugeImage()
     }
 
     private func runAutoWaterlineClean(
@@ -1392,6 +1397,9 @@ final class AppService {
         existing.minimumCleanItemMB = config.minimumCleanItemMB
         existing.autoEmptyOwnTrashBatches = config.autoEmptyOwnTrashBatches
         writeConfig(existing)
+        // 水位线配置立即生效并重绘标尺（不再等下次扫描）
+        state.waterlineBytes = waterlineBytes()
+        refreshGaugeImage()
     }
 
     private func writeConfig(_ config: Config) {
