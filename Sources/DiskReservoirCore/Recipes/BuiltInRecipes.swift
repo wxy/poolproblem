@@ -256,6 +256,31 @@ enum BuiltInRecipes {
             }
         ),
         Recipe(
+            id: "own-trash-batches",
+            name: "本应用回收站批次",
+            category: .common,
+            // 废纸篓是特殊过渡区，不参与自动清理；只在废纸篓详情页手动管理
+            safety: .userConfirm,
+            disposition: .deletePermanently,
+            cleanability: .regenerable,
+            defaultAgeDays: 1,
+            minimumSizeMB: 10,
+            processName: nil,
+            resolvePaths: { _ in
+                // 只指向本应用自己创建的回收站批次目录（PoolProblem Cleanup …），
+                // 用户手动放入废纸篓的内容不在其中，因此可安全永久删除。
+                let trash = URL(fileURLWithPath: NSHomeDirectory())
+                    .appendingPathComponent(".Trash", isDirectory: true)
+                guard let children = try? FileManager.default.contentsOfDirectory(
+                    at: trash,
+                    includingPropertiesForKeys: [.isDirectoryKey]
+                ) else { return [] }
+                return children
+                    .filter { $0.lastPathComponent.hasPrefix(TrashBatchDeleter.batchNamePrefix) }
+                    .map(\.path)
+            }
+        ),
+        Recipe(
             id: "trash",
             name: "废纸篓",
             category: .common,

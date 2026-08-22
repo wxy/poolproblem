@@ -111,9 +111,15 @@ struct MenuBarView: View {
             }
 
             if let item = state.detailItem {
-                detailOverlay(item)
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
-                    .zIndex(12)
+                Group {
+                    if item.recipeID == "trash" {
+                        TrashDetailView(state: state, service: service)
+                    } else {
+                        detailOverlay(item)
+                    }
+                }
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
+                .zIndex(12)
             }
 
             if showNonCleanableInfo {
@@ -476,46 +482,30 @@ struct MenuBarView: View {
 
             Divider()
             VStack(alignment: .leading, spacing: 5) {
-                Button {
-                    withAnimation { state.trashExpanded.toggle() }
-                } label: {
-                    HStack(spacing: 5) {
-                        Rectangle()
-                            .fill(PoolLayers.trashColor)
-                            .frame(width: 9, height: 9)
-                        Text(Localized.string("recipe.trash"))
-                            .font(.caption)
-                        Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(Format.bytes(poolLayers.trashBytes))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(Localized.string("badge.manual"))
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
-                    }
-                }
-                .buttonStyle(.plain)
-                .focusEffectDisabled()
-                .cursorPointingHand()
-                if state.trashExpanded {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if !state.ourTrashNames.isEmpty {
-                            ForEach(state.ourTrashNames, id: \.self) { name in
-                                Text(verbatim: "· \(name)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                HStack(spacing: 5) {
+                    Button {
+                        if let trashItem = state.items.first(where: { $0.recipeID == "trash" }) {
+                            withAnimation(overlaySpring) { state.detailItem = trashItem }
                         }
-                        if state.trashOthersBytes > 0 {
-                            Text(Localized.string("trash.others", Format.bytes(state.trashOthersBytes)))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.trashColor)
+                                .frame(width: 9, height: 9)
+                            Text(Localized.string("recipe.trash"))
+                                .font(.caption)
                         }
                     }
-                    .padding(.leading, 14)
+                    .buttonStyle(.plain)
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
+                    Spacer()
+                    Text(Format.bytes(poolLayers.trashBytes))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(Localized.string("badge.manual"))
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
                 }
                 if !manualItems.isEmpty {
                     Button {
@@ -678,6 +668,8 @@ struct MenuBarView: View {
             .filter {
                 $0.reclaimableBytes > 0
                     && !CleanupRationale.make(for: $0).isManual
+                    && $0.recipeID != "own-trash-batches"
+                    && $0.recipeID != "trash"
             }
             .compactMap { item -> (ScanItem, EvaluatedAction)? in
             let action = evaluator.evaluate(

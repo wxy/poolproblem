@@ -53,6 +53,7 @@ enum PoolLayers {
                 $0.reclaimableBytes > 0
                     && !excludedItemIDs.contains($0.id)
                     && $0.recipeID != "trash"
+                    && $0.recipeID != "own-trash-batches"
                     // 应用无法删除的项（需手动在 Xcode/Finder 清理）不进入可清理图层
                     && !CleanupRationale.make(for: $0).isManual
             }
@@ -190,6 +191,7 @@ struct PoolTankView: View {
         // 进水管数量：每 4 个可清理项对应 1 根，最多 2 根
         let cleanableCount = cleanableItems.filter {
             $0.recipeID != "trash"
+                && $0.recipeID != "own-trash-batches"
                 && $0.reclaimableBytes > 0
                 && !CleanupRationale.make(for: $0).isManual
         }.count
@@ -213,18 +215,20 @@ struct PoolTankView: View {
                 name = Localized.string("pool.inflow")
             }
 
-            // 进水管自适应：正常情况下水平段固定在 yTop、竖直下口对准水位线；
-            // 当水位线升到管顶之上时，整根管上移，保持竖直段至少 minVerticalLen，
-            // 管口始终对准水位线，避免进水口被压缩成水下短桩。
+            // 进水管自适应：管口在“水面之上留出可见水流距离”，
+            // 让用户能看到从管口落到水面的水流；水面高于管顶时整根管上移，
+            // 保持竖直段至少 minVerticalLen，避免进水口被压缩成贴顶短桩。
             let minVerticalLen: CGFloat = 36
             let pipeTopMin: CGFloat = 40
+            let streamGap: CGFloat = 34
             let pipeTopY: CGFloat
             let pipeEndY: CGFloat
-            if waterlineY >= pipe.yTop + minVerticalLen {
+            let mouthY = max(surfaceY - streamGap, pipeTopMin)
+            if mouthY >= pipe.yTop + minVerticalLen {
                 pipeTopY = pipe.yTop
-                pipeEndY = waterlineY
+                pipeEndY = mouthY
             } else {
-                pipeEndY = max(waterlineY, pipeTopMin)
+                pipeEndY = mouthY
                 pipeTopY = max(pipeTopMin, pipeEndY - minVerticalLen)
             }
 
@@ -237,7 +241,7 @@ struct PoolTankView: View {
             )
             fillPipe(context: &context, rect: hRect, vertical: false)
 
-            // 垂直管段：下口与水线平齐（自适应后保持最小可见管长）
+            // 垂直管段：下口在水面上方（自适应后保持最小可见管长）
             let vRect = CGRect(
                 x: pipe.xElbow - pipeDiameter / 2,
                 y: pipeTopY - pipeDiameter / 2,
@@ -440,18 +444,10 @@ struct PoolTankView: View {
             context.stroke(still, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
         }
 
-        // 7) 右下角指标面板：放在 不可清理 + 手动清理 + 废纸篓 三段合计高度内，
-        // 避免面板被限制在不可清理段内、导致该段高度被撑高。
-        let combinedBandBytes = Double(nonCleanable) + Double(manualBytes) + Double(trashBytes)
-        let bandTopY = yForUsed(combinedBandBytes)
-        let bandBottomY = yForUsed(0)
-        let metricsPanelTop = min(
-            max((bandTopY + bandBottomY) / 2 - 62, bandTopY + 8),
-            bandBottomY - 132
-        )
+        // 7) 右下角指标面板：固定位置（不随水面/底部带移动），避开进水管即可。
         let metricsPanelRect = CGRect(
             x: 232,
-            y: metricsPanelTop,
+            y: size.height - 148,
             width: 150,
             height: 124
         )

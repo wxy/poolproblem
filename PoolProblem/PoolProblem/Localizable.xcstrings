@@ -1953,7 +1953,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "点击出水管执行智能清理"
+            "value" : "点击出水管立即清理"
           }
         }
       }
@@ -3469,22 +3469,6 @@
         }
       }
     },
-    "trash.others" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Others (moved manually): %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "其他（手动放入）：%@"
-          }
-        }
-      }
-    },
     "countdown.plan_trash" : {
       "localizations" : {
         "en" : {
@@ -3673,6 +3657,246 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配方"
+          }
+        }
+      }
+    },
+    "recipe.own-trash-batches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Trash Batches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用回收站批次"
+          }
+        }
+      }
+    },
+    "trash.empty_own" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty all"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部清空"
+          }
+        }
+      }
+    },
+    "trash.empty_consequence" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consequences of emptying"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空的后果"
+          }
+        }
+      }
+    },
+    "trash.empty_consequence_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App batches (regenerable caches/build products) are permanently deleted, freeing space immediately; this cannot be undone. Items you added manually are never touched."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用批次（来自可再生缓存/构建产物）会被永久删除，立即释放空间且不可恢复；你手动放入的内容不受影响。"
+          }
+        }
+      }
+    },
+    "trash.empty_done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App batches emptied"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已清空本应用批次"
+          }
+        }
+      }
+    },
+    "trash.fda_note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Full Disk Access is required to list Trash contents."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要完全磁盘访问才能列出废纸篓内容。"
+          }
+        }
+      }
+    },
+    "trash.restore_consequence" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Consequences of restoring"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复的后果"
+          }
+        }
+      }
+    },
+    "trash.restore_consequence_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App batches are moved back to their original locations based on cleanup records, occupying space again; this only applies to items this app cleaned."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用批次按清理记录恢复到原始位置，恢复后重新占用空间；仅对应用清理过的条目有效。"
+          }
+        }
+      }
+    },
+    "trash.restore_done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restored %d app batch(es)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已恢复 %d 个本应用批次"
+          }
+        }
+      }
+    },
+    "trash.restore_own" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore all"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部恢复"
+          }
+        }
+      }
+    },
+    "trash.section_others" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Others (manually added)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他（手动放入）"
+          }
+        }
+      }
+    },
+    "trash.section_own_batches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App batches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用批次"
+          }
+        }
+      }
+    },
+    "trash.why_manual_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Trash is a safety staging area that gives you a chance to undo. The app never auto-cleans or restores it; emptying only affects app-created batches and never touches items you deleted manually."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "废纸篓是安全过渡区，给你挽回的机会。应用不会自动清理或恢复它；清空只作用于本应用批次，绝不会碰你手动删除的内容。"
+          }
+        }
+      }
+    },
+    "trash.why_manual_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why manual"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为什么需要手动"
+          }
+        }
+      }
+    },
+    "trash.manual_note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content you deleted manually must be emptied by you in the Trash."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动删除的内容需要用户自己在废纸篓里清空。"
           }
         }
       }

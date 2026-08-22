@@ -12,10 +12,13 @@ final class AppService {
     private let fseventMonitor = FSEventMonitor()
     private let activityMonitor = FSEventMonitor(latency: 5.0)
     private let devActivityTracker = DevActivityTracker()
+    private let cleanupCoordinator: CleanupCoordinator
     private var dirtyTracker = DirtyTracker(trackedPaths: [])
     private var incrementalTimer: Timer?
     private var lastIncrementalAt = Date.distantPast
     private var lastDevDiscoveryAt = Date.distantPast
+    private var watchedPaths: Set<String>?
+    private var watchedActivityRoots: Set<String>?
     private let automationEnabled: Bool
     private var timer: Timer?
     private var lowSpaceNotified = false
@@ -41,6 +44,9 @@ final class AppService {
         self.growthLedgerStore = GrowthLedgerStore(paths: paths)
         self.recipeSuggestionStore = RecipeSuggestionStore(paths: paths)
         self.automationEnabled = automationEnabled
+        self.cleanupCoordinator = CleanupCoordinator { [weak state] cleaning in
+            state?.isCleaning = cleaning
+        }
     }
 
     func start() {
@@ -91,7 +97,6 @@ final class AppService {
     func scanNow(autoClean: Bool = true) async {
         guard !state.isScanning else { return }
         state.isScanning = true
-        state.isCleaning = false
         state.lastCleanSummary = nil
         defer { state.isScanning = false }
         let paths = self.paths
@@ -156,15 +161,34 @@ final class AppService {
         let recipePaths = activeRecipes()
             .flatMap { $0.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: home)) }
         let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
-        let paths = Array(Set(recipePaths + roots))
-        dirtyTracker = DirtyTracker(trackedPaths: paths)
-        fseventMonitor.start(paths: paths) { [weak self] eventPaths in
+        // 只排除系统级 /Library（模拟器挂载卷等只读系统卷）；
+        // ~/Library 保留监听——构建缓存/日志等快速增长源需要增量识别。
+        // FileID 噪音已通过“目录级事件”根治，与监听范围无关。
+        let paths = Array(Set(recipePaths + roots)).filter { path in
+            !path.hasPrefix("/Library/")
+        }
+        // 写活动识别：只监听开发目录（避免整个家目录触发 FileID 噪音）
+        let devRoots = loadConfig().devRoots
+        let activityRoots = ([home + "/develop"] + devRoots)
+            .filter { FileManager.default.fileExists(atPath: $0) }
+        // FSEvents 流创建/启动时，CarbonCore 会对 /dev/fsevents（devfs）做一次
+        // 必然失败的 FileID 查找（FileIDTreeGetVRefNumForDevice(-892394663) → -36）。
+        // 这是良性系统噪音、无法消除；路径没变时不重建流，避免每轮扫描都爆发一次。
+        // 注意：必须按 Set 比较——Array(Set(...)) 的元素顺序不稳定，
+        // 用数组比较会导致守卫永远不生效、每轮扫描都重建流。
+        let pathSet = Set(paths)
+        let activitySet = Set(activityRoots)
+        guard pathSet != watchedPaths || activitySet != watchedActivityRoots else { return }
+        watchedPaths = pathSet
+        watchedActivityRoots = activitySet
+        let sortedPaths = pathSet.sorted()
+        dirtyTracker = DirtyTracker(trackedPaths: sortedPaths)
+        fseventMonitor.start(paths: sortedPaths) { [weak self] eventPaths in
             Task { @MainActor [weak self] in
                 self?.handleEvents(eventPaths)
             }
         }
-        // 写活动识别：监听家目录，命中可再生产物名即记录"项目根 + 最近活动"
-        activityMonitor.start(paths: [home]) { [devActivityTracker] eventPaths in
+        activityMonitor.start(paths: activitySet.sorted()) { [devActivityTracker] eventPaths in
             devActivityTracker.record(eventPaths: eventPaths)
         }
         incrementalTimer?.invalidate()
@@ -341,30 +365,6 @@ final class AppService {
         state.weeklyCleanedBytes = entries
             .filter { $0.timestamp >= cutoff }
             .reduce(0) { $0 + $1.freedBytes }
-        // 废纸篓详情：只展示当前仍留在回收站里的、本应用清理过的项；
-        // 用户清空废纸篓后，这里不再显示历史清理记录。
-        var names: [String] = []
-        var ourBytes: Int64 = 0
-        for entry in entries where entry.disposition == .trash {
-            let stillPresent = !entry.trashPaths.isEmpty
-                ? entry.trashPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) }
-                : false
-            guard stillPresent else { continue }
-            let entryNames = entry.itemNames.isEmpty
-                ? entry.itemIDs.map(itemName(for:))
-                : entry.itemNames
-            for name in entryNames {
-                names.append(name)
-            }
-            ourBytes += entry.freedBytes
-        }
-        state.ourTrashNames = Array(names.prefix(20))
-        state.ourTrashBytes = ourBytes
-        // 废纸篓可能同时包含本机 ~/.Trash 与 iCloud Drive 废纸篓，合并计算
-        let totalTrashBytes = state.items
-            .filter { $0.recipeID == "trash" }
-            .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
-        state.trashOthersBytes = max(0, totalTrashBytes - ourBytes)
         state.keptItemIDs = loadConfig().keptItemIDs
         let sorted = snapshots.sorted { $0.volume.timestamp < $1.volume.timestamp }
         state.availableHistory = sorted.map { $0.volume.availableBytes }
@@ -447,12 +447,21 @@ final class AppService {
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {
+        if dryRun {
+            return await smartCleanInternal(dryRun: true)
+        }
+        // 真正清理走协调器串行执行，避免与自动清理并发
+        return await cleanupCoordinator.run { [weak self] in
+            await self?.smartCleanInternal(dryRun: false) ?? nil
+        }
+    }
+
+    private func smartCleanInternal(dryRun: Bool) async -> CleanOutcome? {
         let config = loadConfig()
         let logStore = self.logStore
         let cloneRatios = config.cloneRatios
         let state = self.state
         if !dryRun {
-            state.isCleaning = true
             state.cleanedItemIDs = []
             // 全量扫描期间没有逐项回调，先闪动预计第一个处理的小项，避免毫无反馈
             state.deletingItemID = firstPlannedItem()?.id
@@ -507,7 +516,7 @@ final class AppService {
                     activeProjectRootsByRecipe: activeRootsByRecipe,
                     idleHoursByRecipe: idleHours
                 ),
-                deleter: FileManagerFileDeleter(),
+                deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
             ).run(
@@ -541,10 +550,8 @@ final class AppService {
             return (result, outcome)
         }
         guard let (_, outcome) = await work.value, let outcome else {
-            state.isCleaning = false
             return nil
         }
-        state.isCleaning = false
         if !outcome.calibrationUpdates.isEmpty {
             var updated = config
             for (recipeID, ratio) in outcome.calibrationUpdates {
@@ -559,10 +566,19 @@ final class AppService {
     }
 
     func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
+        return await cleanupCoordinator.run { [weak self] in
+            await self?.cleanItemSerialized(item) ?? nil
+        }
+    }
+
+    private func cleanItemSerialized(_ item: ScanItem) async -> CleanOutcome? {
         // 详情页点击“立即清理”即用户确认：
         // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
         // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
-        guard item.cleanability != .displayOnly else {
+        guard item.cleanability != .displayOnly,
+              // 废纸篓是特殊过渡区：只通过废纸篓详情页管理，不走通用清理
+              item.recipeID != "own-trash-batches",
+              item.recipeID != "trash" else {
             return nil
         }
         switch item.safety {
@@ -574,17 +590,17 @@ final class AppService {
                 return nil
             }
         }
-        state.isCleaning = true
         state.cleanedItemIDs = []
         state.deletingItemID = item.id
         let logStore = self.logStore
+        let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
         let work = Task.detached(priority: .userInitiated) { () -> CleanOutcome? in
             do {
                 let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
                 var freedBytes: Int64 = 0
                 var trashPaths: [String] = []
                 for target in targetPaths {
-                    let deletion = try FileManagerFileDeleter().deleteReturningResult(
+                    let deletion = try deleter.deleteReturningResult(
                         url: URL(fileURLWithPath: target),
                         disposition: .trash
                     )
@@ -617,12 +633,12 @@ final class AppService {
             }
         }
         guard let outcome = await work.value else {
-            state.isCleaning = false
             state.deletingItemID = nil
             state.deletingProgress = 1
             return nil
         }
-        state.isCleaning = false
+        // 乐观更新后立即重绘标尺；scanNow 会在重新扫描后再次刷新
+        refreshGaugeImage()
         await scanNow(autoClean: false)
         state.lastCleanSummary = Localized.string(
             "clean.summary",
@@ -631,6 +647,113 @@ final class AppService {
         )
         state.cleanCelebrationID += 1
         return outcome
+    }
+
+    /// 清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）。
+    func emptyOwnTrashBatches() async {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.emptyOwnTrashBatchesSerialized()
+        }
+    }
+
+    private func emptyOwnTrashBatchesSerialized() async {
+        _ = try? TrashBatchDeleter.emptyOwnBatches()
+        await scanNow(autoClean: false)
+    }
+
+    /// 清空单个本应用批次。
+    func emptyOwnBatch(named name: String) async {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.emptyOwnBatchSerialized(named: name)
+        }
+    }
+
+    private func emptyOwnBatchSerialized(named name: String) async {
+        try? TrashBatchDeleter.emptyBatch(named: name)
+        await scanNow(autoClean: false)
+    }
+
+    /// 恢复单个本应用批次（依据清理记录），返回恢复的条目数。
+    @discardableResult
+    func restoreOwnBatch(named name: String) async -> Int {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.restoreOwnBatchSerialized(named: name) ?? 0
+        }
+    }
+
+    private func restoreOwnBatchSerialized(named name: String) async -> Int {
+        let batchPath = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".Trash", isDirectory: true)
+            .appendingPathComponent(name, isDirectory: true)
+            .path
+        let entries = (try? logStore.entries()) ?? []
+        var restoredCount = 0
+        for entry in entries where entry.disposition == .trash {
+            let inBatch = entry.trashPaths.contains { $0.hasPrefix(batchPath) }
+            guard inBatch else { continue }
+            if await undoCleanup(entry) {
+                restoredCount += 1
+            }
+        }
+        return restoredCount
+    }
+
+    /// 废纸篓当前一级条目（名称 + 大小），本应用批次优先。
+    /// 需要完全磁盘访问才能枚举；无权限时返回空列表。
+    func trashEntries() async -> [TrashEntry] {
+        let trash = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".Trash", isDirectory: true)
+        guard let children = try? FileManager.default.contentsOfDirectory(
+            at: trash,
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey]
+        ) else { return [] }
+        let work = Task.detached(priority: .utility) { () -> [TrashEntry] in
+            var entries: [TrashEntry] = []
+            for child in children {
+                let isDir = ((try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory) ?? false
+                let bytes: Int64
+                if isDir {
+                    bytes = POSIXDirectoryWalker.walk(
+                        url: child,
+                        itemID: "trash-entry",
+                        includeRecords: false
+                    )?.allocatedBytes ?? 0
+                } else {
+                    bytes = Int64((try? child.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+                }
+                entries.append(TrashEntry(
+                    name: child.lastPathComponent,
+                    bytes: bytes,
+                    isOwnBatch: child.lastPathComponent.hasPrefix(TrashBatchDeleter.batchNamePrefix)
+                ))
+            }
+            return entries.sorted { lhs, rhs in
+                if lhs.isOwnBatch != rhs.isOwnBatch { return lhs.isOwnBatch }
+                return lhs.bytes > rhs.bytes
+            }
+        }
+        return await work.value
+    }
+
+    /// 恢复仍留在废纸篓里的本应用批次（依据清理记录），返回成功恢复的条数。
+    @discardableResult
+    func restoreOwnTrashBatches() async -> Int {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.restoreOwnTrashBatchesSerialized() ?? 0
+        }
+    }
+
+    private func restoreOwnTrashBatchesSerialized() async -> Int {
+        let entries = (try? logStore.entries()) ?? []
+        var restoredCount = 0
+        for entry in entries where entry.disposition == .trash && !entry.trashPaths.isEmpty {
+            let stillPresent = entry.trashPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) }
+            guard stillPresent else { continue }
+            if await undoCleanup(entry) {
+                restoredCount += 1
+            }
+        }
+        return restoredCount
     }
 
     private static func processName(for item: ScanItem) -> String? {
@@ -750,6 +873,15 @@ final class AppService {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
         return "PoolProblem Cleanup \(sourceName) \(formatter.string(from: Date()))"
+    }
+
+    /// 通用清理批次名：智能清理 / 水线自动清理 / 详情页一键清理共用。
+    /// 所有“移入废纸篓”都进批次文件夹，才能在废纸篓详情里被识别为本应用批次。
+    nonisolated private static func cleanupBatchName() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return "PoolProblem Cleanup \(formatter.string(from: Date()))"
     }
 
     // MARK: - Proactive auto-clean
@@ -872,7 +1004,13 @@ final class AppService {
     }
 
     private func maybeAutoClean(result: ScanResult) async {
-        guard !state.isCleaning else { return }
+        guard !cleanupCoordinator.isCleaning else { return }
+        await cleanupCoordinator.run { [weak self] in
+            await self?.performAutoClean(result: result)
+        }
+    }
+
+    private func performAutoClean(result: ScanResult) async {
         let config = loadConfig()
         let thresholds = thresholds(for: config)
         let minItemBytes = minimumCleanItemBytes(config)
@@ -945,6 +1083,9 @@ final class AppService {
             state.autoCleanPlans = []
             refreshCleanLogEntries()
         }
+        // 自动清理会乐观更新可用空间/废纸篓/项目条目，立即重绘标尺，
+        // 避免菜单栏图标、水池标尺与状态卡在下次扫描前不一致。
+        refreshGaugeImage()
     }
 
     private func runAutoWaterlineClean(
@@ -956,7 +1097,6 @@ final class AppService {
         minimumItemBytes: Int64? = nil,
         itemGrowthRates: [String: Double] = [:]
     ) async -> CleanOutcome? {
-        state.isCleaning = true
         state.cleanedItemIDs = []
         state.deletingItemID = firstAutoPlannedItem(
             scan: scan,
@@ -975,7 +1115,7 @@ final class AppService {
                     activeProjectRootsByRecipe: activeRootsByRecipe,
                     idleHoursByRecipe: idleHours
                 ),
-                deleter: FileManagerFileDeleter(),
+                deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
             )
@@ -1013,11 +1153,9 @@ final class AppService {
             )
         }
         guard let outcome = await work.value else {
-            state.isCleaning = false
             state.deletingItemID = nil
             return nil
         }
-        state.isCleaning = false
         state.deletingItemID = nil
         return outcome
     }
@@ -1028,7 +1166,6 @@ final class AppService {
     ) async -> ProgressiveCleanupOutcome {
         let policies = progressivePolicies(config: config, emergency: emergency)
         guard !policies.isEmpty else { return .empty }
-        state.isCleaning = true
         let logStore = self.logStore
         let work = Task.detached(priority: .utility) { () -> ProgressiveCleanupOutcome in
             var entries: [CleanLogEntry] = []
@@ -1058,7 +1195,6 @@ final class AppService {
             )
         }
         let outcome = await work.value
-        state.isCleaning = false
         if outcome.freedBytes > 0 {
             let trashFreed = outcome.entries
                 .filter { $0.disposition == .trash }
@@ -1261,6 +1397,9 @@ final class AppService {
         existing.minimumCleanItemMB = config.minimumCleanItemMB
         existing.autoEmptyOwnTrashBatches = config.autoEmptyOwnTrashBatches
         writeConfig(existing)
+        // 水位线配置立即生效并重绘标尺（不再等下次扫描）
+        state.waterlineBytes = waterlineBytes()
+        refreshGaugeImage()
     }
 
     private func writeConfig(_ config: Config) {

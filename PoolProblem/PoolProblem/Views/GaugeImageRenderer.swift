@@ -18,23 +18,6 @@ enum GaugeImageRenderer {
 
     // MARK: - 绘制
 
-    /// E 字型标尺的单位间隔（红黑两区统一，保证 E 大小一致）：
-    /// 步长在"整尺密度可读（≤32 格）"与"红区至少 3 格"之间取平衡；
-    /// 两者冲突（跨度极大、水线很小）时优先保证红区可读，宁可使整尺略密。
-    private static func gaugeStepGB(_ span: Double, waterlineGB: Double) -> Double {
-        let maxRedStep = waterlineGB / 3
-        for candidate in [2.0, 5.0, 10.0, 20.0, 50.0, 100.0] {
-            if span / candidate <= 32 && candidate <= maxRedStep {
-                return candidate
-            }
-        }
-        // 冲突兜底：取不超过红区目标步长的最大候选，尽量保持红区 3 格
-        for candidate in [100.0, 50.0, 20.0, 10.0, 5.0, 2.0] where candidate <= maxRedStep {
-            return candidate
-        }
-        return 100
-    }
-
     /// 标尺数值归整显示：≥1G 显示整数 G（如 235G），否则显示整数 M。
     private static func gaugeLabel(_ value: Double) -> String {
         let gb = value / 1_000_000_000
@@ -91,12 +74,16 @@ enum GaugeImageRenderer {
         )
 
         // 红黑区统一步长：保证上下 E 大小一致
-        let stepGB = gaugeStepGB(span, waterlineGB: Double(waterlineBytes) / 1_000_000_000)
+        let stepGB = GaugeScale.stepGB(
+            spanBytes: span,
+            usableHeight: Double(layout.usableHeight)
+        )
         let stepBytes = stepGB * 1_000_000_000
         let floorValue = max(0, layout.windowBottomBytes)
         var index = 0
 
         func drawEBlock(
+            context: inout GraphicsContext,
             topY: CGFloat,
             bottomY: CGFloat,
             value: Double,
@@ -123,7 +110,7 @@ enum GaugeImageRenderer {
                 text: gaugeLabel(value),
                 at: CGPoint(
                     x: isLeft ? rightColumn.midX : leftColumn.midX,
-                    y: (topY + bottomY) / 2
+                    y: min(max((topY + bottomY) / 2, gaugeRect.minY + 4), gaugeRect.maxY - 4)
                 ),
                 color: red
                     ? Color(red: 0.85, green: 0.14, blue: 0.10)
@@ -138,41 +125,49 @@ enum GaugeImageRenderer {
         // “整 E 数量”恰好等于水位线。
         // 标尺刻度以“已用空间”为坐标：水线对应的已用值 = total - waterlineBytes，
         // 红色区（保留空间）位于该值之上，黑色区在其之下。
-        let waterlineUsed = total - Double(waterlineBytes)
-        var redBottomValue = waterlineUsed
-        while redBottomValue + stepBytes <= total {
-            let rawTopY = yForUsed(redBottomValue + stepBytes)
-            let rawBottomY = yForUsed(redBottomValue)
-            guard rawBottomY - rawTopY > 2,
-                  rawBottomY > gaugeRect.minY,
-                  rawTopY < gaugeRect.maxY else { break }
-            drawEBlock(
-                topY: max(rawTopY, gaugeRect.minY),
-                bottomY: min(rawBottomY, gaugeRect.maxY),
-                value: redBottomValue + stepBytes,
-                red: true,
-                index: index
-            )
-            index += 1
-            redBottomValue += stepBytes
-        }
+        // 红/黑分界与水线精确对齐：红色区从水线向上逐块，黑色区从水线向下逐块。
+        // 块按原始尺寸绘制并由标尺路径裁剪——顶部/底部不完整的块看起来是
+        // “被切断的 E”，而不是在可见区里重新压缩成的方块。
+        context.drawLayer { layer in
+            layer.clip(to: gaugePath)
+            let waterlineUsed = total - Double(waterlineBytes)
+            var redBottomValue = waterlineUsed
+            while redBottomValue + stepBytes <= total {
+                let rawTopY = yForUsed(redBottomValue + stepBytes)
+                let rawBottomY = yForUsed(redBottomValue)
+                guard rawBottomY - rawTopY > 2,
+                      rawBottomY > gaugeRect.minY,
+                      rawTopY < gaugeRect.maxY else { break }
+                drawEBlock(
+                    context: &layer,
+                    topY: rawTopY,
+                    bottomY: rawBottomY,
+                    value: redBottomValue + stepBytes,
+                    red: true,
+                    index: index
+                )
+                index += 1
+                redBottomValue += stepBytes
+            }
 
-        var blackTopValue = waterlineUsed
-        while blackTopValue > floorValue {
-            let rawTopY = yForUsed(blackTopValue)
-            let rawBottomY = yForUsed(max(floorValue, blackTopValue - stepBytes))
-            guard rawBottomY - rawTopY > 2,
-                  rawBottomY > gaugeRect.minY,
-                  rawTopY < gaugeRect.maxY else { break }
-            drawEBlock(
-                topY: max(rawTopY, gaugeRect.minY),
-                bottomY: min(rawBottomY, gaugeRect.maxY),
-                value: blackTopValue,
-                red: false,
-                index: index
-            )
-            index += 1
-            blackTopValue -= stepBytes
+            var blackTopValue = waterlineUsed
+            while blackTopValue > floorValue {
+                let rawTopY = yForUsed(blackTopValue)
+                let rawBottomY = yForUsed(max(floorValue, blackTopValue - stepBytes))
+                guard rawBottomY - rawTopY > 2,
+                      rawBottomY > gaugeRect.minY,
+                      rawTopY < gaugeRect.maxY else { break }
+                drawEBlock(
+                    context: &layer,
+                    topY: rawTopY,
+                    bottomY: rawBottomY,
+                    value: blackTopValue,
+                    red: false,
+                    index: index
+                )
+                index += 1
+                blackTopValue -= stepBytes
+            }
         }
 
         // 水线标记（跨越标尺的实线）与徽标

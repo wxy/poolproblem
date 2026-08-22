@@ -6,6 +6,15 @@ private struct MockDeleter: FileDeleting {
     func delete(url: URL, disposition: CleanDisposition) throws -> Int64 { 1024 }
 }
 
+private final class ThrowingFirstDeleter: FileDeleting, @unchecked Sendable {
+    var calls = 0
+    func delete(url: URL, disposition: CleanDisposition) throws -> Int64 {
+        calls += 1
+        if calls == 1 { throw CocoaError(.fileWriteNoPermission) }
+        return 1024
+    }
+}
+
 private final class RecordingDeleter: FileDeleting, @unchecked Sendable {
     let lock = NSLock()
     var urls: [URL] = []
@@ -387,6 +396,41 @@ final class CaptureBox: @unchecked Sendable {
     )
     #expect(capture.will == ["fresh"])
     #expect(outcome.entries.first?.disposition == .deletePermanently)
+}
+
+@Test func cleanerContinuesAfterSingleItemFailure() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-clean-continue-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let paths = StoragePaths(baseURL: dir)
+    let logStore = CleanLogStore(paths: paths)
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    func item(_ id: String) -> ScanItem {
+        ScanItem(
+            id: id, recipeID: "npm-cache", name: id, path: "/tmp/\(id)",
+            category: .packageManager, safety: .safeWhileRunning, disposition: .deletePermanently,
+            sizeBytes: 1_000_000_000, allocatedBytes: 1_000_000_000, reclaimableBytes: 1_000_000_000,
+            fileCount: 1, lastModified: now.addingTimeInterval(-40 * 86_400)
+        )
+    }
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000_000, availableBytes: 10_000_000, timestamp: now),
+        items: [item("first"), item("second")],
+        records: [],
+        volumeURL: URL(fileURLWithPath: "/")
+    )
+    let deleter = ThrowingFirstDeleter()
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: deleter,
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: logStore,
+        availableBytesReader: { _ in 20_000_000 },
+        now: { now }
+    )
+    let outcome = try cleaner.run(scan: scan, config: .default, waterlineBytes: 30_000_000)
+    #expect(outcome.entries.count == 1)
+    #expect(outcome.entries[0].itemIDs == ["second"])
 }
 
 @Test func cleanabilityGuardDowngradesPermanentDeleteToTrash() {
