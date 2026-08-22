@@ -12,6 +12,7 @@ final class AppService {
     private let fseventMonitor = FSEventMonitor()
     private let activityMonitor = FSEventMonitor(latency: 5.0)
     private let devActivityTracker = DevActivityTracker()
+    private let cleanupCoordinator: CleanupCoordinator
     private var dirtyTracker = DirtyTracker(trackedPaths: [])
     private var incrementalTimer: Timer?
     private var lastIncrementalAt = Date.distantPast
@@ -43,6 +44,9 @@ final class AppService {
         self.growthLedgerStore = GrowthLedgerStore(paths: paths)
         self.recipeSuggestionStore = RecipeSuggestionStore(paths: paths)
         self.automationEnabled = automationEnabled
+        self.cleanupCoordinator = CleanupCoordinator { [weak state] cleaning in
+            state?.isCleaning = cleaning
+        }
     }
 
     func start() {
@@ -93,7 +97,6 @@ final class AppService {
     func scanNow(autoClean: Bool = true) async {
         guard !state.isScanning else { return }
         state.isScanning = true
-        state.isCleaning = false
         state.lastCleanSummary = nil
         defer { state.isScanning = false }
         let paths = self.paths
@@ -444,12 +447,21 @@ final class AppService {
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {
+        if dryRun {
+            return await smartCleanInternal(dryRun: true)
+        }
+        // 真正清理走协调器串行执行，避免与自动清理并发
+        return await cleanupCoordinator.run { [weak self] in
+            await self?.smartCleanInternal(dryRun: false) ?? nil
+        }
+    }
+
+    private func smartCleanInternal(dryRun: Bool) async -> CleanOutcome? {
         let config = loadConfig()
         let logStore = self.logStore
         let cloneRatios = config.cloneRatios
         let state = self.state
         if !dryRun {
-            state.isCleaning = true
             state.cleanedItemIDs = []
             // 全量扫描期间没有逐项回调，先闪动预计第一个处理的小项，避免毫无反馈
             state.deletingItemID = firstPlannedItem()?.id
@@ -538,10 +550,8 @@ final class AppService {
             return (result, outcome)
         }
         guard let (_, outcome) = await work.value, let outcome else {
-            state.isCleaning = false
             return nil
         }
-        state.isCleaning = false
         if !outcome.calibrationUpdates.isEmpty {
             var updated = config
             for (recipeID, ratio) in outcome.calibrationUpdates {
@@ -556,6 +566,12 @@ final class AppService {
     }
 
     func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
+        return await cleanupCoordinator.run { [weak self] in
+            await self?.cleanItemSerialized(item) ?? nil
+        }
+    }
+
+    private func cleanItemSerialized(_ item: ScanItem) async -> CleanOutcome? {
         // 详情页点击“立即清理”即用户确认：
         // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
         // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
@@ -574,7 +590,6 @@ final class AppService {
                 return nil
             }
         }
-        state.isCleaning = true
         state.cleanedItemIDs = []
         state.deletingItemID = item.id
         let logStore = self.logStore
@@ -618,12 +633,10 @@ final class AppService {
             }
         }
         guard let outcome = await work.value else {
-            state.isCleaning = false
             state.deletingItemID = nil
             state.deletingProgress = 1
             return nil
         }
-        state.isCleaning = false
         await scanNow(autoClean: false)
         state.lastCleanSummary = Localized.string(
             "clean.summary",
@@ -636,12 +649,24 @@ final class AppService {
 
     /// 清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）。
     func emptyOwnTrashBatches() async {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.emptyOwnTrashBatchesSerialized()
+        }
+    }
+
+    private func emptyOwnTrashBatchesSerialized() async {
         _ = try? TrashBatchDeleter.emptyOwnBatches()
         await scanNow(autoClean: false)
     }
 
     /// 清空单个本应用批次。
     func emptyOwnBatch(named name: String) async {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.emptyOwnBatchSerialized(named: name)
+        }
+    }
+
+    private func emptyOwnBatchSerialized(named name: String) async {
         try? TrashBatchDeleter.emptyBatch(named: name)
         await scanNow(autoClean: false)
     }
@@ -649,6 +674,12 @@ final class AppService {
     /// 恢复单个本应用批次（依据清理记录），返回恢复的条目数。
     @discardableResult
     func restoreOwnBatch(named name: String) async -> Int {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.restoreOwnBatchSerialized(named: name) ?? 0
+        }
+    }
+
+    private func restoreOwnBatchSerialized(named name: String) async -> Int {
         let batchPath = URL(fileURLWithPath: NSHomeDirectory())
             .appendingPathComponent(".Trash", isDirectory: true)
             .appendingPathComponent(name, isDirectory: true)
@@ -705,6 +736,12 @@ final class AppService {
     /// 恢复仍留在废纸篓里的本应用批次（依据清理记录），返回成功恢复的条数。
     @discardableResult
     func restoreOwnTrashBatches() async -> Int {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.restoreOwnTrashBatchesSerialized() ?? 0
+        }
+    }
+
+    private func restoreOwnTrashBatchesSerialized() async -> Int {
         let entries = (try? logStore.entries()) ?? []
         var restoredCount = 0
         for entry in entries where entry.disposition == .trash && !entry.trashPaths.isEmpty {
@@ -965,7 +1002,13 @@ final class AppService {
     }
 
     private func maybeAutoClean(result: ScanResult) async {
-        guard !state.isCleaning else { return }
+        guard !cleanupCoordinator.isCleaning else { return }
+        await cleanupCoordinator.run { [weak self] in
+            await self?.performAutoClean(result: result)
+        }
+    }
+
+    private func performAutoClean(result: ScanResult) async {
         let config = loadConfig()
         let thresholds = thresholds(for: config)
         let minItemBytes = minimumCleanItemBytes(config)
@@ -1049,7 +1092,6 @@ final class AppService {
         minimumItemBytes: Int64? = nil,
         itemGrowthRates: [String: Double] = [:]
     ) async -> CleanOutcome? {
-        state.isCleaning = true
         state.cleanedItemIDs = []
         state.deletingItemID = firstAutoPlannedItem(
             scan: scan,
@@ -1106,11 +1148,9 @@ final class AppService {
             )
         }
         guard let outcome = await work.value else {
-            state.isCleaning = false
             state.deletingItemID = nil
             return nil
         }
-        state.isCleaning = false
         state.deletingItemID = nil
         return outcome
     }
@@ -1121,7 +1161,6 @@ final class AppService {
     ) async -> ProgressiveCleanupOutcome {
         let policies = progressivePolicies(config: config, emergency: emergency)
         guard !policies.isEmpty else { return .empty }
-        state.isCleaning = true
         let logStore = self.logStore
         let work = Task.detached(priority: .utility) { () -> ProgressiveCleanupOutcome in
             var entries: [CleanLogEntry] = []
@@ -1151,7 +1190,6 @@ final class AppService {
             )
         }
         let outcome = await work.value
-        state.isCleaning = false
         if outcome.freedBytes > 0 {
             let trashFreed = outcome.entries
                 .filter { $0.disposition == .trash }
