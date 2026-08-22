@@ -156,15 +156,24 @@ final class AppService {
         let recipePaths = activeRecipes()
             .flatMap { $0.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: home)) }
         let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
-        let paths = Array(Set(recipePaths + roots))
+        // 收窄监听范围：排除系统/模拟器挂载卷、~/Library 与 ~/.Trash ——
+        // 这些区域会被自动清理高频改动，且包含只读挂载卷，正是 FileID 噪音的来源。
+        let paths = Array(Set(recipePaths + roots)).filter { path in
+            !path.hasPrefix("/Library/")
+                && !path.hasPrefix(home + "/Library/")
+                && !path.hasPrefix(home + "/.Trash")
+        }
         dirtyTracker = DirtyTracker(trackedPaths: paths)
         fseventMonitor.start(paths: paths) { [weak self] eventPaths in
             Task { @MainActor [weak self] in
                 self?.handleEvents(eventPaths)
             }
         }
-        // 写活动识别：监听家目录，命中可再生产物名即记录"项目根 + 最近活动"
-        activityMonitor.start(paths: [home]) { [devActivityTracker] eventPaths in
+        // 写活动识别：只监听开发目录（避免整个家目录触发 FileID 噪音）
+        let devRoots = loadConfig().devRoots
+        let activityRoots = ([home + "/develop"] + devRoots)
+            .filter { FileManager.default.fileExists(atPath: $0) }
+        activityMonitor.start(paths: activityRoots) { [devActivityTracker] eventPaths in
             devActivityTracker.record(eventPaths: eventPaths)
         }
         incrementalTimer?.invalidate()
