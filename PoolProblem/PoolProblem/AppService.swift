@@ -16,8 +16,8 @@ final class AppService {
     private var incrementalTimer: Timer?
     private var lastIncrementalAt = Date.distantPast
     private var lastDevDiscoveryAt = Date.distantPast
-    private var watchedPaths: [String]?
-    private var watchedActivityRoots: [String]?
+    private var watchedPaths: Set<String>?
+    private var watchedActivityRoots: Set<String>?
     private let automationEnabled: Bool
     private var timer: Timer?
     private var lowSpaceNotified = false
@@ -171,16 +171,21 @@ final class AppService {
         // FSEvents 流创建/启动时，CarbonCore 会对 /dev/fsevents（devfs）做一次
         // 必然失败的 FileID 查找（FileIDTreeGetVRefNumForDevice(-892394663) → -36）。
         // 这是良性系统噪音、无法消除；路径没变时不重建流，避免每轮扫描都爆发一次。
-        guard paths != watchedPaths || activityRoots != watchedActivityRoots else { return }
-        watchedPaths = paths
-        watchedActivityRoots = activityRoots
-        dirtyTracker = DirtyTracker(trackedPaths: paths)
-        fseventMonitor.start(paths: paths) { [weak self] eventPaths in
+        // 注意：必须按 Set 比较——Array(Set(...)) 的元素顺序不稳定，
+        // 用数组比较会导致守卫永远不生效、每轮扫描都重建流。
+        let pathSet = Set(paths)
+        let activitySet = Set(activityRoots)
+        guard pathSet != watchedPaths || activitySet != watchedActivityRoots else { return }
+        watchedPaths = pathSet
+        watchedActivityRoots = activitySet
+        let sortedPaths = pathSet.sorted()
+        dirtyTracker = DirtyTracker(trackedPaths: sortedPaths)
+        fseventMonitor.start(paths: sortedPaths) { [weak self] eventPaths in
             Task { @MainActor [weak self] in
                 self?.handleEvents(eventPaths)
             }
         }
-        activityMonitor.start(paths: activityRoots) { [devActivityTracker] eventPaths in
+        activityMonitor.start(paths: activitySet.sorted()) { [devActivityTracker] eventPaths in
             devActivityTracker.record(eventPaths: eventPaths)
         }
         incrementalTimer?.invalidate()
