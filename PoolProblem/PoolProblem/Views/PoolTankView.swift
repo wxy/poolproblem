@@ -444,18 +444,10 @@ struct PoolTankView: View {
             context.stroke(still, with: .color(.white.opacity(0.9)), lineWidth: 1.5)
         }
 
-        // 7) 右下角指标面板：放在 不可清理 + 手动清理 + 废纸篓 三段合计高度内，
-        // 避免面板被限制在不可清理段内、导致该段高度被撑高。
-        let combinedBandBytes = Double(nonCleanable) + Double(manualBytes) + Double(trashBytes)
-        let bandTopY = yForUsed(combinedBandBytes)
-        let bandBottomY = yForUsed(0)
-        let metricsPanelTop = min(
-            max((bandTopY + bandBottomY) / 2 - 62, bandTopY + 8),
-            min(bandBottomY - 132, size.height - 132)
-        )
+        // 7) 右下角指标面板：固定位置（不随水面/底部带移动），避开进水管即可。
         let metricsPanelRect = CGRect(
             x: 232,
-            y: metricsPanelTop,
+            y: size.height - 148,
             width: 150,
             height: 124
         )
