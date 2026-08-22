@@ -13,9 +13,8 @@ import DiskReservoirCore
 ///
 /// 水位尺比例（字节/像素）的放大规则：
 /// - 底部可见预算：可清理 + 手动 + 废纸篓 必须完整可见，不可清理项只保留
-///   `sedimentPeekBytes` 的沉底窥视（深部沉淀直接切出窗口下缘）；
-/// - 指标卡片：窗口切入底部三段时，可见带高度仍 ≥ `bottomReserveHeight`；
-///   底部带完全可见时，跨度过大也不会把卡片压扁。
+///   `sedimentPeekBytes` 的沉底窥视（深部沉淀直接切出窗口下缘）。
+/// 指标卡片不参与刻度约束：它不要求一定在水面以下，跨度过大时自然随带移动。
 struct PoolWindowLayout {
     let totalBytes: Int64
     let availableBytes: Int64
@@ -28,8 +27,6 @@ struct PoolWindowLayout {
     let topInset: CGFloat
     let surfaceFraction: Double
     let waterlineFraction: Double
-    /// 底部三段（不可清理+手动+废纸篓）至少占用的像素高度（供指标卡片放置）。
-    let bottomReserveHeight: CGFloat
     /// 不可清理项保留的“沉底窥视”字节量；更深部分允许被窗口下缘切掉。
     let sedimentPeekBytes: Int64
     /// 水线最低位置（顶部以下的最小比例），保证红区可读。
@@ -48,7 +45,6 @@ struct PoolWindowLayout {
         topInset: CGFloat = 26,
         surfaceFraction: Double = 0.50,
         waterlineFraction: Double = 0.24,
-        bottomReserveHeight: CGFloat = 150,
         sedimentPeekBytes: Int64 = 10_000_000_000,
         minimumWaterlineFraction: Double = 0.15,
         minimumSpanBytes: Int64 = 10_000_000_000
@@ -64,7 +60,6 @@ struct PoolWindowLayout {
         self.topInset = topInset
         self.surfaceFraction = surfaceFraction
         self.waterlineFraction = waterlineFraction
-        self.bottomReserveHeight = bottomReserveHeight
         self.sedimentPeekBytes = sedimentPeekBytes
         self.minimumWaterlineFraction = minimumWaterlineFraction
         self.minimumSpanBytes = minimumSpanBytes
@@ -99,16 +94,6 @@ struct PoolWindowLayout {
         // 不可清理只保留沉底窥视（水面以下可见字节 = (1 - surfaceFraction) × span）
         let visibleBottom = Double(cleanableTotalBytes + manualBytes + trashBytes + sedimentPeekBytes)
         span = max(span, visibleBottom / max(1 - surfaceFraction, 0.001))
-        // 指标卡片下限：窗口切入底部带时，可见带高度仍 ≥ bottomReserveHeight
-        let cardFraction = Double(bottomReserveHeight) / usable
-        let cardDenominator = max((1 - surfaceFraction) - cardFraction, 0.001)
-        span = max(span, Double(cleanableTotalBytes) / cardDenominator)
-        // 指标卡片上限：底部带完全可见时，跨度过大也会把带压扁
-        let bandBytes = Double(nonCleanableBytes + manualBytes + trashBytes)
-        if bandBytes > 0 {
-            let maxSpanForCard = bandBytes * usable / Double(max(bottomReserveHeight, 1))
-            span = min(span, max(maxSpanForCard, Double(minimumSpanBytes)))
-        }
         return max(span, Double(minimumSpanBytes))
     }
 

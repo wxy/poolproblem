@@ -28,10 +28,6 @@ private let total = Int64(1_000_000_000_000)  // 1TB
     #expect(layout.spanBytes <= 2 * (9_000_000_000 + 28_000_000_000 + 7_000_000_000 + 10_000_000_000))
     // 深部沉淀被切出窗口：windowBottom > 0
     #expect(layout.windowBottomBytes > 0)
-    // 指标卡片所在底部带仍保留 bottomReserveHeight（150pt）的可视高度
-    let bandBytes = 168_000_000_000 + 28_000_000_000 + 7_000_000_000
-    let bandHeight = layout.y(forBytes: 0) - layout.y(forBytes: Double(bandBytes))
-    #expect(bandHeight >= 145)
 }
 
 @MainActor
@@ -46,14 +42,10 @@ private let total = Int64(1_000_000_000_000)  // 1TB
         trashBytes: 10_000_000_000,
         height: 560
     )
-    // 磁盘大部分空闲：卡片预留把跨度压回合理范围，水面保持居中；
-    // 底部带完全可见时高度不被压到卡片之下
-    #expect(layout.spanBytes >= 160_000_000_000)
+    // 磁盘大部分空闲：跨度由水面-水线距离反解，指标卡片不再约束刻度
+    #expect(layout.spanBytes > 0)
     #expect(abs(layout.surfaceY - 293) < 0.5)
     #expect(layout.waterlineY < layout.surfaceY)
-    let bandBytes = 100_000_000_000 + 20_000_000_000 + 10_000_000_000
-    let bandHeight = layout.y(forBytes: 0) - layout.y(forBytes: Double(bandBytes))
-    #expect(bandHeight >= 145)
 }
 
 @MainActor
