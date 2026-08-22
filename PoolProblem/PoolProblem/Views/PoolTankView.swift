@@ -215,18 +215,19 @@ struct PoolTankView: View {
                 name = Localized.string("pool.inflow")
             }
 
-            // 进水管自适应：正常情况下水平段固定在 yTop、竖直下口对准水位线；
-            // 当水位线升到管顶之上时，整根管上移，保持竖直段至少 minVerticalLen，
-            // 管口始终对准水位线，避免进水口被压缩成水下短桩。
+            // 进水管自适应：管口对准水面（水流进池处），
+            // 水面高于管顶时整根管上移，保持竖直段至少 minVerticalLen，
+            // 避免进水口被压缩成贴顶短桩。
             let minVerticalLen: CGFloat = 36
             let pipeTopMin: CGFloat = 40
             let pipeTopY: CGFloat
             let pipeEndY: CGFloat
-            if waterlineY >= pipe.yTop + minVerticalLen {
+            let mouthY = max(surfaceY - 6, pipeTopMin)
+            if mouthY >= pipe.yTop + minVerticalLen {
                 pipeTopY = pipe.yTop
-                pipeEndY = waterlineY
+                pipeEndY = mouthY
             } else {
-                pipeEndY = max(waterlineY, pipeTopMin)
+                pipeEndY = mouthY
                 pipeTopY = max(pipeTopMin, pipeEndY - minVerticalLen)
             }
 
@@ -239,7 +240,7 @@ struct PoolTankView: View {
             )
             fillPipe(context: &context, rect: hRect, vertical: false)
 
-            // 垂直管段：下口与水线平齐（自适应后保持最小可见管长）
+            // 垂直管段：下口在水面上方（自适应后保持最小可见管长）
             let vRect = CGRect(
                 x: pipe.xElbow - pipeDiameter / 2,
                 y: pipeTopY - pipeDiameter / 2,

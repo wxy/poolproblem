@@ -131,6 +131,7 @@ struct PoolWindowLayout {
         let fraction = (windowTopBytes - value) / spanBytes
         return topInset + CGFloat(min(max(fraction, 0), 1)) * usableHeight
     }
+
 }
 
 extension PoolWindowLayout {

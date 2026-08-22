@@ -18,23 +18,6 @@ enum GaugeImageRenderer {
 
     // MARK: - 绘制
 
-    /// E 字型标尺的单位间隔（红黑两区统一，保证 E 大小一致）：
-    /// 步长在"整尺密度可读（≤32 格）"与"红区至少 3 格"之间取平衡；
-    /// 两者冲突（跨度极大、水线很小）时优先保证红区可读，宁可使整尺略密。
-    private static func gaugeStepGB(_ span: Double, waterlineGB: Double) -> Double {
-        let maxRedStep = waterlineGB / 3
-        for candidate in [2.0, 5.0, 10.0, 20.0, 50.0, 100.0] {
-            if span / candidate <= 32 && candidate <= maxRedStep {
-                return candidate
-            }
-        }
-        // 冲突兜底：取不超过红区目标步长的最大候选，尽量保持红区 3 格
-        for candidate in [100.0, 50.0, 20.0, 10.0, 5.0, 2.0] where candidate <= maxRedStep {
-            return candidate
-        }
-        return 100
-    }
-
     /// 标尺数值归整显示：≥1G 显示整数 G（如 235G），否则显示整数 M。
     private static func gaugeLabel(_ value: Double) -> String {
         let gb = value / 1_000_000_000
@@ -91,7 +74,10 @@ enum GaugeImageRenderer {
         )
 
         // 红黑区统一步长：保证上下 E 大小一致
-        let stepGB = gaugeStepGB(span, waterlineGB: Double(waterlineBytes) / 1_000_000_000)
+        let stepGB = GaugeScale.stepGB(
+            spanBytes: span,
+            usableHeight: Double(layout.usableHeight)
+        )
         let stepBytes = stepGB * 1_000_000_000
         let floorValue = max(0, layout.windowBottomBytes)
         var index = 0
