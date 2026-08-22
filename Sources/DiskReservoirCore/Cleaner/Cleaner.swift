@@ -135,16 +135,22 @@ public struct Cleaner: Sendable {
             let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
             var itemFreed: Int64 = 0
             var trashPaths: [String] = []
+            var failed = false
             for target in targetPaths {
-                let deletion = try deleter.deleteReturningResult(
+                // 单项失败（如 TCC 权限）不影响后续项：尽力而为，继续清理其他目标
+                guard let deletion = try? deleter.deleteReturningResult(
                     url: URL(fileURLWithPath: target),
                     disposition: disposition
-                )
+                ) else {
+                    failed = true
+                    break
+                }
                 itemFreed += deletion.freedBytes
                 if let trash = deletion.resultingURL?.path {
                     trashPaths.append(trash)
                 }
             }
+            guard !failed else { continue }
             onItemCleaned?(item.id, disposition)
             freedTotal += itemFreed
             deficit -= itemFreed

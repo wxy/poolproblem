@@ -3676,6 +3676,54 @@
           }
         }
       }
+    },
+    "recipe.own-trash-batches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Trash Batches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用回收站批次"
+          }
+        }
+      }
+    },
+    "trash.empty_own" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty app batches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空本应用批次"
+          }
+        }
+      }
+    },
+    "trash.empty_own_help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Permanently delete the batches this app moved to the Trash; items you put there manually are never touched."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永久删除本应用移入废纸篓的批次；你手动放入的内容不受影响。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

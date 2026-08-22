@@ -412,6 +412,11 @@ struct MenuBarView: View {
                     && CleanupRationale.make(for: $0).isManual
             }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
+        // 本应用自己创建的回收站批次：可安全清空（不影响用户手动放入的内容）
+        let ownBatchItems = state.items.filter {
+            $0.recipeID == "own-trash-batches" && $0.reclaimableBytes > 0
+        }
+        let ownBatchBytes = ownBatchItems.reduce(Int64(0)) { $0 + $1.reclaimableBytes }
         return VStack(alignment: .leading, spacing: 5) {
             Text(Localized.string("section.cleanable_count", poolLayers.layers.count))
                 .font(.caption)
@@ -476,30 +481,48 @@ struct MenuBarView: View {
 
             Divider()
             VStack(alignment: .leading, spacing: 5) {
-                Button {
-                    withAnimation { state.trashExpanded.toggle() }
-                } label: {
-                    HStack(spacing: 5) {
-                        Rectangle()
-                            .fill(PoolLayers.trashColor)
-                            .frame(width: 9, height: 9)
-                        Text(Localized.string("recipe.trash"))
-                            .font(.caption)
-                        Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
+                HStack(spacing: 5) {
+                    Button {
+                        withAnimation { state.trashExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.trashColor)
+                                .frame(width: 9, height: 9)
+                            Text(Localized.string("recipe.trash"))
+                                .font(.caption)
+                            Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
+                    Spacer()
+                    if ownBatchBytes > 0 {
+                        Button(Localized.string("trash.empty_own")) {
+                            Task { await service.emptyOwnTrashBatches() }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .cursorPointingHand()
+                        .help(Localized.string("trash.empty_own_help"))
+                    }
+                    Text(Format.bytes(poolLayers.trashBytes))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if ownBatchBytes > 0 {
+                        Text(Localized.string("badge.cleanable"))
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(Format.bytes(poolLayers.trashBytes))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.green)
+                            .help(Localized.string("badge.tooltip.cleanable"))
+                    } else {
                         Text(Localized.string("badge.manual"))
                             .font(.caption2)
                             .foregroundStyle(.blue)
                     }
                 }
-                .buttonStyle(.plain)
-                .focusEffectDisabled()
-                .cursorPointingHand()
                 if state.trashExpanded {
                     VStack(alignment: .leading, spacing: 3) {
                         if !state.ourTrashNames.isEmpty {

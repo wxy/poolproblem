@@ -633,6 +633,12 @@ final class AppService {
         return outcome
     }
 
+    /// 清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）。
+    func emptyOwnTrashBatches() async {
+        _ = try? TrashBatchDeleter.emptyOwnBatches()
+        await scanNow(autoClean: false)
+    }
+
     private static func processName(for item: ScanItem) -> String? {
         switch item.category {
         case .xcode:
