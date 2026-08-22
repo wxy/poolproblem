@@ -192,8 +192,9 @@ enum GaugeImageRenderer {
         guard rect.height > 0 else { return }
         let inset = rect
         guard inset.height > 0 else { return }
-        let stemWidth = inset.width * 0.34
-        let armHeight = max(5, inset.height * 0.18)
+        // 更纤细的 E 字形：被窗口顶截断时仍能看出是半个 E，而不是一团红色方块
+        let stemWidth = inset.width * 0.20
+        let armHeight = max(4, inset.height * 0.10)
         let stemRect: CGRect
         if mirrored {
             stemRect = CGRect(

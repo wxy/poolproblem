@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import CoreGraphics
+import DiskReservoirCore
 @testable import PoolProblem
 
 private let total = Int64(1_000_000_000_000)  // 1TB
@@ -42,9 +43,32 @@ private let total = Int64(1_000_000_000_000)  // 1TB
         trashBytes: 10_000_000_000,
         height: 560
     )
-    // 磁盘大部分空闲：跨度由水面-水线距离反解，指标卡片不再约束刻度
-    #expect(layout.spanBytes > 0)
-    #expect(abs(layout.surfaceY - 293) < 0.5)
+    // 磁盘大部分空闲：水面下移（0.85）以让红区保持可读，指标卡片不再约束刻度
+    #expect(abs(layout.surfaceY - (26 + 0.85 * 534)) < 0.5)
+    #expect(layout.waterlineY < layout.surfaceY)
+    let usable = 534.0
+    let redZonePx = Double(layout.waterlineBytes) / layout.spanBytes * usable
+    #expect(redZonePx >= 3 * GaugeScale.minEPixels)
+}
+
+@MainActor
+@Test func layoutMovesSurfaceDownToKeepRedZoneVisible() {
+    let layout = PoolWindowLayout(
+        totalBytes: 250_000_000_000,
+        availableBytes: 100_000_000_000,
+        waterlineBytes: 30_000_000_000,
+        cleanableTotalBytes: 5_000_000_000,
+        nonCleanableBytes: 120_000_000_000,
+        manualBytes: 0,
+        trashBytes: 0,
+        height: 560
+    )
+    // 可用空间大：水面不能固定在正中，需下移到 0.8，保证红区 3 个 E 完整可见
+    #expect(abs(layout.surfaceFraction - 0.8) < 0.001)
+    #expect(abs(layout.surfaceY - (26 + 0.8 * 534)) < 0.5)
+    let usable = 534.0
+    let redZonePx = Double(layout.waterlineBytes) / layout.spanBytes * usable
+    #expect(redZonePx >= 3 * GaugeScale.minEPixels)
     #expect(layout.waterlineY < layout.surfaceY)
 }
 
