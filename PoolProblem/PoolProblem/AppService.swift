@@ -16,6 +16,8 @@ final class AppService {
     private var incrementalTimer: Timer?
     private var lastIncrementalAt = Date.distantPast
     private var lastDevDiscoveryAt = Date.distantPast
+    private var watchedPaths: [String]?
+    private var watchedActivityRoots: [String]?
     private let automationEnabled: Bool
     private var timer: Timer?
     private var lowSpaceNotified = false
@@ -162,16 +164,22 @@ final class AppService {
         let paths = Array(Set(recipePaths + roots)).filter { path in
             !path.hasPrefix("/Library/")
         }
+        // 写活动识别：只监听开发目录（避免整个家目录触发 FileID 噪音）
+        let devRoots = loadConfig().devRoots
+        let activityRoots = ([home + "/develop"] + devRoots)
+            .filter { FileManager.default.fileExists(atPath: $0) }
+        // FSEvents 流创建/启动时，CarbonCore 会对 /dev/fsevents（devfs）做一次
+        // 必然失败的 FileID 查找（FileIDTreeGetVRefNumForDevice(-892394663) → -36）。
+        // 这是良性系统噪音、无法消除；路径没变时不重建流，避免每轮扫描都爆发一次。
+        guard paths != watchedPaths || activityRoots != watchedActivityRoots else { return }
+        watchedPaths = paths
+        watchedActivityRoots = activityRoots
         dirtyTracker = DirtyTracker(trackedPaths: paths)
         fseventMonitor.start(paths: paths) { [weak self] eventPaths in
             Task { @MainActor [weak self] in
                 self?.handleEvents(eventPaths)
             }
         }
-        // 写活动识别：只监听开发目录（避免整个家目录触发 FileID 噪音）
-        let devRoots = loadConfig().devRoots
-        let activityRoots = ([home + "/develop"] + devRoots)
-            .filter { FileManager.default.fileExists(atPath: $0) }
         activityMonitor.start(paths: activityRoots) { [devActivityTracker] eventPaths in
             devActivityTracker.record(eventPaths: eventPaths)
         }
