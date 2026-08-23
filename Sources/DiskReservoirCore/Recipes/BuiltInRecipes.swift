@@ -155,6 +155,7 @@ enum BuiltInRecipes {
             minimumSizeMB: 100,
             processName: nil,
             protectedChildren: ["org.swift.swiftpm", "node-gyp"],
+            cleanByChildOnly: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Caches"]
             }

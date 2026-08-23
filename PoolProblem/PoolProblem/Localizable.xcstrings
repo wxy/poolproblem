@@ -3900,6 +3900,22 @@
           }
         }
       }
+    },
+    "detail.by_child_hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cache is cleaned per subdirectory by automatic maintenance, never as a whole directory."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此缓存由自动维护按子目录渐进清理，不会整目录删除。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

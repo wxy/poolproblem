@@ -85,6 +85,8 @@ public struct Cleaner: Sendable {
             .filter { !config.whitelistPaths.contains($0.path) }
             // 应用无法删除的手动项（Xcode/Finder）不进入自动/强制清理候选
             .filter { !CleanupRationale.make(for: $0).isManual }
+            // 仅按子目录清理的项（如 ~/Library/Caches）绝不整项删除
+            .filter { !$0.cleanByChildOnly }
             .filter { item in
                 minimumItemBytes.map { item.reclaimableBytes >= $0 } ?? true
             }

@@ -668,6 +668,7 @@ struct MenuBarView: View {
             .filter {
                 $0.reclaimableBytes > 0
                     && !CleanupRationale.make(for: $0).isManual
+                    && !$0.cleanByChildOnly
                     && $0.recipeID != "own-trash-batches"
                     && $0.recipeID != "trash"
             }
@@ -811,6 +812,7 @@ struct MenuBarView: View {
 
             HStack(spacing: 10) {
                 if item.cleanability != .displayOnly,
+                          !item.cleanByChildOnly,
                           !rationale.isManual,
                           item.safety == .safeWhileRunning
                           || item.safety == .userConfirm
@@ -830,6 +832,10 @@ struct MenuBarView: View {
                     .controlSize(.large)
                     .focusEffectDisabled()
                     .cursorPointingHand()
+                } else if item.cleanByChildOnly {
+                    Text(Localized.string("detail.by_child_hint"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 } else if item.safety == .requiresQuit {
                     if let appName = processName(for: item) {
                         Text(Localized.string("detail.clean_requires_quit_app", appName))

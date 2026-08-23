@@ -71,6 +71,7 @@ import Foundation
     #expect(recipes["core-simulator-devices"]?.cleanability == .trashOnly)
     #expect(recipes["deriveddata"]?.disposition == .trash)
     #expect(recipes["library-caches"]?.protectedChildren == ["org.swift.swiftpm", "node-gyp"])
+    #expect(recipes["library-caches"]?.cleanByChildOnly == true)
     #expect(recipes["simulator-runtimes"]?.usageProbe == .simulatorRuntimeLastBooted)
     #expect(recipes["simulator-dyld-cache"]?.usageProbe == .simulatorRuntimeLastBooted)
 }

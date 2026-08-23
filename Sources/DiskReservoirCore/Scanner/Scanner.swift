@@ -77,7 +77,8 @@ public struct Scanner: Sendable {
                     allocatedBytes: allocated,
                     reclaimableBytes: allocated,
                     fileCount: count,
-                    lastModified: effectiveLastModified(modified, recipe: recipe, path: path)
+                    lastModified: effectiveLastModified(modified, recipe: recipe, path: path),
+                    cleanByChildOnly: recipe.cleanByChildOnly
                 ))
                 records.append(contentsOf: files)
             }

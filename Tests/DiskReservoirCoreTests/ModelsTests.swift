@@ -8,12 +8,14 @@ import Foundation
         path: "/tmp/x", category: .xcode, safety: .safeWhileRunning,
         disposition: .deletePermanently, sizeBytes: 100, allocatedBytes: 80,
         reclaimableBytes: 10, fileCount: 3, lastModified: nil,
-        cleanability: .trashOnly
+        cleanability: .trashOnly,
+        cleanByChildOnly: true
     )
     let data = try JSONEncoder().encode(item)
     let decoded = try JSONDecoder().decode(ScanItem.self, from: data)
     #expect(decoded == item)
     #expect(decoded.cleanability == .trashOnly)
+    #expect(decoded.cleanByChildOnly == true)
 }
 
 @Test func scanItemDecodesLegacyJSONWithoutCleanability() throws {

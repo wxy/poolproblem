@@ -578,7 +578,9 @@ final class AppService {
         guard item.cleanability != .displayOnly,
               // 废纸篓是特殊过渡区：只通过废纸篓详情页管理，不走通用清理
               item.recipeID != "own-trash-batches",
-              item.recipeID != "trash" else {
+              item.recipeID != "trash",
+              // 仅按子目录清理的项（如应用缓存）不整项删除
+              !item.cleanByChildOnly else {
             return nil
         }
         switch item.safety {
@@ -1070,7 +1072,7 @@ final class AppService {
 
         // 开关开启时：清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）
         if config.autoEmptyOwnTrashBatches {
-            try? TrashBatchDeleter.emptyOwnBatches()
+            _ = try? TrashBatchDeleter.emptyOwnBatches()
         }
 
         if totalCount > 0 {

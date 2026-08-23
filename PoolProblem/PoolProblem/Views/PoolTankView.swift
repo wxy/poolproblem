@@ -153,7 +153,6 @@ struct PoolTankView: View {
         let manualBytes = made.model.manualBytes
         let trashBytes = made.model.trashBytes
         let surfaceY = layout.surfaceY
-        let waterlineY = layout.waterlineY
         let yForUsed: (Double) -> CGFloat = { layout.y(forBytes: $0) }
 
         // 全程只设置一次裁剪

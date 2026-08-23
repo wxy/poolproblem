@@ -37,7 +37,7 @@ final class CleanupCoordinator {
             await previous.value
             return await job()
         }
-        chain = Task { await task.value }
+        chain = Task { _ = await task.value }
         return await task.value
     }
 }
