@@ -10,36 +10,22 @@ struct AutoCleanPlanItem: Identifiable {
     let progress: Double
 }
 
-/// 增长洞察中检测到的"疑似开发目录"，等待用户确认加入监控。
-enum DevRootSource {
-    case growth      // 增长量
-    case discovery   // 主动发现的可重建内容
-    case activity    // FSEvents 写活动（近期活跃）
+/// 废纸篓详情页里的一条一级条目。
+struct TrashEntry: Identifiable, Equatable {
+    let name: String
+    let bytes: Int64
+    let isOwnBatch: Bool
+    var id: String { name }
 }
 
-struct DevRootCandidate: Identifiable, Equatable {
+/// 应用缓存详情页里的一级子目录条目。
+struct CacheChildEntry: Identifiable, Equatable {
+    let name: String
     let path: String
-    let marker: String
-    /// 展示的字节数：含义由 source 决定（增长/当前占用/可清理约）。
     let bytes: Int64
-    let source: DevRootSource
-    /// 归并到父目录的建议：列出其下项目名（供"含 N 个项目"展示）。
-    let childNames: [String]
+    let ratePerDay: Double
+    let isProtected: Bool
     var id: String { path }
-
-    init(
-        path: String,
-        marker: String,
-        bytes: Int64,
-        source: DevRootSource,
-        childNames: [String] = []
-    ) {
-        self.path = path
-        self.marker = marker
-        self.bytes = bytes
-        self.source = source
-        self.childNames = childNames
-    }
 }
 
 @MainActor
@@ -62,10 +48,6 @@ final class AppState: ObservableObject {
     /// 正在删除的条目剩余比例：1 → 0，用于列表里大小逐渐缩小到消失的动画。
     @Published var deletingProgress: Double = 1
     @Published var lastCleanSummary: String?
-    @Published var trashExpanded = false
-    @Published var ourTrashNames: [String] = []
-    @Published var ourTrashBytes: Int64 = 0
-    @Published var trashOthersBytes: Int64 = 0
     @Published var detailItem: ScanItem?
     @Published var keptItemIDs: Set<String> = []
     @Published var availableHistory: [Int64] = []
@@ -85,7 +67,6 @@ final class AppState: ObservableObject {
     /// 菜单栏面板"增长洞察"明细 sheet 开关。
     @Published var showGrowthInsights = false
     /// 待确认的开发目录建议（增长洞察中发现，等待用户加入/忽略）。
-    @Published var pendingDevRoots: [DevRootCandidate] = []
 }
 
 enum Format {

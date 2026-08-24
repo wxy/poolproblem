@@ -34,11 +34,25 @@ public enum POSIXDirectoryWalker {
     /// 根目录无法打开时返回 `nil`；深层子目录打开失败时跳过该子树。
     /// `includeRecords` 为 false 时跳过逐文件记录，只做汇总——
     /// 用于废纸篓这类“只展示大小、不参与清理”的目录，速度提升明显。
-    public static func walk(url: URL, itemID: String, includeRecords: Bool = true) -> WalkResult? {
+    /// `skipSubtrees`：命中（目录路径完全匹配）的子树不统计，
+    /// 用于排除已被更具体配方单独管理的子目录，避免总量重复计数。
+    public static func walk(
+        url: URL,
+        itemID: String,
+        includeRecords: Bool = true,
+        skipSubtrees: Set<String> = []
+    ) -> WalkResult? {
         guard let dir = opendir(url.path) else { return nil }
         defer { closedir(dir) }
         var result = WalkResult()
-        walkLevel(dir: dir, baseURL: url, itemID: itemID, includeRecords: includeRecords, result: &result)
+        walkLevel(
+            dir: dir,
+            baseURL: url,
+            itemID: itemID,
+            includeRecords: includeRecords,
+            skipSubtrees: skipSubtrees,
+            result: &result
+        )
         return result
     }
 
@@ -47,6 +61,7 @@ public enum POSIXDirectoryWalker {
         baseURL: URL,
         itemID: String,
         includeRecords: Bool,
+        skipSubtrees: Set<String>,
         result: inout WalkResult
     ) {
         while let entry = readdir(dir) {
@@ -60,12 +75,14 @@ public enum POSIXDirectoryWalker {
                 // 与 FileManager 版本一致：符号链接不计入
                 continue
             case S_IFDIR:
+                if skipSubtrees.contains(childURL.path) { continue }
                 if let sub = opendir(childURL.path) {
                     walkLevel(
                         dir: sub,
                         baseURL: childURL,
                         itemID: itemID,
                         includeRecords: includeRecords,
+                        skipSubtrees: skipSubtrees,
                         result: &result
                     )
                     closedir(sub)

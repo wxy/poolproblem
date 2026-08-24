@@ -111,9 +111,17 @@ struct MenuBarView: View {
             }
 
             if let item = state.detailItem {
-                detailOverlay(item)
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
-                    .zIndex(12)
+                Group {
+                    if item.recipeID == "trash" {
+                        TrashDetailView(state: state, service: service)
+                    } else if item.cleanByChildOnly {
+                        CacheChildrenView(state: state, service: service, item: item)
+                    } else {
+                        detailOverlay(item)
+                    }
+                }
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
+                .zIndex(12)
             }
 
             if showNonCleanableInfo {
@@ -225,15 +233,6 @@ struct MenuBarView: View {
                             .padding(.vertical, 1)
                             .background(Capsule().fill(Color.accentColor))
                     }
-                    if pendingDevRootCount > 0 {
-                        Text(verbatim: "\(pendingDevRootCount)")
-                            .font(.caption2)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.orange))
-                            .help(Localized.string("devroot.section_title"))
-                    }
                     Spacer()
                     Text(Localized.string("insights.view"))
                         .font(.caption2)
@@ -264,8 +263,7 @@ struct MenuBarView: View {
                 }
             }
             if state.growthInsights.isEmpty
-                && state.candidateRecipes.filter({ $0.status == .pending }).isEmpty
-                && state.pendingDevRoots.isEmpty {
+                && state.candidateRecipes.filter({ $0.status == .pending }).isEmpty {
                 Text(Localized.string("insights.empty"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -275,10 +273,6 @@ struct MenuBarView: View {
 
     private var pendingCandidateCount: Int {
         state.candidateRecipes.filter { $0.status == .pending }.count
-    }
-
-    private var pendingDevRootCount: Int {
-        state.pendingDevRoots.count
     }
 
     private var autoCleanPlanList: some View {
@@ -476,46 +470,30 @@ struct MenuBarView: View {
 
             Divider()
             VStack(alignment: .leading, spacing: 5) {
-                Button {
-                    withAnimation { state.trashExpanded.toggle() }
-                } label: {
-                    HStack(spacing: 5) {
-                        Rectangle()
-                            .fill(PoolLayers.trashColor)
-                            .frame(width: 9, height: 9)
-                        Text(Localized.string("recipe.trash"))
-                            .font(.caption)
-                        Image(systemName: state.trashExpanded ? "chevron.up" : "chevron.down")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(Format.bytes(poolLayers.trashBytes))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(Localized.string("badge.manual"))
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
-                    }
-                }
-                .buttonStyle(.plain)
-                .focusEffectDisabled()
-                .cursorPointingHand()
-                if state.trashExpanded {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if !state.ourTrashNames.isEmpty {
-                            ForEach(state.ourTrashNames, id: \.self) { name in
-                                Text(verbatim: "· \(name)")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                HStack(spacing: 5) {
+                    Button {
+                        if let trashItem = state.items.first(where: { $0.recipeID == "trash" }) {
+                            withAnimation(overlaySpring) { state.detailItem = trashItem }
                         }
-                        if state.trashOthersBytes > 0 {
-                            Text(Localized.string("trash.others", Format.bytes(state.trashOthersBytes)))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                    } label: {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.trashColor)
+                                .frame(width: 9, height: 9)
+                            Text(Localized.string("recipe.trash"))
+                                .font(.caption)
                         }
                     }
-                    .padding(.leading, 14)
+                    .buttonStyle(.plain)
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
+                    Spacer()
+                    Text(Format.bytes(poolLayers.trashBytes))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(Localized.string("badge.manual"))
+                        .font(.caption2)
+                        .foregroundStyle(.blue)
                 }
                 if !manualItems.isEmpty {
                     Button {
@@ -678,6 +656,9 @@ struct MenuBarView: View {
             .filter {
                 $0.reclaimableBytes > 0
                     && !CleanupRationale.make(for: $0).isManual
+                    && !$0.cleanByChildOnly
+                    && $0.recipeID != "own-trash-batches"
+                    && $0.recipeID != "trash"
             }
             .compactMap { item -> (ScanItem, EvaluatedAction)? in
             let action = evaluator.evaluate(
@@ -819,6 +800,7 @@ struct MenuBarView: View {
 
             HStack(spacing: 10) {
                 if item.cleanability != .displayOnly,
+                          !item.cleanByChildOnly,
                           !rationale.isManual,
                           item.safety == .safeWhileRunning
                           || item.safety == .userConfirm
@@ -838,6 +820,10 @@ struct MenuBarView: View {
                     .controlSize(.large)
                     .focusEffectDisabled()
                     .cursorPointingHand()
+                } else if item.cleanByChildOnly {
+                    Text(Localized.string("detail.by_child_hint"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 } else if item.safety == .requiresQuit {
                     if let appName = processName(for: item) {
                         Text(Localized.string("detail.clean_requires_quit_app", appName))

@@ -85,6 +85,8 @@ public struct Cleaner: Sendable {
             .filter { !config.whitelistPaths.contains($0.path) }
             // 应用无法删除的手动项（Xcode/Finder）不进入自动/强制清理候选
             .filter { !CleanupRationale.make(for: $0).isManual }
+            // 仅按子目录清理的项（如 ~/Library/Caches）绝不整项删除
+            .filter { !$0.cleanByChildOnly }
             .filter { item in
                 minimumItemBytes.map { item.reclaimableBytes >= $0 } ?? true
             }
@@ -135,16 +137,22 @@ public struct Cleaner: Sendable {
             let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
             var itemFreed: Int64 = 0
             var trashPaths: [String] = []
+            var failed = false
             for target in targetPaths {
-                let deletion = try deleter.deleteReturningResult(
+                // 单项失败（如 TCC 权限）不影响后续项：尽力而为，继续清理其他目标
+                guard let deletion = try? deleter.deleteReturningResult(
                     url: URL(fileURLWithPath: target),
                     disposition: disposition
-                )
+                ) else {
+                    failed = true
+                    break
+                }
                 itemFreed += deletion.freedBytes
                 if let trash = deletion.resultingURL?.path {
                     trashPaths.append(trash)
                 }
             }
+            guard !failed else { continue }
             onItemCleaned?(item.id, disposition)
             freedTotal += itemFreed
             deficit -= itemFreed

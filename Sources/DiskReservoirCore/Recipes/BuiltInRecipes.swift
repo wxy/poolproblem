@@ -6,6 +6,7 @@ enum BuiltInRecipes {
             id: "xctestdevices",
             name: "XCTestDevices 测试快照",
             category: .xcode,
+            group: .xcode,
             safety: .safeWhileRunning,
             disposition: .deletePermanently,
             cleanability: .regenerable,
@@ -21,6 +22,7 @@ enum BuiltInRecipes {
             id: "deriveddata",
             name: "Xcode DerivedData",
             category: .xcode,
+            group: .xcode,
             safety: .safeWhileRunning,
             disposition: .trash,
             cleanability: .regenerable,
@@ -35,6 +37,7 @@ enum BuiltInRecipes {
             id: "xcode-archives",
             name: "Xcode Archives",
             category: .xcode,
+            group: .xcode,
             safety: .safeWhileRunning,
             disposition: .trash,
             cleanability: .regenerable,
@@ -49,6 +52,7 @@ enum BuiltInRecipes {
             id: "xcode-docscache",
             name: "Xcode DocumentationCache",
             category: .xcode,
+            group: .xcode,
             safety: .safeWhileRunning,
             disposition: .deletePermanently,
             cleanability: .regenerable,
@@ -63,6 +67,7 @@ enum BuiltInRecipes {
             id: "core-simulator-devices",
             name: "模拟器设备数据",
             category: .simulator,
+            group: .xcode,
             safety: .requiresQuit,
             disposition: .trash,
             cleanability: .trashOnly,
@@ -75,86 +80,24 @@ enum BuiltInRecipes {
             }
         ),
         Recipe(
-            id: "npm-cache",
-            name: "npm 缓存",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/.npm"]
-            }
-        ),
-        Recipe(
-            id: "pnpm-store",
-            name: "pnpm store",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/Library/pnpm"]
-            }
-        ),
-        Recipe(
-            id: "uv-cache",
-            name: "uv 缓存",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/.cache/uv"]
-            }
-        ),
-        Recipe(
-            id: "cocoapods-cache",
-            name: "CocoaPods 缓存",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/Library/Caches/CocoaPods"]
-            }
-        ),
-        Recipe(
-            id: "homebrew-cache",
-            name: "Homebrew 缓存",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/Library/Caches/Homebrew"]
-            }
-        ),
-        Recipe(
             id: "library-caches",
             name: "应用缓存",
             category: .common,
+            group: .system,
             safety: .safeWhileRunning,
             disposition: .trash,
             cleanability: .regenerable,
             defaultAgeDays: 30,
             minimumSizeMB: 100,
             processName: nil,
-            protectedChildren: ["org.swift.swiftpm", "node-gyp"],
+            // 包管理器缓存（Homebrew/CocoaPods 等）由专门的“包管理器缓存”
+            // 配方族管理（永久删除）；应用缓存配方按子目录渐进清理时不再碰它们，
+            // 避免同一目录被两套规则、两种处置重复管理。
+            protectedChildren: [
+                "org.swift.swiftpm", "node-gyp",
+                "Homebrew", "CocoaPods",
+            ],
+            cleanByChildOnly: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Caches"]
             }
@@ -163,6 +106,7 @@ enum BuiltInRecipes {
             id: "xcode-preview-cache",
             name: "Xcode 预览缓存",
             category: .xcode,
+            group: .xcode,
             safety: .safeWhileRunning,
             disposition: .trash,
             cleanability: .regenerable,
@@ -177,6 +121,7 @@ enum BuiltInRecipes {
             id: "xcode-devicesupport",
             name: "真机调试支持（旧版本）",
             category: .xcode,
+            group: .xcode,
             safety: .userConfirm,
             disposition: .trash,
             cleanability: .regenerable,
@@ -217,6 +162,7 @@ enum BuiltInRecipes {
             id: "simulator-runtimes",
             name: "模拟器运行时镜像",
             category: .simulator,
+            group: .xcode,
             safety: .userConfirm,
             disposition: .trash,
             cleanability: .regenerable,
@@ -234,6 +180,7 @@ enum BuiltInRecipes {
             id: "simulator-dyld-cache",
             name: "模拟器共享缓存",
             category: .simulator,
+            group: .xcode,
             safety: .userConfirm,
             disposition: .trash,
             cleanability: .regenerable,
@@ -256,9 +203,36 @@ enum BuiltInRecipes {
             }
         ),
         Recipe(
+            id: "own-trash-batches",
+            name: "本应用回收站批次",
+            category: .common,
+            group: .system,
+            // 废纸篓是特殊过渡区，不参与自动清理；只在废纸篓详情页手动管理
+            safety: .userConfirm,
+            disposition: .deletePermanently,
+            cleanability: .regenerable,
+            defaultAgeDays: 1,
+            minimumSizeMB: 10,
+            processName: nil,
+            resolvePaths: { _ in
+                // 只指向本应用自己创建的回收站批次目录（PoolProblem Cleanup …），
+                // 用户手动放入废纸篓的内容不在其中，因此可安全永久删除。
+                let trash = URL(fileURLWithPath: NSHomeDirectory())
+                    .appendingPathComponent(".Trash", isDirectory: true)
+                guard let children = try? FileManager.default.contentsOfDirectory(
+                    at: trash,
+                    includingPropertiesForKeys: [.isDirectoryKey]
+                ) else { return [] }
+                return children
+                    .filter { $0.lastPathComponent.hasPrefix(TrashBatchDeleter.batchNamePrefix) }
+                    .map(\.path)
+            }
+        ),
+        Recipe(
             id: "trash",
             name: "废纸篓",
             category: .common,
+            group: .system,
             safety: .userConfirm,
             disposition: .none,
             cleanability: .displayOnly,

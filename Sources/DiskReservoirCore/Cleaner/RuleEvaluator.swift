@@ -25,17 +25,25 @@ public struct RuleEvaluator: Sendable {
     private let activeProjectRootsByRecipe: [String: Set<String>]
     /// 每个配方的最短闲置小时数（mtime 判定），未配置时回落 24h。
     private let idleHoursByRecipe: [String: Double]
+    /// 配方 → 所属组（组级开关 / 组级闲置天数 / 组级进程守卫）。
+    private let groupByRecipe: [String: RecipeGroup]
+    /// 配方 → 声明的默认闲置天数（组级/配方级规则未配置时回落）。
+    private let defaultAgeByRecipe: [String: Int]
 
     public init(
         config: Config,
         now: @escaping @Sendable () -> Date = { Date() },
         activeProjectRootsByRecipe: [String: Set<String>] = [:],
-        idleHoursByRecipe: [String: Double] = [:]
+        idleHoursByRecipe: [String: Double] = [:],
+        groupByRecipe: [String: RecipeGroup] = [:],
+        defaultAgeByRecipe: [String: Int] = [:]
     ) {
         self.config = config
         self.now = now
         self.activeProjectRootsByRecipe = activeProjectRootsByRecipe
         self.idleHoursByRecipe = idleHoursByRecipe
+        self.groupByRecipe = groupByRecipe
+        self.defaultAgeByRecipe = defaultAgeByRecipe
     }
 
     public func evaluate(
@@ -45,6 +53,10 @@ public struct RuleEvaluator: Sendable {
         ignoreAge: Bool = false
     ) -> EvaluatedAction {
         let rule = config.rules.first { $0.recipeID == item.recipeID }
+        let group = groupByRecipe[item.recipeID]
+        let groupRule = group.flatMap { g in
+            config.rules.first { $0.recipeID == g.ruleID }
+        }
         if config.whitelistPaths.contains(item.path) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "whitelisted"))
         }
@@ -60,8 +72,16 @@ public struct RuleEvaluator: Sendable {
            }).isDisjoint(with: activeRoots) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "project active"))
         }
-        if !(rule?.enabled ?? true) {
+        if !(groupRule?.enabled ?? true) || !(rule?.enabled ?? true) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "disabled"))
+        }
+        // 组级进程守卫：Xcode / Simulator 运行中，整组不自动清理
+        if let group,
+           group.guardProcessNames.contains(where: { isProcessRunning($0) }) {
+            return EvaluatedAction(
+                itemID: item.id,
+                action: .skip(reason: "group process running")
+            )
         }
         switch item.cleanability {
         case .displayOnly:
@@ -96,7 +116,11 @@ public struct RuleEvaluator: Sendable {
         guard let modified = item.lastModified else {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "no modification date"))
         }
-        let ageLimitDays = rule?.maxAgeDays ?? recipeDefaultAge(for: item)
+        // 年龄只看配方级规则与配方自身默认值；组内各配方闲置窗口差异很大
+        // （如 node_modules 30 天 vs 构建产物 1 天），组级年龄没有意义。
+        let ageLimitDays = rule?.maxAgeDays
+            ?? defaultAgeByRecipe[item.recipeID]
+            ?? recipeDefaultAge(for: item)
         // 紧急清理可跳过年龄/最近修改保护，但保留处置方式与可清理性底线
         guard ignoreAge || CleanabilityRules.isOldEnough(
             lastModified: modified,

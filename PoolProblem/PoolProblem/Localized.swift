@@ -19,20 +19,28 @@ enum Localized {
         case "xcode-archives": return string("recipe.xcode-archives")
         case "xcode-docscache": return string("recipe.xcode-docscache")
         case "core-simulator-devices": return string("recipe.core-simulator-devices")
-        case "npm-cache": return string("recipe.npm-cache")
-        case "pnpm-store": return string("recipe.pnpm-store")
-        case "uv-cache": return string("recipe.uv-cache")
-        case "cocoapods-cache": return string("recipe.cocoapods-cache")
-        case "homebrew-cache": return string("recipe.homebrew-cache")
+        case "package-manager-caches": return string("recipe.package-manager-caches")
         case "library-caches": return string("recipe.library-caches")
         case "xcode-preview-cache": return string("recipe.xcode-preview-cache")
         case "xcode-devicesupport": return string("recipe.xcode-devicesupport")
         case "simulator-runtimes": return string("recipe.simulator-runtimes")
         case "simulator-dyld-cache": return string("recipe.simulator-dyld-cache")
+        case "own-trash-batches": return string("recipe.own-trash-batches")
         case "project-node-modules": return string("recipe.project-node-modules")
         case "project-build-output": return string("recipe.project-build-output")
+        case "nodejs-projects": return string("recipe.nodejs-projects")
         case "trash": return string("recipe.trash")
         default: return fallback
+        }
+    }
+
+    /// 配方分组名。
+    static func recipeGroupName(_ group: RecipeGroup) -> String {
+        switch group {
+        case .xcode: return string("recipe_group.xcode")
+        case .nodejs: return string("recipe_group.nodejs")
+        case .packageManager: return string("recipe_group.packageManager")
+        case .system: return string("recipe_group.system")
         }
     }
 

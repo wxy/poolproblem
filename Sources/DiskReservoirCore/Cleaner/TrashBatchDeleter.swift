@@ -58,6 +58,16 @@ public final class TrashBatchDeleter: FileDeleting, @unchecked Sendable {
         return removed
     }
 
+    /// 删除单个本应用批次目录（名称必须以批次前缀开头，防止误删用户内容）。
+    public static func emptyBatch(named name: String, trashRoot: URL? = nil) throws {
+        guard name.hasPrefix(batchNamePrefix) else { return }
+        let root = trashRoot
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".Trash", isDirectory: true)
+        let url = root.appendingPathComponent(name, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try FileManager.default.removeItem(at: url)
+    }
+
     private func groupDirectory() throws -> URL {
         if let groupURL { return groupURL }
         try FileManager.default.createDirectory(at: trashRoot, withIntermediateDirectories: true)

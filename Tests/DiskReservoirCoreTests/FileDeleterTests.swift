@@ -71,3 +71,25 @@ import Foundation
     #expect(FileManager.default.fileExists(atPath: otherDir.path))
     #expect(FileManager.default.fileExists(atPath: trash.appendingPathComponent("notes.txt").path))
 }
+
+@Test func trashBatchDeleterEmptiesSingleNamedBatch() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-batch-single-\(UUID().uuidString)", isDirectory: true)
+    let trash = root.appendingPathComponent(".Trash", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    let batchA = trash.appendingPathComponent("PoolProblem Cleanup 2026-08-21 10.00.00", isDirectory: true)
+    let batchB = trash.appendingPathComponent("PoolProblem Cleanup 2026-08-21 11.00.00", isDirectory: true)
+    try FileManager.default.createDirectory(at: batchA, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: batchB, withIntermediateDirectories: true)
+
+    try TrashBatchDeleter.emptyBatch(named: batchA.lastPathComponent, trashRoot: trash)
+    #expect(!FileManager.default.fileExists(atPath: batchA.path))
+    #expect(FileManager.default.fileExists(atPath: batchB.path))
+
+    // 非批次前缀的名称不应被删除
+    let userItem = trash.appendingPathComponent("my-report.pdf")
+    try Data(repeating: 1, count: 8).write(to: userItem)
+    try TrashBatchDeleter.emptyBatch(named: "my-report.pdf", trashRoot: trash)
+    #expect(FileManager.default.fileExists(atPath: userItem.path))
+}

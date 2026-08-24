@@ -27,6 +27,31 @@ import Foundation
     #expect(result.items.isEmpty)
 }
 
+@Test func scannerExcludesOtherRecipesSubtreesToAvoidDoubleCounting() throws {
+    // 父配方（应用缓存 ~/Library/Caches）与子配方（Homebrew 等专门缓存）
+    // 同时扫描时，父配方的条目不应再包含子配方管理的子树。
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-overlap-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Fixtures.makeTree(root: root, files: [
+        ("app.bin", 4096),
+        ("Homebrew/tool.bin", 8192),
+        ("Homebrew/sub/deep.bin", 2048),
+    ])
+
+    let parent = Fixtures.recipe(id: "parent-cache", path: root.path)
+    let child = Fixtures.recipe(id: "homebrew-cache", path: root.appendingPathComponent("Homebrew").path)
+    let result = try Scanner().scan(recipes: [parent, child], homeDirectory: root.path)
+    let parentItem = result.items.first { $0.recipeID == "parent-cache" }!
+    let childItem = result.items.first { $0.recipeID == "homebrew-cache" }!
+    // 父条目只统计根级文件；子条目统计 Homebrew 子树
+    #expect(parentItem.fileCount == 1)
+    #expect(parentItem.sizeBytes == 4096)
+    #expect(childItem.fileCount == 2)
+    #expect(childItem.sizeBytes == Int64(8192 + 2048))
+}
+
 @Test func posixWalkerMatchesFileManager() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-posix-\(UUID().uuidString)", isDirectory: true)
@@ -40,6 +65,26 @@ import Foundation
     #expect(walk?.sizeBytes == Int64(4096 + 8192 + 2048))
     #expect(walk?.allocatedBytes ?? 0 > 0)
     #expect(walk?.files.count == 3)
+}
+
+@Test func posixWalkerSkipsSubtrees() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-posix-skip-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try Fixtures.makeTree(root: root, files: [
+        ("a.bin", 4096),
+        ("managed/b.bin", 8192),
+        ("other/c.bin", 2048),
+    ])
+    let walk = POSIXDirectoryWalker.walk(
+        url: root,
+        itemID: "t",
+        includeRecords: false,
+        skipSubtrees: [root.appendingPathComponent("managed").path]
+    )
+    #expect(walk?.fileCount == 2)
+    #expect(walk?.sizeBytes == Int64(4096 + 2048))
 }
 
 @Test func posixWalkerFirstLevelCount() throws {

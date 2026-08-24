@@ -2,6 +2,8 @@ public struct Recipe: Sendable {
     public let id: String
     public let name: String
     public let category: Category
+    /// 产品/生态分组（Xcode、Node.js、包管理器缓存、系统通用）。
+    public let group: RecipeGroup
     public let safety: SafetyLevel
     public let disposition: CleanDisposition
     public let cleanability: Cleanability
@@ -19,12 +21,16 @@ public struct Recipe: Sendable {
     /// 使用，不清理。构建产物可随时重建，窗口宜短（如 6h）；node_modules 重建需
     /// 重新下载依赖，窗口宜长（如 72h）。
     public let minimumIdleHours: Double
+    /// 仅按一级子目录清理：整项绝不作为整体删除（如水线/一键清理），
+    /// 只允许逐子目录渐进清理。用于 `~/Library/Caches` 这类“一个目录塞几十个缓存”的场景。
+    public let cleanByChildOnly: Bool
     public let resolvePaths: @Sendable (StoragePaths) -> [String]
 
     public init(
         id: String,
         name: String,
         category: Category,
+        group: RecipeGroup = .system,
         safety: SafetyLevel,
         disposition: CleanDisposition,
         cleanability: Cleanability,
@@ -36,11 +42,13 @@ public struct Recipe: Sendable {
         usageProbe: UsageProbe = .directoryNewestModified,
         aggregatesPaths: Bool = false,
         minimumIdleHours: Double = 24,
+        cleanByChildOnly: Bool = false,
         resolvePaths: @escaping @Sendable (StoragePaths) -> [String]
     ) {
         self.id = id
         self.name = name
         self.category = category
+        self.group = group
         self.safety = safety
         self.disposition = disposition
         self.cleanability = cleanability
@@ -52,6 +60,7 @@ public struct Recipe: Sendable {
         self.usageProbe = usageProbe
         self.aggregatesPaths = aggregatesPaths
         self.minimumIdleHours = minimumIdleHours
+        self.cleanByChildOnly = cleanByChildOnly
         self.resolvePaths = resolvePaths
     }
 }

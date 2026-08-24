@@ -36,10 +36,15 @@ public struct Scanner: Sendable {
 
     public func scan(recipes: [Recipe], homeDirectory: String) throws -> ScanResult {
         let paths = StoragePaths(baseURL: nil, homeDirectory: homeDirectory)
+        // 其他配方已解析的路径：测量本配方时跳过这些子树，避免同一目录被
+        // 两个配方分别统计（如 ~/Library/Caches 与其内部 Homebrew/CocoaPods）。
+        let allResolved = recipes.map { $0.resolvePaths(paths) }
         var items: [ScanItem] = []
         var records: [FileRecord] = []
         for recipe in recipes {
             let resolved = recipe.resolvePaths(paths)
+            let ownPaths = Set(resolved)
+            let excludedPaths = Set(allResolved.flatMap { $0 }).subtracting(ownPaths)
             if recipe.aggregatesPaths {
                 if let item = aggregateItem(recipe: recipe, paths: resolved, homeDirectory: homeDirectory) {
                     items.append(item)
@@ -63,7 +68,8 @@ public struct Scanner: Sendable {
                     itemID: itemID,
                     // 不可清理目录（如废纸篓）只展示大小，不需要逐文件明细；
                     // 用轻量 POSIX 汇总，避免几十万文件的目录把扫描拖到分钟级
-                    lightWeight: recipe.disposition == .none
+                    lightWeight: recipe.disposition == .none,
+                    excludedPaths: excludedPaths
                 )
                 items.append(ScanItem(
                     id: itemID,
@@ -77,7 +83,8 @@ public struct Scanner: Sendable {
                     allocatedBytes: allocated,
                     reclaimableBytes: allocated,
                     fileCount: count,
-                    lastModified: effectiveLastModified(modified, recipe: recipe, path: path)
+                    lastModified: effectiveLastModified(modified, recipe: recipe, path: path),
+                    cleanByChildOnly: recipe.cleanByChildOnly
                 ))
                 records.append(contentsOf: files)
             }
@@ -118,7 +125,8 @@ public struct Scanner: Sendable {
     public func rescan(
         path: String,
         recipe: Recipe,
-        homeDirectory: String
+        homeDirectory: String,
+        excludedPaths: Set<String> = []
     ) -> [ScanItem] {
         guard FileManager.default.fileExists(atPath: path) else { return [] }
         if recipe.aggregatesPaths {
@@ -133,7 +141,8 @@ public struct Scanner: Sendable {
         guard let (size, allocated, count, modified, _) = try? measureDirectory(
             url,
             itemID: itemID,
-            lightWeight: recipe.disposition == .none
+            lightWeight: recipe.disposition == .none,
+            excludedPaths: excludedPaths
         ) else { return [] }
         var item = ScanItem(
             id: itemID,
@@ -299,10 +308,16 @@ public struct Scanner: Sendable {
     private func measureDirectory(
         _ url: URL,
         itemID: String,
-        lightWeight: Bool = false
+        lightWeight: Bool = false,
+        excludedPaths: Set<String> = []
     ) throws -> (size: Int64, allocated: Int64, count: Int, modified: Date?, files: [FileRecord]) {
         if lightWeight {
-            if let posix = POSIXDirectoryWalker.walk(url: url, itemID: itemID, includeRecords: false) {
+            if let posix = POSIXDirectoryWalker.walk(
+                url: url,
+                itemID: itemID,
+                includeRecords: false,
+                skipSubtrees: excludedPaths
+            ) {
                 return (posix.sizeBytes, posix.allocatedBytes, posix.fileCount, posix.newest, [])
             }
             // POSIX 打不开（如缺少权限）时回落到 FileManager 路径，结果为空也是安全值
@@ -321,9 +336,26 @@ public struct Scanner: Sendable {
         var count = 0
         var newest: Date?
         var files: [FileRecord] = []
+        // FileManager 枚举按深度优先展开；进入被排除的目录后，用相对深度
+        // 跳过其整个子树（skipDescendants 在部分 macOS 版本上不生效）。
+        var excludedDepth: Int?
+        // 枚举器会返回真实路径（/var → /private/var），排除集合统一归一化后比较
+        let normalizedExcluded = Set(
+            excludedPaths.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
+        )
         while let element = enumerator?.nextObject() as? URL {
+            let relativeDepth = element.pathComponents.count - url.pathComponents.count
+            if let depth = excludedDepth {
+                if relativeDepth > depth { continue }
+                excludedDepth = nil
+            }
             let values = try element.resourceValues(forKeys: keys)
             if values.isSymbolicLink == true { continue }
+            if values.isDirectory == true,
+               normalizedExcluded.contains(element.resolvingSymlinksInPath().path) {
+                excludedDepth = relativeDepth
+                continue
+            }
             if values.isRegularFile == true {
                 let alloc = Int64(values.totalFileAllocatedSize ?? values.fileSize ?? 0)
                 size += Int64(values.fileSize ?? 0)
@@ -350,7 +382,11 @@ public struct Scanner: Sendable {
         // FileManager 对 ~/.Trash 等受保护目录存在已知问题：即使拥有完全磁盘访问，
         // 枚举也会静默返回空列表。此时改用 POSIX 枚举兜底（同样受 TCC 约束，
         // 无权限时 opendir 会失败并保持原结果）。
-        if count == 0, let posix = POSIXDirectoryWalker.walk(url: url, itemID: itemID) {
+        if count == 0, let posix = POSIXDirectoryWalker.walk(
+            url: url,
+            itemID: itemID,
+            skipSubtrees: excludedPaths
+        ) {
             return (posix.sizeBytes, posix.allocatedBytes, posix.fileCount, posix.newest, posix.files)
         }
         return (size, allocated, count, newest, files)

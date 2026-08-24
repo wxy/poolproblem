@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import CoreGraphics
+import DiskReservoirCore
 @testable import PoolProblem
 
 private let total = Int64(1_000_000_000_000)  // 1TB
@@ -28,10 +29,6 @@ private let total = Int64(1_000_000_000_000)  // 1TB
     #expect(layout.spanBytes <= 2 * (9_000_000_000 + 28_000_000_000 + 7_000_000_000 + 10_000_000_000))
     // 深部沉淀被切出窗口：windowBottom > 0
     #expect(layout.windowBottomBytes > 0)
-    // 指标卡片所在底部带仍保留 bottomReserveHeight（150pt）的可视高度
-    let bandBytes = 168_000_000_000 + 28_000_000_000 + 7_000_000_000
-    let bandHeight = layout.y(forBytes: 0) - layout.y(forBytes: Double(bandBytes))
-    #expect(bandHeight >= 145)
 }
 
 @MainActor
@@ -46,14 +43,33 @@ private let total = Int64(1_000_000_000_000)  // 1TB
         trashBytes: 10_000_000_000,
         height: 560
     )
-    // 磁盘大部分空闲：卡片预留把跨度压回合理范围，水面保持居中；
-    // 底部带完全可见时高度不被压到卡片之下
-    #expect(layout.spanBytes >= 160_000_000_000)
-    #expect(abs(layout.surfaceY - 293) < 0.5)
+    // 磁盘大部分空闲：水面下移（0.85）以让红区保持可读，指标卡片不再约束刻度
+    #expect(abs(layout.surfaceY - (26 + 0.85 * 534)) < 0.5)
     #expect(layout.waterlineY < layout.surfaceY)
-    let bandBytes = 100_000_000_000 + 20_000_000_000 + 10_000_000_000
-    let bandHeight = layout.y(forBytes: 0) - layout.y(forBytes: Double(bandBytes))
-    #expect(bandHeight >= 145)
+    let usable = 534.0
+    let redZonePx = Double(layout.waterlineBytes) / layout.spanBytes * usable
+    #expect(redZonePx >= 3 * GaugeScale.minEPixels)
+}
+
+@MainActor
+@Test func layoutMovesSurfaceDownToKeepRedZoneVisible() {
+    let layout = PoolWindowLayout(
+        totalBytes: 250_000_000_000,
+        availableBytes: 100_000_000_000,
+        waterlineBytes: 30_000_000_000,
+        cleanableTotalBytes: 5_000_000_000,
+        nonCleanableBytes: 120_000_000_000,
+        manualBytes: 0,
+        trashBytes: 0,
+        height: 560
+    )
+    // 可用空间大：水面不能固定在正中，需下移到 0.8，保证红区 3 个 E 完整可见
+    #expect(abs(layout.surfaceFraction - 0.8) < 0.001)
+    #expect(abs(layout.surfaceY - (26 + 0.8 * 534)) < 0.5)
+    let usable = 534.0
+    let redZonePx = Double(layout.waterlineBytes) / layout.spanBytes * usable
+    #expect(redZonePx >= 3 * GaugeScale.minEPixels)
+    #expect(layout.waterlineY < layout.surfaceY)
 }
 
 @MainActor

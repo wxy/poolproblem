@@ -16,6 +16,8 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
     public let fileCount: Int
     public let lastModified: Date?
     public let cleanability: Cleanability
+    /// 仅按一级子目录清理（见 Recipe.cleanByChildOnly），整项不允许整体删除。
+    public let cleanByChildOnly: Bool
 
     public init(
         id: String,
@@ -31,7 +33,8 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         reclaimableBytes: Int64,
         fileCount: Int,
         lastModified: Date?,
-        cleanability: Cleanability = .regenerable
+        cleanability: Cleanability = .regenerable,
+        cleanByChildOnly: Bool = false
     ) {
         self.id = id
         self.recipeID = recipeID
@@ -47,12 +50,13 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         self.fileCount = fileCount
         self.lastModified = lastModified
         self.cleanability = cleanability
+        self.cleanByChildOnly = cleanByChildOnly
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, recipeID, name, path, paths, category, safety, disposition,
              sizeBytes, allocatedBytes, reclaimableBytes, fileCount,
-             lastModified, cleanability
+             lastModified, cleanability, cleanByChildOnly
     }
 
     public init(from decoder: Decoder) throws {
@@ -71,6 +75,7 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         fileCount = try c.decode(Int.self, forKey: .fileCount)
         lastModified = try c.decodeIfPresent(Date.self, forKey: .lastModified)
         cleanability = try c.decodeIfPresent(Cleanability.self, forKey: .cleanability) ?? .regenerable
+        cleanByChildOnly = try c.decodeIfPresent(Bool.self, forKey: .cleanByChildOnly) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -89,5 +94,6 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         try c.encode(fileCount, forKey: .fileCount)
         try c.encodeIfPresent(lastModified, forKey: .lastModified)
         try c.encode(cleanability, forKey: .cleanability)
+        try c.encode(cleanByChildOnly, forKey: .cleanByChildOnly)
     }
 }

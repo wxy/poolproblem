@@ -8,12 +8,14 @@ import Foundation
         path: "/tmp/x", category: .xcode, safety: .safeWhileRunning,
         disposition: .deletePermanently, sizeBytes: 100, allocatedBytes: 80,
         reclaimableBytes: 10, fileCount: 3, lastModified: nil,
-        cleanability: .trashOnly
+        cleanability: .trashOnly,
+        cleanByChildOnly: true
     )
     let data = try JSONEncoder().encode(item)
     let decoded = try JSONDecoder().decode(ScanItem.self, from: data)
     #expect(decoded == item)
     #expect(decoded.cleanability == .trashOnly)
+    #expect(decoded.cleanByChildOnly == true)
 }
 
 @Test func scanItemDecodesLegacyJSONWithoutCleanability() throws {
@@ -96,9 +98,11 @@ import Foundation
     var config = Config.default
     #expect(config.autoEmptyOwnTrashBatches == false)
     config.autoEmptyOwnTrashBatches = true
+    config.packageManagerCacheRoots = ["/Users/tester/.cache/yarn"]
     let data = try JSONEncoder().encode(config)
     let decoded = try JSONDecoder().decode(Config.self, from: data)
     #expect(decoded.autoEmptyOwnTrashBatches == true)
+    #expect(decoded.packageManagerCacheRoots == ["/Users/tester/.cache/yarn"])
 }
 
 @Test func cleanLogEntryRoundTrip() throws {

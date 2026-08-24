@@ -28,9 +28,14 @@ public struct RecipeSuggestionStore: Sendable {
                     evidenceCount: candidate.evidenceCount,
                     firstSeenAt: candidate.firstSeenAt,
                     lastSeenAt: candidate.lastSeenAt,
+                    recipeID: candidate.recipeID,
+                    recipeName: candidate.recipeName,
                     suggestedSafety: candidate.suggestedSafety,
                     suggestedCleanability: candidate.suggestedCleanability,
                     suggestedCategory: candidate.suggestedCategory,
+                    suggestedDisposition: candidate.suggestedDisposition,
+                    source: candidate.source,
+                    childNames: candidate.childNames,
                     samplePath: candidate.samplePath
                 )
             } else {
@@ -45,5 +50,15 @@ public struct RecipeSuggestionStore: Sendable {
         guard let index = all.firstIndex(where: { $0.id == id }) else { return }
         all[index].status = status
         try store.save(all, to: paths.recipeSuggestionsURL)
+    }
+
+    /// 丢弃不再由当前建议管道生成的候选（旧设计残留、已纳入配方管理等），
+    /// 保留仍在生成中的候选及其用户决定。
+    public func prune(keeping ids: Set<String>) throws {
+        let all = try load()
+        try store.save(
+            all.filter { ids.contains($0.id) },
+            to: paths.recipeSuggestionsURL
+        )
     }
 }

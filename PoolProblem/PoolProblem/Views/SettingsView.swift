@@ -14,6 +14,8 @@ struct SettingsView: View {
     @State private var hasFullDiskAccess = false
     @State private var settingsTab = 0
     @State private var expandedRecipeIDs: Set<String> = []
+    @State private var expandedGroups: Set<RecipeGroup> = []
+    @State private var cleanStats: [String: (count: Int, bytes: Int64)] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -44,6 +46,7 @@ struct SettingsView: View {
         .onAppear {
             config = service.loadConfig()
             expertMode = UserDefaults.standard.bool(forKey: "expertMode")
+            cleanStats = service.cleanStatsByRecipe()
             Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
         }
         // 从系统设置返回（应用被激活）时自动重新检测权限
@@ -78,6 +81,25 @@ struct SettingsView: View {
                 Text(Localized.string("settings.mode_expert")).tag(true)
             }
             .pickerStyle(.segmented)
+        }
+
+        Section(Localized.string("settings.minimum_clean_size_section")) {
+            HStack {
+                Text(Localized.string("settings.minimum_clean_size_label"))
+                Spacer()
+                Stepper("", value: Binding(
+                    get: { config.minimumCleanItemMB },
+                    set: { config.minimumCleanItemMB = $0 }
+                ), in: 100...5000, step: 100)
+                .labelsHidden()
+                Text(verbatim: "\(Int(config.minimumCleanItemMB)) MB")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .frame(width: 64, alignment: .trailing)
+            }
+            Text(Localized.string("settings.minimum_clean_size_footer"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
 
         Section(Localized.string("settings.permission_section")) {
@@ -121,122 +143,55 @@ struct SettingsView: View {
     @ViewBuilder
     private var recipesSections: some View {
         if expertMode {
-            Section(Localized.string("settings.recipes_section")) {
-                ForEach(RecipeRegistry.builtIn(), id: \.id) { recipe in
-                    recipeRow(recipe)
-                }
-            }
-
+            let packageManagerRecipe = PackageManagerRecipes.make(
+                extraRoots: config.packageManagerCacheRoots,
+                homeDirectory: NSHomeDirectory()
+            )
             let projectRecipes = ProjectRecipes.make(
                 devRoots: config.devRoots,
                 homeDirectory: NSHomeDirectory()
             )
-            if !projectRecipes.isEmpty {
-                Section(Localized.string("settings.project_recipes_section")) {
-                    ForEach(projectRecipes, id: \.id) { recipe in
-                        recipeRow(recipe, projectBadge: true)
-                    }
-                }
-            }
+            let allRecipes = RecipeRegistry.builtIn()
+                + [packageManagerRecipe]
+                + projectRecipes
 
-            Section(Localized.string("settings.minimum_clean_size_section")) {
-                HStack {
-                    Text(Localized.string("settings.minimum_clean_size_label"))
-                    Spacer()
-                    Stepper("", value: Binding(
-                        get: { config.minimumCleanItemMB },
-                        set: { config.minimumCleanItemMB = $0 }
-                    ), in: 100...5000, step: 100)
-                    .labelsHidden()
-                    Text(verbatim: "\(Int(config.minimumCleanItemMB)) MB")
-                        .font(.caption)
-                        .monospacedDigit()
-                        .frame(width: 64, alignment: .trailing)
-                }
-                Text(Localized.string("settings.minimum_clean_size_footer"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section(Localized.string("settings.devroots_section")) {
-                if config.devRoots.isEmpty {
-                    Text(Localized.string("settings.devroots_empty"))
+            // 概览：一眼看到启用状态，避免整页展开造成的信息过载
+            Section {
+                HStack(spacing: 6) {
+                    Image(systemName: "checklist")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else {
-                    ForEach(config.devRoots, id: \.self) { path in
-                        HStack {
-                            Text(path)
-                                .font(.caption)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            Button(Localized.string("common.remove")) {
-                                service.removeDevRoot(path)
-                                config.devRoots.removeAll { $0 == path }
-                            }
-                            .cursorPointingHand()
-                        }
-                    }
-                    Text(Localized.string("settings.devroots_recipes_hint"))
+                    Text(overviewText(allRecipes))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Section(Localized.string("settings.candidates_section")) {
-                let pending = state.candidateRecipes.filter { $0.status == .pending }
-                if pending.isEmpty {
-                    Text(Localized.string("insights.empty"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ForEach(pending) { candidate in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(candidate.pattern)
-                                    .font(.caption)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Text(Localized.string("candidate.evidence", candidate.evidenceCount)
-                                     + " · " + Format.bytes(candidate.totalGrowthBytes))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+            // 每组一个可折叠分区：组头 = 图标 + 组名 + 配方数 + 组开关
+            ForEach(RecipeGroup.allCases, id: \.self) { group in
+                let groupRecipes = allRecipes.filter { $0.group == group }
+                if !groupRecipes.isEmpty {
+                    Section {
+                        VStack(alignment: .leading, spacing: 0) {
+                            groupHeader(group, recipes: groupRecipes)
+                            if expandedGroups.contains(group) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    scopeRows(for: group)
+                                    ForEach(groupRecipes, id: \.id) { recipe in
+                                        recipeRow(recipe)
+                                    }
+                                }
+                                .padding(.leading, 18)
+                                .padding(.top, 6)
                             }
-                            Spacer()
-                            Button(Localized.string("candidate.accept")) {
-                                service.acceptCandidate(id: candidate.id)
-                            }
-                            .cursorPointingHand()
-                            Button(Localized.string("candidate.dismiss")) {
-                                service.dismissCandidate(id: candidate.id)
-                            }
-                            .cursorPointingHand()
-                        }
-                    }
-                }
-                let accepted = state.candidateRecipes.filter { $0.status == .accepted }
-                if !accepted.isEmpty {
-                    Divider()
-                    ForEach(accepted) { candidate in
-                        HStack {
-                            Text(candidate.pattern)
-                                .font(.caption)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            Button(Localized.string("common.remove")) {
-                                service.dismissCandidate(id: candidate.id)
-                            }
-                            .cursorPointingHand()
                         }
                     }
                 }
             }
+
+            pendingCandidatesSection
         } else {
-            Text(Localized.string("settings.recipes_expert_hint"))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            expertModeHint
         }
     }
 
@@ -335,48 +290,65 @@ struct SettingsView: View {
     // MARK: - 配方行（路径默认折叠）
 
     @ViewBuilder
-    private func recipeRow(_ recipe: Recipe, projectBadge: Bool = false) -> some View {
-        DisclosureGroup(isExpanded: Binding(
-            get: { expandedRecipeIDs.contains(recipe.id) },
-            set: { expanded in
-                if expanded {
-                    expandedRecipeIDs.insert(recipe.id)
-                } else {
-                    expandedRecipeIDs.remove(recipe.id)
+    private func recipeRow(_ recipe: Recipe) -> some View {
+        let enabled = isEnabled(recipe) && groupEnabled(recipe.group)
+        let expanded = expandedRecipeIDs.contains(recipe.id)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { toggleRecipe(recipe.id) }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: recipeIcon(recipe))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 14)
+                        Text(Localized.recipeName(recipe.id, fallback: recipe.name))
+                            .lineLimit(1)
+                            .foregroundStyle(enabled ? Color.primary : Color.secondary)
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
                 }
-            }
-        )) {
-            ForEach(recipePaths(recipe), id: \.self) { path in
-                recipePathRow(path)
-            }
-        } label: {
-            HStack {
-                Toggle("", isOn: Binding(
-                    get: { isEnabled(recipe) },
-                    set: { setEnabled(recipe, $0) }
-                ))
-                .labelsHidden()
-                Text(Localized.recipeName(recipe.id, fallback: recipe.name))
-                    .lineLimit(1)
-                if projectBadge {
-                    Text(Localized.string("settings.project_badge"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(.separator))
-                }
+                .buttonStyle(.plain)
+                .cursorPointingHand()
                 Spacer()
                 Text(Localized.string("settings.keep_days", age(recipe)))
                     .font(.caption)
                     .monospacedDigit()
-                    .frame(width: 74, alignment: .trailing)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 64, alignment: .trailing)
                 Stepper("", value: Binding(
                     get: { age(recipe) },
                     set: { setAge(recipe, $0) }
                 ), in: 1...365)
                 .labelsHidden()
+                Toggle("", isOn: Binding(
+                    get: { isEnabled(recipe) },
+                    set: { setEnabled(recipe, $0) }
+                ))
+                .labelsHidden()
             }
+            if expanded {
+                VStack(alignment: .leading, spacing: 3) {
+                    cleanStatsLine(recipe)
+                    ForEach(recipePaths(recipe), id: \.self) { path in
+                        recipePathRow(path)
+                    }
+                }
+                .padding(.leading, 26)
+                .padding(.bottom, 4)
+            }
+        }
+    }
+
+    private func toggleRecipe(_ id: String) {
+        if expandedRecipeIDs.contains(id) {
+            expandedRecipeIDs.remove(id)
+        } else {
+            expandedRecipeIDs.insert(id)
         }
     }
 
@@ -413,9 +385,249 @@ struct SettingsView: View {
         config.rules = rules
     }
 
+    // MARK: - 组级规则（总开关；组内闲置天数对规则差异大的配方无意义，已移除）
+
+    private func groupRule(_ group: RecipeGroup) -> CleanRule? {
+        config.rules.first { $0.recipeID == group.ruleID }
+    }
+
+    private func groupEnabled(_ group: RecipeGroup) -> Bool {
+        groupRule(group)?.enabled ?? true
+    }
+
+    private func setGroupEnabled(_ group: RecipeGroup, _ value: Bool) {
+        upsertRule(CleanRule(
+            recipeID: group.ruleID,
+            enabled: value,
+            maxAgeDays: nil
+        ))
+    }
+
+    // MARK: - 组卡片（组头 / 展开 / 作用域）
+
+    private func toggleGroup(_ group: RecipeGroup) {
+        if expandedGroups.contains(group) {
+            expandedGroups.remove(group)
+        } else {
+            expandedGroups.insert(group)
+        }
+    }
+
+    private func groupEnabledBinding(_ group: RecipeGroup) -> Binding<Bool> {
+        Binding(
+            get: { groupEnabled(group) },
+            set: { setGroupEnabled(group, $0) }
+        )
+    }
+
+    private func groupHeader(_ group: RecipeGroup, recipes: [Recipe]) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { toggleGroup(group) }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: groupIcon(group))
+                        .foregroundStyle(
+                            groupEnabled(group)
+                                ? Color.secondary
+                                : Color(nsColor: .tertiaryLabelColor)
+                        )
+                    Text(Localized.recipeGroupName(group))
+                        .fontWeight(.medium)
+                        .foregroundStyle(groupEnabled(group) ? Color.primary : Color.secondary)
+                    Text(Localized.string("settings.recipes_count", recipes.count))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: expandedGroups.contains(group) ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .cursorPointingHand()
+            Spacer()
+            Toggle("", isOn: groupEnabledBinding(group))
+                .labelsHidden()
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func groupIcon(_ group: RecipeGroup) -> String {
+        switch group {
+        case .xcode: return "chevron.left.forwardslash.chevron.right"
+        case .nodejs: return "cube.fill"
+        case .packageManager: return "shippingbox.fill"
+        case .system: return "gearshape.fill"
+        }
+    }
+
+    private func recipeIcon(_ recipe: Recipe) -> String {
+        switch recipe.category {
+        case .xcode: return "hammer.fill"
+        case .simulator: return "iphone.gen3"
+        case .packageManager: return "shippingbox.fill"
+        case .project: return "cube.fill"
+        case .common: return "folder.fill"
+        case .custom: return "tag.fill"
+        }
+    }
+
+    /// 组作用域：用户通过增长洞察纳入监控的目录（属于该组的配方作用域）。
+    @ViewBuilder
+    private func scopeRows(for group: RecipeGroup) -> some View {
+        switch group {
+        case .nodejs:
+            if !config.devRoots.isEmpty {
+                Text(Localized.string("settings.devroots_section"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(config.devRoots, id: \.self) { path in
+                    scopePathRow(path) {
+                        service.removeDevRoot(path)
+                        config.devRoots.removeAll { $0 == path }
+                    }
+                }
+            }
+        case .packageManager:
+            if !config.packageManagerCacheRoots.isEmpty {
+                Text(Localized.string("settings.cache_roots_section"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                ForEach(config.packageManagerCacheRoots, id: \.self) { path in
+                    scopePathRow(path) {
+                        service.removePackageManagerCacheRoot(path)
+                        config.packageManagerCacheRoots.removeAll { $0 == path }
+                    }
+                }
+            }
+        default:
+            EmptyView()
+        }
+    }
+
+    private func scopePathRow(_ path: String, remove: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "folder")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(path)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Button(action: remove) {
+                Image(systemName: "xmark.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .cursorPointingHand()
+            .help(Localized.string("common.remove"))
+        }
+    }
+
+    // MARK: - 概览 / 待采纳建议 / 非专家模式提示
+
+    private func overviewText(_ recipes: [Recipe]) -> String {
+        let enabled = recipes.filter { isEnabled($0) && groupEnabled($0.group) }.count
+        let pausedGroups = Set(recipes.map(\.group))
+            .filter { !groupEnabled($0) }
+            .count
+        return Localized.string("settings.recipes_overview", enabled, recipes.count, pausedGroups)
+    }
+
+    @ViewBuilder
+    private var pendingCandidatesSection: some View {
+        let pending = state.candidateRecipes.filter { $0.status == .pending }
+        if !pending.isEmpty {
+            Section(Localized.string("settings.candidates_section")) {
+                ForEach(pending) { candidate in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(candidate.pattern)
+                                .font(.caption)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(candidateRuleText(candidate))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Button(Localized.string("candidate.accept")) {
+                            service.acceptCandidate(id: candidate.id)
+                        }
+                        .cursorPointingHand()
+                        Button(Localized.string("candidate.dismiss")) {
+                            service.dismissCandidate(id: candidate.id)
+                        }
+                        .cursorPointingHand()
+                    }
+                }
+            }
+        }
+    }
+
+    /// 采纳后纳入的现有配方与处理规则（与增长洞察一致）。
+    private func candidateRuleText(_ candidate: CandidateRecipe) -> String {
+        let name = Localized.recipeName(candidate.recipeID, fallback: candidate.recipeName)
+        let safety = candidate.suggestedSafety == .safeWhileRunning
+            ? Localized.string("candidate.safety_safe")
+            : Localized.string("candidate.safety_confirm")
+        let disposition: String
+        switch candidate.suggestedDisposition {
+        case .trash:
+            disposition = Localized.string("candidate.disposition_trash")
+        case .deletePermanently:
+            disposition = Localized.string("candidate.disposition_permanent")
+        case .none:
+            disposition = Localized.string("candidate.disposition_monitor")
+        }
+        return Localized.string("candidate.adds_to_recipe", name, safety, disposition)
+    }
+
+    @ViewBuilder
+    private var expertModeHint: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "lock.shield")
+                        .foregroundStyle(.secondary)
+                    Text(Localized.string("settings.recipes_expert_hint"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button(Localized.string("settings.recipes_expert_button")) {
+                    settingsTab = 0
+                    expertMode = true
+                }
+                .cursorPointingHand()
+            }
+        }
+    }
+
     /// 配方解析出的具体路径（可能为空：路径不存在时配方不生效）。
     private func recipePaths(_ recipe: Recipe) -> [String] {
         recipe.resolvePaths(StoragePaths(homeDirectory: NSHomeDirectory()))
+    }
+
+    /// 该配方在清理日志中的累计执行次数与清理字节。
+    @ViewBuilder
+    private func cleanStatsLine(_ recipe: Recipe) -> some View {
+        if let stats = cleanStats[recipe.id], stats.count > 0 {
+            HStack(spacing: 4) {
+                Image(systemName: "chart.bar")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(Localized.string(
+                    "settings.recipe_clean_stats",
+                    stats.count,
+                    Format.bytes(stats.bytes)
+                ))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+        }
     }
 
     /// 路径行：文件夹图标 + 路径文本。存在的路径可点击打开 Finder；

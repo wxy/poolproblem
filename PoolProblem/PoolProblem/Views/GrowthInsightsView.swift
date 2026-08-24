@@ -24,10 +24,6 @@ struct GrowthInsightsView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     growthLogSection
                     Divider()
-                    if !state.pendingDevRoots.isEmpty {
-                        devRootSection
-                        Divider()
-                    }
                     candidateSection
                 }
             }
@@ -53,9 +49,7 @@ struct GrowthInsightsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black.opacity(0.15))
             .onAppear {
-                if state.pendingDevRoots.isEmpty {
-                    Task { await service.refreshDevSuggestions(force: true) }
-                }
+                Task { await service.refreshSuggestions(forceDiscovery: false) }
             }
     }
 
@@ -155,10 +149,23 @@ struct GrowthInsightsView: View {
 
     private var candidateSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(Localized.string("insights.candidates"))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text(Localized.string("insights.candidates"))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(Localized.string("devroot.rescan")) {
+                    Task { await service.refreshSuggestions(forceDiscovery: true) }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .cursorPointingHand()
+            }
+            Text(Localized.string("devroot.hint"))
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
             if pendingCandidates.isEmpty && acceptedCandidates.isEmpty {
                 Text(Localized.string("insights.empty"))
                     .font(.caption)
@@ -174,93 +181,6 @@ struct GrowthInsightsView: View {
                     }
                 }
             }
-        }
-    }
-
-    private var devRootSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(Localized.string("devroot.section_title"))
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(Localized.string("devroot.rescan")) {
-                    Task { await service.refreshDevSuggestions(force: true) }
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .cursorPointingHand()
-            }
-            Text(Localized.string("devroot.hint"))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .fixedSize(horizontal: false, vertical: true)
-            ForEach(state.pendingDevRoots) { candidate in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Button {
-                            revealInFinder(candidate.path)
-                        } label: {
-                            Text(PathPatternizer.patternize(candidate.path))
-                                .font(.caption)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        .buttonStyle(.plain)
-                        .focusEffectDisabled()
-                        .cursorPointingHand()
-                        .help(candidate.path)
-                        Spacer()
-                        if candidate.childNames.isEmpty {
-                            Text(Localized.string("devroot.marker", candidate.marker))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Text(Localized.string(
-                                "devroot.group_subtitle",
-                                candidate.childNames.count,
-                                candidate.childNames.prefix(3).joined(separator: ", ")
-                                    + (candidate.childNames.count > 3 ? "…" : "")
-                            ))
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        }
-                    }
-                    HStack {
-                        Text(devRootBytesText(candidate))
-                            .font(.caption2)
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button(Localized.string("devroot.add")) {
-                            service.confirmDevRoot(candidate.path)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .cursorPointingHand()
-                        Button(Localized.string("devroot.ignore")) {
-                            service.declineDevRoot(candidate.path)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .cursorPointingHand()
-                    }
-                }
-            }
-        }
-    }
-
-    private func devRootBytesText(_ candidate: DevRootCandidate) -> String {
-        switch candidate.source {
-        case .growth:
-            return Localized.string("devroot.growth", Format.bytes(candidate.bytes))
-        case .discovery:
-            return Localized.string("devroot.cleanable", Format.bytes(candidate.bytes))
-        case .activity:
-            return Localized.string("devroot.active")
         }
     }
 
@@ -280,15 +200,28 @@ struct GrowthInsightsView: View {
                 .cursorPointingHand()
                 .help(candidate.samplePath)
                 Spacer()
-                Text(candidate.suggestedSafety == .safeWhileRunning
-                     ? Localized.string("candidate.safety_safe")
-                     : Localized.string("candidate.safety_confirm"))
+                Text(candidateSourceText(candidate))
                     .font(.caption2)
-                    .foregroundStyle(candidate.suggestedSafety == .safeWhileRunning ? Color.green : Color.orange)
+                    .foregroundStyle(.secondary)
+            }
+            if !candidate.childNames.isEmpty {
+                Text(Localized.string(
+                    "devroot.group_subtitle",
+                    candidate.childNames.count,
+                    candidate.childNames.prefix(3).joined(separator: ", ")
+                        + (candidate.childNames.count > 3 ? "…" : "")
+                ))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
             }
             HStack {
                 Text(Localized.string("candidate.evidence", candidate.evidenceCount)
                      + " · " + Format.bytes(candidate.totalGrowthBytes))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(candidateRuleText(candidate))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -308,28 +241,63 @@ struct GrowthInsightsView: View {
         }
     }
 
-    private func acceptedRow(_ candidate: CandidateRecipe) -> some View {
-        HStack(spacing: 6) {
-            Button {
-                revealInFinder(candidate.samplePath)
-            } label: {
-                Text(candidate.pattern)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .buttonStyle(.plain)
-            .focusEffectDisabled()
-            .cursorPointingHand()
-            .help(candidate.samplePath)
-            Spacer()
-            Button(Localized.string("common.remove")) {
-                service.dismissCandidate(id: candidate.id)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .cursorPointingHand()
+    /// 建议来源说明：为什么该目录会被建议纳入配方。
+    private func candidateSourceText(_ candidate: CandidateRecipe) -> String {
+        switch candidate.source {
+        case .growth:
+            return Localized.string("candidate.source_growth", Format.bytes(candidate.totalGrowthBytes))
+        case .discovery:
+            return Localized.string("devroot.cleanable", Format.bytes(candidate.totalGrowthBytes))
+        case .activity:
+            return Localized.string("devroot.active")
         }
+    }
+
+    private func acceptedRow(_ candidate: CandidateRecipe) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Button {
+                    revealInFinder(candidate.samplePath)
+                } label: {
+                    Text(candidate.pattern)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+                .help(candidate.samplePath)
+                Spacer()
+                Button(Localized.string("common.remove")) {
+                    service.dismissCandidate(id: candidate.id)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .cursorPointingHand()
+            }
+            Text(candidateRuleText(candidate))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// 采纳后纳入的现有配方与处理规则。
+    private func candidateRuleText(_ candidate: CandidateRecipe) -> String {
+        let name = Localized.recipeName(candidate.recipeID, fallback: candidate.recipeName)
+        let safety = candidate.suggestedSafety == .safeWhileRunning
+            ? Localized.string("candidate.safety_safe")
+            : Localized.string("candidate.safety_confirm")
+        let disposition: String
+        switch candidate.suggestedDisposition {
+        case .trash:
+            disposition = Localized.string("candidate.disposition_trash")
+        case .deletePermanently:
+            disposition = Localized.string("candidate.disposition_permanent")
+        case .none:
+            disposition = Localized.string("candidate.disposition_monitor")
+        }
+        return Localized.string("candidate.adds_to_recipe", name, safety, disposition)
     }
 
     private func revealInFinder(_ path: String) {

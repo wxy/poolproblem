@@ -45,9 +45,11 @@ public final class FSEventMonitor: @unchecked Sendable {
             paths as CFArray,
             FSEventsGetCurrentEventId(),
             latency,
+            // 只用目录级事件，避免逐文件事件让 fseventsd 为监听目录维护 FileID 树：
+            // 我们高频删除/移动缓存、构建产物与回收站批次时，会留下失效文件 ID，
+            // 导致 FileIDTreeGetVRefNumForDevice 持续报 -36（ioErr）。
             // UseCFTypes：回调收到 CFArray（而非原始 C 数组），否则 unsafeBitCast 会崩溃
-            FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents)
-                | FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes)
+            FSEventStreamCreateFlags(kFSEventStreamCreateFlagUseCFTypes)
         ) else { return }
         self.stream = stream
         FSEventStreamSetDispatchQueue(stream, queue)

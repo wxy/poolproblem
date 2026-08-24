@@ -12,10 +12,13 @@ final class AppService {
     private let fseventMonitor = FSEventMonitor()
     private let activityMonitor = FSEventMonitor(latency: 5.0)
     private let devActivityTracker = DevActivityTracker()
+    private let cleanupCoordinator: CleanupCoordinator
     private var dirtyTracker = DirtyTracker(trackedPaths: [])
     private var incrementalTimer: Timer?
     private var lastIncrementalAt = Date.distantPast
     private var lastDevDiscoveryAt = Date.distantPast
+    private var watchedPaths: Set<String>?
+    private var watchedActivityRoots: Set<String>?
     private let automationEnabled: Bool
     private var timer: Timer?
     private var lowSpaceNotified = false
@@ -41,6 +44,9 @@ final class AppService {
         self.growthLedgerStore = GrowthLedgerStore(paths: paths)
         self.recipeSuggestionStore = RecipeSuggestionStore(paths: paths)
         self.automationEnabled = automationEnabled
+        self.cleanupCoordinator = CleanupCoordinator { [weak state] cleaning in
+            state?.isCleaning = cleaning
+        }
     }
 
     func start() {
@@ -91,7 +97,6 @@ final class AppService {
     func scanNow(autoClean: Bool = true) async {
         guard !state.isScanning else { return }
         state.isScanning = true
-        state.isCleaning = false
         state.lastCleanSummary = nil
         defer { state.isScanning = false }
         let paths = self.paths
@@ -156,15 +161,34 @@ final class AppService {
         let recipePaths = activeRecipes()
             .flatMap { $0.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: home)) }
         let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
-        let paths = Array(Set(recipePaths + roots))
-        dirtyTracker = DirtyTracker(trackedPaths: paths)
-        fseventMonitor.start(paths: paths) { [weak self] eventPaths in
+        // 只排除系统级 /Library（模拟器挂载卷等只读系统卷）；
+        // ~/Library 保留监听——构建缓存/日志等快速增长源需要增量识别。
+        // FileID 噪音已通过“目录级事件”根治，与监听范围无关。
+        let paths = Array(Set(recipePaths + roots)).filter { path in
+            !path.hasPrefix("/Library/")
+        }
+        // 写活动识别：只监听开发目录（避免整个家目录触发 FileID 噪音）
+        let devRoots = loadConfig().devRoots
+        let activityRoots = ([home + "/develop"] + devRoots)
+            .filter { FileManager.default.fileExists(atPath: $0) }
+        // FSEvents 流创建/启动时，CarbonCore 会对 /dev/fsevents（devfs）做一次
+        // 必然失败的 FileID 查找（FileIDTreeGetVRefNumForDevice(-892394663) → -36）。
+        // 这是良性系统噪音、无法消除；路径没变时不重建流，避免每轮扫描都爆发一次。
+        // 注意：必须按 Set 比较——Array(Set(...)) 的元素顺序不稳定，
+        // 用数组比较会导致守卫永远不生效、每轮扫描都重建流。
+        let pathSet = Set(paths)
+        let activitySet = Set(activityRoots)
+        guard pathSet != watchedPaths || activitySet != watchedActivityRoots else { return }
+        watchedPaths = pathSet
+        watchedActivityRoots = activitySet
+        let sortedPaths = pathSet.sorted()
+        dirtyTracker = DirtyTracker(trackedPaths: sortedPaths)
+        fseventMonitor.start(paths: sortedPaths) { [weak self] eventPaths in
             Task { @MainActor [weak self] in
                 self?.handleEvents(eventPaths)
             }
         }
-        // 写活动识别：监听家目录，命中可再生产物名即记录"项目根 + 最近活动"
-        activityMonitor.start(paths: [home]) { [devActivityTracker] eventPaths in
+        activityMonitor.start(paths: activitySet.sorted()) { [devActivityTracker] eventPaths in
             devActivityTracker.record(eventPaths: eventPaths)
         }
         incrementalTimer?.invalidate()
@@ -200,17 +224,21 @@ final class AppService {
             var items = (try? store.snapshots().last?.items) ?? []
             var dirtySurface: [String] = []
             let storagePaths = StoragePaths(baseURL: nil, homeDirectory: home)
+            let allResolved = recipes.map { $0.resolvePaths(storagePaths) }
             for path in dirty {
                 if let recipe = recipes.first(where: {
                     $0.resolvePaths(storagePaths).contains { $0 == path || path.hasPrefix($0 + "/") }
                 }) {
+                    let ownPaths = Set(recipe.resolvePaths(storagePaths))
+                    let excludedPaths = Set(allResolved.flatMap { $0 }).subtracting(ownPaths)
                     let fresh = Scanner(
                         cloneRatios: cloneRatios,
                         ageDaysByRecipe: ageRules
                     ).rescan(
                         path: path,
                         recipe: recipe,
-                        homeDirectory: home
+                        homeDirectory: home,
+                        excludedPaths: excludedPaths
                     )
                     if recipe.aggregatesPaths {
                         // 聚合配方：脏路径可能只是其中某个项目，旧条目以配方为单位整体替换
@@ -260,14 +288,8 @@ final class AppService {
         try? growthLedgerStore.append(entries)
         try? growthLedgerStore.prune(retainingDays: 30)
         let allEntries = (try? growthLedgerStore.entries()) ?? []
-        let candidates = RecipeSuggester().suggest(
-            entries: allEntries,
-            existingRecipes: activeRecipes(),
-            homeDirectory: home
-        )
-        try? recipeSuggestionStore.merge(candidates)
         state.growthInsights = growthInsights(from: allEntries)
-        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+        await refreshRecipeSuggestions()
     }
 
     #if DEBUG
@@ -341,30 +363,6 @@ final class AppService {
         state.weeklyCleanedBytes = entries
             .filter { $0.timestamp >= cutoff }
             .reduce(0) { $0 + $1.freedBytes }
-        // 废纸篓详情：只展示当前仍留在回收站里的、本应用清理过的项；
-        // 用户清空废纸篓后，这里不再显示历史清理记录。
-        var names: [String] = []
-        var ourBytes: Int64 = 0
-        for entry in entries where entry.disposition == .trash {
-            let stillPresent = !entry.trashPaths.isEmpty
-                ? entry.trashPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) }
-                : false
-            guard stillPresent else { continue }
-            let entryNames = entry.itemNames.isEmpty
-                ? entry.itemIDs.map(itemName(for:))
-                : entry.itemNames
-            for name in entryNames {
-                names.append(name)
-            }
-            ourBytes += entry.freedBytes
-        }
-        state.ourTrashNames = Array(names.prefix(20))
-        state.ourTrashBytes = ourBytes
-        // 废纸篓可能同时包含本机 ~/.Trash 与 iCloud Drive 废纸篓，合并计算
-        let totalTrashBytes = state.items
-            .filter { $0.recipeID == "trash" }
-            .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
-        state.trashOthersBytes = max(0, totalTrashBytes - ourBytes)
         state.keptItemIDs = loadConfig().keptItemIDs
         let sorted = snapshots.sorted { $0.volume.timestamp < $1.volume.timestamp }
         state.availableHistory = sorted.map { $0.volume.availableBytes }
@@ -447,12 +445,37 @@ final class AppService {
     }
 
     func smartClean(dryRun: Bool) async -> CleanOutcome? {
+        if dryRun {
+            return await smartCleanInternal(dryRun: true)
+        }
+        // 真正清理走协调器串行执行，避免与自动清理并发
+        return await cleanupCoordinator.run { [weak self] in
+            await self?.smartCleanInternal(dryRun: false) ?? nil
+        }
+    }
+
+    /// 每个配方在清理日志中的累计执行次数与清理字节（itemID 形如 "recipeID:path"）。
+    func cleanStatsByRecipe() -> [String: (count: Int, bytes: Int64)] {
+        let entries = (try? logStore.entries()) ?? []
+        var result: [String: (count: Int, bytes: Int64)] = [:]
+        for entry in entries {
+            var seen = Set<String>()
+            for itemID in entry.itemIDs {
+                guard let recipeID = itemID.split(separator: ":").first.map(String.init),
+                      seen.insert(recipeID).inserted else { continue }
+                result[recipeID, default: (count: 0, bytes: 0)].count += 1
+                result[recipeID, default: (count: 0, bytes: 0)].bytes += entry.freedBytes
+            }
+        }
+        return result
+    }
+
+    private func smartCleanInternal(dryRun: Bool) async -> CleanOutcome? {
         let config = loadConfig()
         let logStore = self.logStore
         let cloneRatios = config.cloneRatios
         let state = self.state
         if !dryRun {
-            state.isCleaning = true
             state.cleanedItemIDs = []
             // 全量扫描期间没有逐项回调，先闪动预计第一个处理的小项，避免毫无反馈
             state.deletingItemID = firstPlannedItem()?.id
@@ -461,6 +484,8 @@ final class AppService {
         let activeRootsByRecipe = projectActiveRootsByRecipe(recipes: recipes)
         let idleHours = idleHoursByRecipe(recipes: recipes)
         let ageRules = ageDaysByRecipe()
+        let groupsByRecipe = recipeGroups(recipes)
+        let defaultAgesByRecipe = recipeDefaultAges(recipes)
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? DiskReservoirCore.Scanner(
                 cloneRatios: cloneRatios,
@@ -473,7 +498,9 @@ final class AppService {
                 let evaluator = RuleEvaluator(
                     config: config,
                     activeProjectRootsByRecipe: activeRootsByRecipe,
-                    idleHoursByRecipe: idleHours
+                    idleHoursByRecipe: idleHours,
+                    groupByRecipe: groupsByRecipe,
+                    defaultAgeByRecipe: defaultAgesByRecipe
                 )
                 let suggestions = result.items.compactMap { item -> (ScanItem, EvaluatedAction)? in
                     let action = evaluator.evaluate(item: item) { name in
@@ -505,9 +532,11 @@ final class AppService {
                 evaluator: RuleEvaluator(
                     config: config,
                     activeProjectRootsByRecipe: activeRootsByRecipe,
-                    idleHoursByRecipe: idleHours
+                    idleHoursByRecipe: idleHours,
+                    groupByRecipe: groupsByRecipe,
+                    defaultAgeByRecipe: defaultAgesByRecipe
                 ),
-                deleter: FileManagerFileDeleter(),
+                deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
             ).run(
@@ -541,10 +570,8 @@ final class AppService {
             return (result, outcome)
         }
         guard let (_, outcome) = await work.value, let outcome else {
-            state.isCleaning = false
             return nil
         }
-        state.isCleaning = false
         if !outcome.calibrationUpdates.isEmpty {
             var updated = config
             for (recipeID, ratio) in outcome.calibrationUpdates {
@@ -559,10 +586,21 @@ final class AppService {
     }
 
     func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
+        return await cleanupCoordinator.run { [weak self] in
+            await self?.cleanItemSerialized(item) ?? nil
+        }
+    }
+
+    private func cleanItemSerialized(_ item: ScanItem) async -> CleanOutcome? {
         // 详情页点击“立即清理”即用户确认：
         // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
         // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
-        guard item.cleanability != .displayOnly else {
+        guard item.cleanability != .displayOnly,
+              // 废纸篓是特殊过渡区：只通过废纸篓详情页管理，不走通用清理
+              item.recipeID != "own-trash-batches",
+              item.recipeID != "trash",
+              // 仅按子目录清理的项（如应用缓存）不整项删除
+              !item.cleanByChildOnly else {
             return nil
         }
         switch item.safety {
@@ -574,17 +612,17 @@ final class AppService {
                 return nil
             }
         }
-        state.isCleaning = true
         state.cleanedItemIDs = []
         state.deletingItemID = item.id
         let logStore = self.logStore
+        let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
         let work = Task.detached(priority: .userInitiated) { () -> CleanOutcome? in
             do {
                 let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
                 var freedBytes: Int64 = 0
                 var trashPaths: [String] = []
                 for target in targetPaths {
-                    let deletion = try FileManagerFileDeleter().deleteReturningResult(
+                    let deletion = try deleter.deleteReturningResult(
                         url: URL(fileURLWithPath: target),
                         disposition: .trash
                     )
@@ -617,12 +655,12 @@ final class AppService {
             }
         }
         guard let outcome = await work.value else {
-            state.isCleaning = false
             state.deletingItemID = nil
             state.deletingProgress = 1
             return nil
         }
-        state.isCleaning = false
+        // 乐观更新后立即重绘标尺；scanNow 会在重新扫描后再次刷新
+        refreshGaugeImage()
         await scanNow(autoClean: false)
         state.lastCleanSummary = Localized.string(
             "clean.summary",
@@ -631,6 +669,180 @@ final class AppService {
         )
         state.cleanCelebrationID += 1
         return outcome
+    }
+
+    /// 清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）。
+    func emptyOwnTrashBatches() async {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.emptyOwnTrashBatchesSerialized()
+        }
+    }
+
+    private func emptyOwnTrashBatchesSerialized() async {
+        _ = try? TrashBatchDeleter.emptyOwnBatches()
+        await scanNow(autoClean: false)
+    }
+
+    /// 清空单个本应用批次。
+    func emptyOwnBatch(named name: String) async {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.emptyOwnBatchSerialized(named: name)
+        }
+    }
+
+    private func emptyOwnBatchSerialized(named name: String) async {
+        try? TrashBatchDeleter.emptyBatch(named: name)
+        await scanNow(autoClean: false)
+    }
+
+    /// 恢复单个本应用批次（依据清理记录），返回恢复的条目数。
+    @discardableResult
+    func restoreOwnBatch(named name: String) async -> Int {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.restoreOwnBatchSerialized(named: name) ?? 0
+        }
+    }
+
+    private func restoreOwnBatchSerialized(named name: String) async -> Int {
+        let batchPath = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".Trash", isDirectory: true)
+            .appendingPathComponent(name, isDirectory: true)
+            .path
+        let entries = (try? logStore.entries()) ?? []
+        var restoredCount = 0
+        for entry in entries where entry.disposition == .trash {
+            let inBatch = entry.trashPaths.contains { $0.hasPrefix(batchPath) }
+            guard inBatch else { continue }
+            if await undoCleanup(entry) {
+                restoredCount += 1
+            }
+        }
+        return restoredCount
+    }
+
+    /// 废纸篓当前一级条目（名称 + 大小），本应用批次优先。
+    /// 需要完全磁盘访问才能枚举；无权限时返回空列表。
+    func trashEntries() async -> [TrashEntry] {
+        let trash = URL(fileURLWithPath: NSHomeDirectory())
+            .appendingPathComponent(".Trash", isDirectory: true)
+        guard let children = try? FileManager.default.contentsOfDirectory(
+            at: trash,
+            includingPropertiesForKeys: [.isDirectoryKey, .fileSizeKey]
+        ) else { return [] }
+        let work = Task.detached(priority: .utility) { () -> [TrashEntry] in
+            var entries: [TrashEntry] = []
+            for child in children {
+                let isDir = ((try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory) ?? false
+                let bytes: Int64
+                if isDir {
+                    bytes = POSIXDirectoryWalker.walk(
+                        url: child,
+                        itemID: "trash-entry",
+                        includeRecords: false
+                    )?.allocatedBytes ?? 0
+                } else {
+                    bytes = Int64((try? child.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0)
+                }
+                entries.append(TrashEntry(
+                    name: child.lastPathComponent,
+                    bytes: bytes,
+                    isOwnBatch: child.lastPathComponent.hasPrefix(TrashBatchDeleter.batchNamePrefix)
+                ))
+            }
+            return entries.sorted { lhs, rhs in
+                if lhs.isOwnBatch != rhs.isOwnBatch { return lhs.isOwnBatch }
+                return lhs.bytes > rhs.bytes
+            }
+        }
+        return await work.value
+    }
+
+    /// 应用缓存等“仅按子目录清理”项的详情：一级子目录（大小/增速/是否受保护）。
+    func cacheChildren(for item: ScanItem) async -> [CacheChildEntry] {
+        let parent = URL(fileURLWithPath: item.path, isDirectory: true)
+        guard let children = try? FileManager.default.contentsOfDirectory(
+            at: parent,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        ) else { return [] }
+        let recipe = activeRecipes().first { $0.id == item.recipeID }
+        let protected = recipe.map {
+            ProgressiveCleanupPolicy.mergedProtectedChildNames(recipe: $0, config: loadConfig())
+        } ?? []
+        let rates = childGrowthRates(parentPath: item.path, homeDirectory: NSHomeDirectory())
+        let work = Task.detached(priority: .utility) { () -> [CacheChildEntry] in
+            var entries: [CacheChildEntry] = []
+            for child in children {
+                guard ((try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory) == true else {
+                    continue
+                }
+                let bytes = POSIXDirectoryWalker.walk(
+                    url: child,
+                    itemID: "cache-child",
+                    includeRecords: false
+                )?.allocatedBytes ?? 0
+                entries.append(CacheChildEntry(
+                    name: child.lastPathComponent,
+                    path: child.path,
+                    bytes: bytes,
+                    ratePerDay: rates[child.path] ?? 0,
+                    isProtected: protected.contains(child.lastPathComponent)
+                ))
+            }
+            return entries.sorted { lhs, rhs in
+                if lhs.isProtected != rhs.isProtected { return !lhs.isProtected }
+                let ls = Double(lhs.bytes) + lhs.ratePerDay * ProgressiveCleanupPolicy.growthWindowDays
+                let rs = Double(rhs.bytes) + rhs.ratePerDay * ProgressiveCleanupPolicy.growthWindowDays
+                return ls > rs
+            }
+        }
+        return await work.value
+    }
+
+    /// 逐子目录清理（应用缓存等）：把该子目录移入回收站并记录日志。
+    func cleanCacheChild(path: String, recipeID: String, name: String) async {
+        await cleanupCoordinator.run { [weak self] in
+            guard let self else { return }
+            let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
+            let deletion = try? deleter.deleteReturningResult(
+                url: URL(fileURLWithPath: path),
+                disposition: .trash
+            )
+            let entry = CleanLogEntry(
+                id: UUID(),
+                timestamp: Date(),
+                itemIDs: ["\(recipeID):\(path)"],
+                itemNames: [name],
+                originalPaths: [path],
+                trashPaths: [deletion?.resultingURL?.path ?? ""],
+                batchID: UUID(),
+                freedBytes: deletion?.freedBytes ?? 0,
+                disposition: .trash,
+                source: .manual
+            )
+            try? self.logStore.append(entry)
+            await self.scanNow(autoClean: false)
+        }
+    }
+
+    /// 恢复仍留在废纸篓里的本应用批次（依据清理记录），返回成功恢复的条数。
+    @discardableResult
+    func restoreOwnTrashBatches() async -> Int {
+        await cleanupCoordinator.run { [weak self] in
+            await self?.restoreOwnTrashBatchesSerialized() ?? 0
+        }
+    }
+
+    private func restoreOwnTrashBatchesSerialized() async -> Int {
+        let entries = (try? logStore.entries()) ?? []
+        var restoredCount = 0
+        for entry in entries where entry.disposition == .trash && !entry.trashPaths.isEmpty {
+            let stillPresent = entry.trashPaths.allSatisfy { FileManager.default.fileExists(atPath: $0) }
+            guard stillPresent else { continue }
+            if await undoCleanup(entry) {
+                restoredCount += 1
+            }
+        }
+        return restoredCount
     }
 
     private static func processName(for item: ScanItem) -> String? {
@@ -750,6 +962,15 @@ final class AppService {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
         return "PoolProblem Cleanup \(sourceName) \(formatter.string(from: Date()))"
+    }
+
+    /// 通用清理批次名：智能清理 / 水线自动清理 / 详情页一键清理共用。
+    /// 所有“移入废纸篓”都进批次文件夹，才能在废纸篓详情里被识别为本应用批次。
+    nonisolated private static func cleanupBatchName() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
+        return "PoolProblem Cleanup \(formatter.string(from: Date()))"
     }
 
     // MARK: - Proactive auto-clean
@@ -872,7 +1093,13 @@ final class AppService {
     }
 
     private func maybeAutoClean(result: ScanResult) async {
-        guard !state.isCleaning else { return }
+        guard !cleanupCoordinator.isCleaning else { return }
+        await cleanupCoordinator.run { [weak self] in
+            await self?.performAutoClean(result: result)
+        }
+    }
+
+    private func performAutoClean(result: ScanResult) async {
         let config = loadConfig()
         let thresholds = thresholds(for: config)
         let minItemBytes = minimumCleanItemBytes(config)
@@ -932,7 +1159,7 @@ final class AppService {
 
         // 开关开启时：清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）
         if config.autoEmptyOwnTrashBatches {
-            try? TrashBatchDeleter.emptyOwnBatches()
+            _ = try? TrashBatchDeleter.emptyOwnBatches()
         }
 
         if totalCount > 0 {
@@ -945,6 +1172,9 @@ final class AppService {
             state.autoCleanPlans = []
             refreshCleanLogEntries()
         }
+        // 自动清理会乐观更新可用空间/废纸篓/项目条目，立即重绘标尺，
+        // 避免菜单栏图标、水池标尺与状态卡在下次扫描前不一致。
+        refreshGaugeImage()
     }
 
     private func runAutoWaterlineClean(
@@ -956,7 +1186,6 @@ final class AppService {
         minimumItemBytes: Int64? = nil,
         itemGrowthRates: [String: Double] = [:]
     ) async -> CleanOutcome? {
-        state.isCleaning = true
         state.cleanedItemIDs = []
         state.deletingItemID = firstAutoPlannedItem(
             scan: scan,
@@ -968,14 +1197,18 @@ final class AppService {
         let recipes = activeRecipes()
         let activeRootsByRecipe = projectActiveRootsByRecipe(recipes: recipes)
         let idleHours = idleHoursByRecipe(recipes: recipes)
+        let groupsByRecipe = recipeGroups(recipes)
+        let defaultAgesByRecipe = recipeDefaultAges(recipes)
         let work = Task.detached(priority: .utility) { () -> CleanOutcome? in
             let cleaner = Cleaner(
                 evaluator: RuleEvaluator(
                     config: config,
                     activeProjectRootsByRecipe: activeRootsByRecipe,
-                    idleHoursByRecipe: idleHours
+                    idleHoursByRecipe: idleHours,
+                    groupByRecipe: groupsByRecipe,
+                    defaultAgeByRecipe: defaultAgesByRecipe
                 ),
-                deleter: FileManagerFileDeleter(),
+                deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore
             )
@@ -1013,11 +1246,9 @@ final class AppService {
             )
         }
         guard let outcome = await work.value else {
-            state.isCleaning = false
             state.deletingItemID = nil
             return nil
         }
-        state.isCleaning = false
         state.deletingItemID = nil
         return outcome
     }
@@ -1028,7 +1259,6 @@ final class AppService {
     ) async -> ProgressiveCleanupOutcome {
         let policies = progressivePolicies(config: config, emergency: emergency)
         guard !policies.isEmpty else { return .empty }
-        state.isCleaning = true
         let logStore = self.logStore
         let work = Task.detached(priority: .utility) { () -> ProgressiveCleanupOutcome in
             var entries: [CleanLogEntry] = []
@@ -1058,7 +1288,6 @@ final class AppService {
             )
         }
         let outcome = await work.value
-        state.isCleaning = false
         if outcome.freedBytes > 0 {
             let trashFreed = outcome.entries
                 .filter { $0.disposition == .trash }
@@ -1088,6 +1317,11 @@ final class AppService {
         config: Config,
         emergency: Bool
     ) -> [ProgressiveCleanupPolicy] {
+        let home = NSHomeDirectory()
+        // 组级进程守卫：Xcode / Simulator 运行中的组，整组不参与渐进清理
+        let runningGroups = Set(RecipeGroup.allCases.filter { group in
+            group.guardProcessNames.contains { PGrepProcessInspector().isRunning($0) }
+        })
         var policies: [ProgressiveCleanupPolicy] = []
         for item in state.items {
             guard item.recipeID != "trash",
@@ -1105,6 +1339,14 @@ final class AppService {
             guard let recipe = activeRecipes().first(where: { $0.id == item.recipeID }) else {
                 continue
             }
+            // 组级开关与组级进程守卫
+            if let groupRule = config.rules.first(where: { $0.recipeID == recipe.group.ruleID }),
+               !groupRule.enabled {
+                continue
+            }
+            if runningGroups.contains(recipe.group) {
+                continue
+            }
             guard let childCount = POSIXDirectoryWalker.firstLevelCount(path: item.path),
                   childCount > 0 else {
                 continue
@@ -1112,6 +1354,8 @@ final class AppService {
             let ratio = recipe.cloneProne
                 ? (config.cloneRatios[item.recipeID] ?? 0.2)
                 : 1
+            // 子项增长率（近 7 天台账）：让“还在快速增长的子目录”优先被渐进清理
+            let rates = childGrowthRates(parentPath: item.path, homeDirectory: home)
 
             if emergency {
                 policies.append(ProgressiveCleanupPolicy(
@@ -1128,7 +1372,8 @@ final class AppService {
                     protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
                         recipe: recipe,
                         config: config
-                    )
+                    ),
+                    childGrowthRates: rates
                 ))
                 continue
             }
@@ -1151,10 +1396,23 @@ final class AppService {
                 protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
                     recipe: recipe,
                     config: config
-                )
+                ),
+                childGrowthRates: rates
             ))
         }
         return policies
+    }
+
+    /// 近 7 天增长台账中，父目录下一级子项的日增长率（bytes/day）。
+    private func childGrowthRates(parentPath: String, homeDirectory: String) -> [String: Double] {
+        let cutoff = Date().addingTimeInterval(-7 * 86_400)
+        let entries = (try? growthLedgerStore.entries()) ?? []
+        let prefix = parentPath.hasSuffix("/") ? parentPath : parentPath + "/"
+        var rates: [String: Double] = [:]
+        for entry in entries where entry.observedAt >= cutoff && entry.path.hasPrefix(prefix) {
+            rates[entry.path, default: 0] = max(rates[entry.path, default: 0], entry.rateBytesPerDay)
+        }
+        return rates
     }
 
     private func firstAutoPlannedItem(
@@ -1261,6 +1519,9 @@ final class AppService {
         existing.minimumCleanItemMB = config.minimumCleanItemMB
         existing.autoEmptyOwnTrashBatches = config.autoEmptyOwnTrashBatches
         writeConfig(existing)
+        // 水位线配置立即生效并重绘标尺（不再等下次扫描）
+        state.waterlineBytes = waterlineBytes()
+        refreshGaugeImage()
     }
 
     private func writeConfig(_ config: Config) {
@@ -1306,73 +1567,74 @@ final class AppService {
         try? growthLedgerStore.append(entries)
         try? growthLedgerStore.prune(retainingDays: 30)
         let allEntries = (try? growthLedgerStore.entries()) ?? []
-        let candidates = RecipeSuggester().suggest(
-            entries: allEntries,
-            existingRecipes: activeRecipes(),
-            homeDirectory: home
-        )
-        try? recipeSuggestionStore.merge(candidates)
         state.growthInsights = growthInsights(from: allEntries)
-        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
-        suggestDevRootsFromGrowth(allEntries: allEntries)
+        await refreshRecipeSuggestions()
     }
 
     /// 启动时从磁盘恢复增长洞察与候选配方状态。
     private func refreshGrowthState() {
         let allEntries = (try? growthLedgerStore.entries()) ?? []
         state.growthInsights = growthInsights(from: allEntries)
-        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
-        Task { await maybeDiscoverDevDirectories() }
+        state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
+            (try? recipeSuggestionStore.load()) ?? []
+        )
+        Task { await refreshRecipeSuggestions() }
     }
 
-    /// 主动发现开发目录（无需增长触发）：找出基线之前就已存在、
-    /// 含大量可重建内容（node_modules/dist/build）的项目并建议加入监控。
-    /// 默认每 1 小时最多执行一次，避免频繁全量测量；force 时立即执行。
-    private func maybeDiscoverDevDirectories(force: Bool = false) async {
+    /// 统一刷新“配方建议”：增长台账 + 主动发现 + 近期写活动三个来源，
+    /// 归并成“加入现有配方作用域”的候选。开发目录建议就是其中的
+    /// “项目目录”配方族——发现/活跃/增长只是同一类建议的不同来源。
+    /// 主动发现默认每 1 小时最多执行一次，避免频繁全量测量；force 时立即执行。
+    private func refreshRecipeSuggestions(forceDiscovery: Bool = false) async {
         let home = NSHomeDirectory()
-        guard force || Date().timeIntervalSince(lastDevDiscoveryAt) >= 3600 else { return }
-        lastDevDiscoveryAt = Date()
-        let known = Set(loadConfig().devRoots + loadConfig().declinedDevRoots)
-        let found = await Task.detached(priority: .utility) {
-            DevDirectoryDiscovery.discover(homeDirectory: home)
-        }.value
-        let existing = Set(state.pendingDevRoots.map(\.path))
-        var fresh = found
-            .filter { !isKnownDevPath($0.path, known: known) && !existing.contains($0.path) }
-            .map { DevRootCandidate(path: $0.path, marker: $0.marker, bytes: $0.regenerableBytes, source: .discovery) }
-        // FSEvents 写活动：无标记/新项目也能被发现（来源"近期活跃"）
-        for activity in devActivityTracker.activeProjects(since: 48 * 3600)
-        where !isKnownDevPath(activity.projectRoot, known: known) && !existing.contains(activity.projectRoot)
-            && !fresh.contains(where: { $0.path == activity.projectRoot }) {
-            fresh.append(DevRootCandidate(
-                path: activity.projectRoot,
-                marker: activity.artifact,
-                bytes: 0,
-                source: .activity
-            ))
-        }
-        if !fresh.isEmpty {
-            state.pendingDevRoots += Array(groupDevRootCandidates(fresh).prefix(5))
-        }
-        #if DEBUG
-        let line = "[\(Date())] discovery: found=\(found.count) fresh=\(fresh.count) "
-            + "known=\(known.count) first=\(found.prefix(3).map(\.path).joined(separator: "|"))\n"
-        if let data = line.data(using: .utf8) {
-            let url = URL(fileURLWithPath: "/tmp/poolproblem-discovery.log")
-            if let handle = try? FileHandle(forWritingTo: url) {
-                handle.seekToEndOfFile()
-                handle.write(data)
-                try? handle.close()
-            } else {
-                try? data.write(to: url)
+        var raw: [CandidateRecipe] = []
+        if forceDiscovery || Date().timeIntervalSince(lastDevDiscoveryAt) >= 3600 {
+            lastDevDiscoveryAt = Date()
+            let found = await Task.detached(priority: .utility) {
+                DevDirectoryDiscovery.discover(homeDirectory: home)
+            }.value
+            raw += RecipeSuggester.discoveryCandidates(
+                discovered: found,
+                homeDirectory: home
+            )
+            #if DEBUG
+            let line = "[\(Date())] discovery: found=\(found.count) "
+                + "first=\(found.prefix(3).map(\.path).joined(separator: "|"))\n"
+            if let data = line.data(using: .utf8) {
+                let url = URL(fileURLWithPath: "/tmp/poolproblem-discovery.log")
+                if let handle = try? FileHandle(forWritingTo: url) {
+                    handle.seekToEndOfFile()
+                    handle.write(data)
+                    try? handle.close()
+                } else {
+                    try? data.write(to: url)
+                }
             }
+            #endif
         }
-        #endif
+        raw += RecipeSuggester.activityCandidates(
+            activities: devActivityTracker.activeProjects(since: 48 * 3600),
+            homeDirectory: home
+        )
+        let allEntries = (try? growthLedgerStore.entries()) ?? []
+        raw += RecipeSuggester().suggest(
+            entries: allEntries,
+            existingRecipes: activeRecipes(),
+            homeDirectory: home
+        )
+        let normalized = RecipeSuggester.normalize(raw, homeDirectory: home)
+        let live = dedupeCandidatesAgainstDevRoots(normalized)
+        try? recipeSuggestionStore.merge(live)
+        // 丢弃旧设计残留 / 已不再生成的候选（如历史版本对 Xcode、CoreSimulator 的错误建议）
+        try? recipeSuggestionStore.prune(keeping: Set(live.map(\.id)))
+        state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
+            (try? recipeSuggestionStore.load()) ?? []
+        )
     }
 
-    /// 供 UI 手动/打开洞察时触发开发目录发现。
-    func refreshDevSuggestions(force: Bool = true) async {
-        await maybeDiscoverDevDirectories(force: force)
+    /// 供 UI 手动/打开洞察时刷新配方建议。
+    func refreshSuggestions(forceDiscovery: Bool = true) async {
+        await refreshRecipeSuggestions(forceDiscovery: forceDiscovery)
     }
 
     /// 增长洞察展示过滤：只保留配方未覆盖、可归因到目录的增长。
@@ -1402,8 +1664,13 @@ final class AppService {
 
     /// 当前生效的配方：系统内置 + 用户确认的项目目录配方。
     private func activeRecipes() -> [Recipe] {
-        RecipeRegistry.builtIn()
-            + ProjectRecipes.make(devRoots: loadConfig().devRoots, homeDirectory: NSHomeDirectory())
+        let config = loadConfig()
+        return RecipeRegistry.builtIn()
+            + [PackageManagerRecipes.make(
+                extraRoots: config.packageManagerCacheRoots,
+                homeDirectory: NSHomeDirectory()
+            )]
+            + ProjectRecipes.make(devRoots: config.devRoots, homeDirectory: NSHomeDirectory())
     }
 
     /// 各配方用户配置的年龄阈值（天），未配置的配方回落 recipe.defaultAgeDays。
@@ -1415,6 +1682,16 @@ final class AppService {
             }
         }
         return result
+    }
+
+    /// 配方 → 所属组（组级开关/闲置天数/进程守卫）。
+    private func recipeGroups(_ recipes: [Recipe]) -> [String: RecipeGroup] {
+        Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0.group) })
+    }
+
+    /// 配方 → 声明的默认闲置天数（组级/配方级规则未配置时回落）。
+    private func recipeDefaultAges(_ recipes: [Recipe]) -> [String: Int] {
+        Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0.defaultAgeDays) })
     }
 
     /// 各项目配方在“各自活跃窗口”内最近有 FSEvents 写活动的项目根：
@@ -1436,32 +1713,17 @@ final class AppService {
         Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0.minimumIdleHours) })
     }
 
-    /// 用户确认把某个目录加入开发目录监控。
-    func confirmDevRoot(_ path: String) {
-        var config = loadConfig()
-        guard !config.devRoots.contains(path) else { return }
-        config.devRoots.append(path)
-        config.declinedDevRoots.removeAll { $0 == path }
-        writeConfig(config)
-        state.pendingDevRoots.removeAll { $0.path == path || $0.path.hasPrefix(path + "/") }
-        // 立即重扫，让项目配方（聚合条目）出现在清理列表中
-        Task { await scanNow(autoClean: false) }
-    }
-
-    /// 用户忽略该目录：记入忽略列表，避免重复提示。
-    func declineDevRoot(_ path: String) {
-        var config = loadConfig()
-        if !config.declinedDevRoots.contains(path) {
-            config.declinedDevRoots.append(path)
-        }
-        writeConfig(config)
-        state.pendingDevRoots.removeAll { $0.path == path }
-    }
-
     /// 从监控中移除用户添加的开发目录。
     func removeDevRoot(_ path: String) {
         var config = loadConfig()
         config.devRoots.removeAll { $0 == path }
+        writeConfig(config)
+    }
+
+    /// 从监控中移除用户添加的包管理器缓存目录。
+    func removePackageManagerCacheRoot(_ path: String) {
+        var config = loadConfig()
+        config.packageManagerCacheRoots.removeAll { $0 == path }
         writeConfig(config)
     }
 
@@ -1475,66 +1737,63 @@ final class AppService {
         )
     }
 
-    /// 增长来源的开发目录建议：表面扫描发现的未覆盖增长中，命中项目标记的
-    /// 提示用户加入监控（来源"增长"）。已知/忽略/已在建议中的不再重复。
-    private func suggestDevRootsFromGrowth(allEntries: [GrowthEntry]) {
+    /// 已列入任一配方作用域（devRoots / 包管理器缓存）或忽略列表的目录
+    /// 不再作为“加入现有配方”候选展示。
+    private func dedupeCandidatesAgainstDevRoots(_ candidates: [CandidateRecipe]) -> [CandidateRecipe] {
         let config = loadConfig()
-        let known = Set(config.devRoots + config.declinedDevRoots)
-        let existing = Set(state.pendingDevRoots.map(\.path))
-        let fresh: [DevRootCandidate] = uncoveredInsights(allEntries).compactMap { entry in
-            guard !isKnownDevPath(entry.path, known: known),
-                  !existing.contains(entry.path),
-                  let kind = DevDirectoryDetector.detect(path: entry.path) else { return nil }
-            return DevRootCandidate(path: entry.path, marker: kind.rawValue, bytes: entry.deltaBytes, source: .growth)
+        let known = config.devRoots + config.declinedDevRoots + config.packageManagerCacheRoots
+        return candidates.filter { candidate in
+            // 候选位于某个已确认/忽略的根之内（或其自身）→ 不再建议；
+            // 已知根只是候选的子目录时仍保留候选（父目录建议可覆盖其余部分）。
+            !known.contains { $0 == candidate.samplePath || candidate.samplePath.hasPrefix($0 + "/") }
         }
-        if !fresh.isEmpty {
-            state.pendingDevRoots += Array(groupDevRootCandidates(fresh).prefix(3))
-        }
-    }
-
-    /// 路径是否已被某个已确认/忽略的开发目录覆盖（自身或其子树）。
-    private func isKnownDevPath(_ path: String, known: Set<String>) -> Bool {
-        known.contains { $0 == path || path.hasPrefix($0 + "/") }
-    }
-
-    /// 把建议按父目录归并：同一父目录下有 ≥2 个项目时，只建议监控父目录
-    /// （一次确认覆盖全部），散落的项目保持单独建议。
-    private func groupDevRootCandidates(_ candidates: [DevRootCandidate]) -> [DevRootCandidate] {
-        var byParent: [String: [DevRootCandidate]] = [:]
-        for candidate in candidates {
-            let parent = URL(fileURLWithPath: candidate.path).deletingLastPathComponent().path
-            byParent[parent, default: []].append(candidate)
-        }
-        var result: [DevRootCandidate] = []
-        for (parent, group) in byParent {
-            if group.count >= 2 {
-                let total = group.reduce(Int64(0)) { $0 + $1.bytes }
-                let names = group.compactMap { URL(fileURLWithPath: $0.path).lastPathComponent }
-                result.append(DevRootCandidate(
-                    path: parent,
-                    marker: "group",
-                    bytes: total,
-                    source: .discovery,
-                    childNames: names
-                ))
-            } else if let single = group.first {
-                result.append(single)
-            }
-        }
-        return result.sorted { $0.bytes > $1.bytes }
     }
 
     func acceptCandidate(id: String) {
+        guard let candidate = state.candidateRecipes.first(where: { $0.id == id }),
+              candidate.status != .accepted else { return }
+        var config = loadConfig()
+        switch candidate.recipeID {
+        case RecipeSuggester.projectFamilyID:
+            // 项目目录配方族：加入 devRoots，node_modules / 构建产物按既有规则覆盖
+            if !config.devRoots.contains(candidate.samplePath) {
+                config.devRoots.append(candidate.samplePath)
+            }
+            config.declinedDevRoots.removeAll { $0 == candidate.samplePath }
+        case RecipeSuggester.packageManagerFamilyID:
+            // 包管理器缓存配方族：加入缓存根，按“可自动清理 / 永久删除”规则管理
+            if !config.packageManagerCacheRoots.contains(candidate.samplePath) {
+                config.packageManagerCacheRoots.append(candidate.samplePath)
+            }
+        default:
+            return
+        }
+        writeConfig(config)
         setCandidateStatus(id: id, status: .accepted)
+        // 立即重扫，让项目配方（聚合条目）出现在清理列表中
+        Task { await scanNow(autoClean: false) }
     }
 
     func dismissCandidate(id: String) {
+        // 项目配方族额外记入忽略列表（兼容旧流程）；包管理器配方族由
+        // store 状态抑制重复建议
+        if let candidate = state.candidateRecipes.first(where: { $0.id == id }) {
+            if candidate.recipeID == RecipeSuggester.projectFamilyID {
+                var config = loadConfig()
+                if !config.declinedDevRoots.contains(candidate.samplePath) {
+                    config.declinedDevRoots.append(candidate.samplePath)
+                    writeConfig(config)
+                }
+            }
+        }
         setCandidateStatus(id: id, status: .dismissed)
     }
 
     private func setCandidateStatus(id: String, status: CandidateStatus) {
         try? recipeSuggestionStore.setStatus(id: id, status: status)
-        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+        state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
+            (try? recipeSuggestionStore.load()) ?? []
+        )
     }
 
     private func checkLowSpace(available: Int64) {

@@ -226,6 +226,49 @@ private struct RecorderDeleter: FileDeleting {
     #expect(outcome.entries.first?.itemNames == ["child-0"])
 }
 
+@Test func progressiveCleanerPrefersFastGrowingCandidates() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-progressive-growth-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    // child-a：600MB 但日增长 1GB（7 天加权后远超静态大项）
+    // child-b：800MB、无增长
+    let children = [("child-a", 600_000_000), ("child-b", 800_000_000)]
+    for (name, bytes) in children {
+        let child = root.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
+        try Data(repeating: 0xAB, count: bytes).write(to: child.appendingPathComponent("data.bin"))
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-30 * 86_400)],
+            ofItemAtPath: child.path
+        )
+    }
+
+    let paths = StoragePaths(baseURL: root.appendingPathComponent("logs", isDirectory: true))
+    let policy = ProgressiveCleanupPolicy(
+        recipeID: "library-caches",
+        parentPath: root.path,
+        maxChildren: 0,
+        maxItemsPerRun: 1,
+        minimumAgeSeconds: 86_400,
+        disposition: .trash,
+        minimumCleanBytes: 0,
+        minimumCandidateBytes: 500_000_000,
+        childGrowthRates: [
+            root.appendingPathComponent("child-a").path: 1_000_000_000,
+            root.appendingPathComponent("child-b").path: 0,
+        ]
+    )
+    let outcome = try ProgressiveCleaner(
+        deleter: FileManagerFileDeleter(),
+        logStore: CleanLogStore(paths: paths)
+    ).run(policy: policy)
+
+    #expect(outcome.trimmedCount == 1)
+    #expect(outcome.entries.first?.itemNames == ["child-a"])
+}
+
 @Test func mergedProtectedChildNamesCombinesRecipeAndConfig() {
     let recipe = Recipe(
         id: "library-caches", name: "Caches", category: .common,
