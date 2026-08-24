@@ -122,7 +122,11 @@ struct SettingsView: View {
     private var recipesSections: some View {
         if expertMode {
             Section(Localized.string("settings.recipes_section")) {
-                ForEach(RecipeRegistry.builtIn(), id: \.id) { recipe in
+                let packageManagerRecipe = PackageManagerRecipes.make(
+                    extraRoots: config.packageManagerCacheRoots,
+                    homeDirectory: NSHomeDirectory()
+                )
+                ForEach(RecipeRegistry.builtIn() + [packageManagerRecipe], id: \.id) { recipe in
                     recipeRow(recipe)
                 }
             }
@@ -179,6 +183,32 @@ struct SettingsView: View {
                         }
                     }
                     Text(Localized.string("settings.devroots_recipes_hint"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section(Localized.string("settings.cache_roots_section")) {
+                if config.packageManagerCacheRoots.isEmpty {
+                    Text(Localized.string("settings.cache_roots_empty"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(config.packageManagerCacheRoots, id: \.self) { path in
+                        HStack {
+                            Text(path)
+                                .font(.caption)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Button(Localized.string("common.remove")) {
+                                service.removePackageManagerCacheRoot(path)
+                                config.packageManagerCacheRoots.removeAll { $0 == path }
+                            }
+                            .cursorPointingHand()
+                        }
+                    }
+                    Text(Localized.string("settings.cache_roots_hint"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

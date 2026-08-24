@@ -1167,13 +1167,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "After adding, its node_modules / dist / build are monitored and cleanup suggestions appear when they haven't changed recently."
+            "value" : "Adding a directory puts it under an existing recipe's scope, and it is monitored and cleaned per that recipe's rules."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "加入后自动监控其中的 node_modules / dist / build，并在长期未变化时给出清理建议。"
+            "value" : "采纳后目录纳入现有配方的管理范围，按该配方的规则监控与清理。"
           }
         }
       }
@@ -2365,22 +2365,6 @@
         }
       }
     },
-    "recipe.cocoapods-cache" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CocoaPods Cache"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CocoaPods 缓存"
-          }
-        }
-      }
-    },
     "recipe.core-simulator-devices" : {
       "localizations" : {
         "en" : {
@@ -2413,22 +2397,6 @@
         }
       }
     },
-    "recipe.homebrew-cache" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Homebrew Cache"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Homebrew 缓存"
-          }
-        }
-      }
-    },
     "recipe.library-caches" : {
       "localizations" : {
         "en" : {
@@ -2445,34 +2413,18 @@
         }
       }
     },
-    "recipe.npm-cache" : {
+    "recipe.package-manager-caches" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "npm Cache"
+            "value" : "Package Manager Caches"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "npm 缓存"
-          }
-        }
-      }
-    },
-    "recipe.pnpm-store" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "pnpm Store"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "pnpm store"
+            "value" : "包管理器缓存"
           }
         }
       }
@@ -2569,22 +2521,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "废纸篓"
-          }
-        }
-      }
-    },
-    "recipe.uv-cache" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "uv Cache"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "uv 缓存"
           }
         }
       }
@@ -2825,6 +2761,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "候选配方"
+          }
+        }
+      }
+    },
+    "settings.cache_roots_empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cache directories you accept in Growth Insights will appear here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在增长洞察中采纳的缓存目录会自动出现在这里。"
+          }
+        }
+      }
+    },
+    "settings.cache_roots_hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These directories join the “Package Manager Caches” recipe and are cleaned permanently when old."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些目录纳入“包管理器缓存”配方，长期未使用时按永久删除规则清理。"
+          }
+        }
+      }
+    },
+    "settings.cache_roots_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your package-manager cache directories"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你添加的包管理器缓存目录"
           }
         }
       }
@@ -4018,13 +4002,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Whole-item delete"
+            "value" : "Delete permanently"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "整项删除"
+            "value" : "永久删除"
           }
         }
       }

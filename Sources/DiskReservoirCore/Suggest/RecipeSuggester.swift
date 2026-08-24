@@ -14,6 +14,9 @@ public struct RecipeSuggester: Sendable {
     public static let projectFamilySafety = SafetyLevel.userConfirm
     public static let projectFamilyCleanability = Cleanability.regenerable
     public static let projectFamilyDisposition = CleanDisposition.trash
+    /// 包管理器缓存配方族（全局可再生缓存，可安全永久删除）。
+    public static let packageManagerFamilyID = PackageManagerRecipes.familyID
+    public static let packageManagerFamilyName = "Package manager caches"
 
     public let minTotalBytes: Int64
     public let topK: Int
@@ -33,14 +36,25 @@ public struct RecipeSuggester: Sendable {
             homeDirectory: homeDirectory
         )
         func isCovered(_ pattern: String) -> Bool {
-            covered.contains { $0 == pattern || pattern.hasPrefix($0 + "/") }
+            covered.contains { root in
+                root == pattern || pattern.hasPrefix(root + "/")
+            } || covered.contains { root in
+                root.hasPrefix(pattern + "/") && !root.dropFirst(pattern.count + 1).contains("/")
+            }
         }
         // 未覆盖增长按“所属项目根”聚合：一条增长可能来自项目目录本身或其子目录。
         var byRoot: [String: [GrowthEntry]] = [:]
+        var cacheCandidates: [CandidateRecipe] = []
         for entry in entries where entry.kind == .surface && entry.deltaBytes > 0 {
             guard !isCovered(entry.pattern) else { continue }
-            guard let root = projectRoot(for: entry.path, homeDirectory: homeDirectory) else { continue }
-            byRoot[root, default: []].append(entry)
+            if let root = projectRoot(for: entry.path, homeDirectory: homeDirectory) {
+                byRoot[root, default: []].append(entry)
+            } else if let cache = packageManagerCandidate(
+                for: entry,
+                homeDirectory: homeDirectory
+            ) {
+                cacheCandidates.append(cache)
+            }
         }
         let candidates: [CandidateRecipe] = byRoot.compactMap { root, group in
             let total = group.reduce(Int64(0)) { $0 + $1.deltaBytes }
@@ -66,10 +80,42 @@ public struct RecipeSuggester: Sendable {
                 samplePath: root
             )
         }
-        return candidates
+        return (candidates + cacheCandidates)
             .sorted { $0.totalGrowthBytes > $1.totalGrowthBytes }
             .prefix(topK)
             .map { $0 }
+    }
+
+    /// 未覆盖增长中形如 `~/.cache/<工具>` 的缓存目录 → 归入“包管理器缓存”
+    /// 配方族（采纳后按“可自动清理 / 永久删除”规则管理）。
+    private func packageManagerCandidate(
+        for entry: GrowthEntry,
+        homeDirectory: String
+    ) -> CandidateRecipe? {
+        let path = entry.path
+        let home = homeDirectory.hasSuffix("/") ? homeDirectory : homeDirectory + "/"
+        // 只识别家目录下的 ~/.cache/<工具>：这类是全局工具/包管理器缓存；
+        // 项目内或更深层的 .cache 不归入该配方族。
+        let cacheish = path.hasPrefix(home + ".cache/")
+        guard cacheish else { return nil }
+        let pattern = PathPatternizer.patternize(path, homeDirectory: homeDirectory)
+        return CandidateRecipe(
+            id: pattern,
+            pattern: pattern,
+            totalGrowthBytes: entry.deltaBytes,
+            peakRateBytesPerDay: entry.rateBytesPerDay,
+            evidenceCount: 1,
+            firstSeenAt: entry.observedAt,
+            lastSeenAt: entry.observedAt,
+            recipeID: Self.packageManagerFamilyID,
+            recipeName: Self.packageManagerFamilyName,
+            suggestedSafety: .safeWhileRunning,
+            suggestedCleanability: .regenerable,
+            suggestedCategory: .packageManager,
+            suggestedDisposition: .deletePermanently,
+            source: .growth,
+            samplePath: path
+        )
     }
 
     /// 判断一条增长路径是否属于一个可纳入项目配方族的项目根：
@@ -150,6 +196,13 @@ public struct RecipeSuggester: Sendable {
         var byParent: [String: [CandidateRecipe]] = [:]
         var homeLevel: [CandidateRecipe] = []
         for candidate in candidates {
+            // 父目录归并只用于项目配方族：把多个项目合并为一个开发根是安全的
+            // （ProjectRecipes 按子项目展开）；包管理器缓存若归并到父目录，
+            // 会把整个 ~/.cache 纳入永久删除范围，风险过大，保持逐目录建议。
+            guard candidate.recipeID == projectFamilyID else {
+                homeLevel.append(candidate)
+                continue
+            }
             let parent = URL(fileURLWithPath: candidate.samplePath)
                 .deletingLastPathComponent().path
             if parent == homeDirectory || parent == "/" {

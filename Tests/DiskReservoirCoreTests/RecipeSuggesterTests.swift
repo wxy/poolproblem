@@ -150,6 +150,19 @@ private func makeProject(_ base: URL, _ name: String) throws -> URL {
     #expect(try store.load().first?.recipeID == RecipeSuggester.projectFamilyID)
 }
 
+@Test func suggestionStorePrunesStaleCandidates() throws {
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-suggest-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let paths = StoragePaths(baseURL: base)
+    let store = RecipeSuggestionStore(paths: paths)
+    try store.merge([sample("~/live", total: 1), sample("~/stale", total: 1)])
+    try store.prune(keeping: ["~/live"])
+    let remaining = try store.load()
+    #expect(remaining.count == 1)
+    #expect(remaining.first?.id == "~/live")
+}
+
 @Test func discoveryCandidatesMapToProjectRecipeFamily() {
     let base = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
@@ -261,4 +274,58 @@ private func makeProject(_ base: URL, _ name: String) throws -> URL {
     // 父目录建议覆盖子目录建议 → 只保留父目录
     #expect(candidates.count == 1)
     #expect(candidates[0].samplePath == develop.path)
+}
+
+@Test func suggesterMapsCacheGrowthToPackageManagerFamily() throws {
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    let yarnCache = home.appendingPathComponent(".cache/yarn", isDirectory: true)
+
+    let entries = [
+        entry("~/.cache/yarn", 700 << 20, yarnCache.path),
+    ]
+    let candidates = RecipeSuggester(minTotalBytes: 100 << 20)
+        .suggest(entries: entries, existingRecipes: [], homeDirectory: home.path)
+    #expect(candidates.count == 1)
+    #expect(candidates[0].recipeID == RecipeSuggester.packageManagerFamilyID)
+    #expect(candidates[0].suggestedCategory == .packageManager)
+    #expect(candidates[0].suggestedSafety == .safeWhileRunning)
+    #expect(candidates[0].suggestedDisposition == .deletePermanently)
+    #expect(candidates[0].samplePath == yarnCache.path)
+}
+
+@Test func normalizeKeepsPackageManagerCandidatesAsSingles() throws {
+    // 两个缓存目录同父（~/.cache）时不得归并为父目录：
+    // 否则会把整个 ~/.cache 纳入永久删除范围
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    let a = home.appendingPathComponent(".cache/a", isDirectory: true)
+    let b = home.appendingPathComponent(".cache/b", isDirectory: true)
+
+    func cacheCandidate(_ path: String) -> CandidateRecipe {
+        CandidateRecipe(
+            id: path, pattern: path, totalGrowthBytes: 100 << 20,
+            peakRateBytesPerDay: 0, evidenceCount: 1,
+            firstSeenAt: Date(), lastSeenAt: Date(),
+            recipeID: RecipeSuggester.packageManagerFamilyID,
+            recipeName: RecipeSuggester.packageManagerFamilyName,
+            suggestedSafety: .safeWhileRunning,
+            suggestedCleanability: .regenerable,
+            suggestedCategory: .packageManager,
+            suggestedDisposition: .deletePermanently,
+            source: .growth,
+            samplePath: path
+        )
+    }
+    let candidates = RecipeSuggester.normalize(
+        [cacheCandidate(a.path), cacheCandidate(b.path)],
+        homeDirectory: home.path
+    )
+    #expect(candidates.count == 2)
+    #expect(candidates.allSatisfy { $0.samplePath != home.appendingPathComponent(".cache").path })
 }

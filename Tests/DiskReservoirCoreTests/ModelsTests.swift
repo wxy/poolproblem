@@ -98,9 +98,11 @@ import Foundation
     var config = Config.default
     #expect(config.autoEmptyOwnTrashBatches == false)
     config.autoEmptyOwnTrashBatches = true
+    config.packageManagerCacheRoots = ["/Users/tester/.cache/yarn"]
     let data = try JSONEncoder().encode(config)
     let decoded = try JSONDecoder().decode(Config.self, from: data)
     #expect(decoded.autoEmptyOwnTrashBatches == true)
+    #expect(decoded.packageManagerCacheRoots == ["/Users/tester/.cache/yarn"])
 }
 
 @Test func cleanLogEntryRoundTrip() throws {

@@ -224,17 +224,21 @@ final class AppService {
             var items = (try? store.snapshots().last?.items) ?? []
             var dirtySurface: [String] = []
             let storagePaths = StoragePaths(baseURL: nil, homeDirectory: home)
+            let allResolved = recipes.map { $0.resolvePaths(storagePaths) }
             for path in dirty {
                 if let recipe = recipes.first(where: {
                     $0.resolvePaths(storagePaths).contains { $0 == path || path.hasPrefix($0 + "/") }
                 }) {
+                    let ownPaths = Set(recipe.resolvePaths(storagePaths))
+                    let excludedPaths = Set(allResolved.flatMap { $0 }).subtracting(ownPaths)
                     let fresh = Scanner(
                         cloneRatios: cloneRatios,
                         ageDaysByRecipe: ageRules
                     ).rescan(
                         path: path,
                         recipe: recipe,
-                        homeDirectory: home
+                        homeDirectory: home,
+                        excludedPaths: excludedPaths
                     )
                     if recipe.aggregatesPaths {
                         // 聚合配方：脏路径可能只是其中某个项目，旧条目以配方为单位整体替换
@@ -1581,7 +1585,10 @@ final class AppService {
             homeDirectory: home
         )
         let normalized = RecipeSuggester.normalize(raw, homeDirectory: home)
-        try? recipeSuggestionStore.merge(dedupeCandidatesAgainstDevRoots(normalized))
+        let live = dedupeCandidatesAgainstDevRoots(normalized)
+        try? recipeSuggestionStore.merge(live)
+        // 丢弃旧设计残留 / 已不再生成的候选（如历史版本对 Xcode、CoreSimulator 的错误建议）
+        try? recipeSuggestionStore.prune(keeping: Set(live.map(\.id)))
         state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
             (try? recipeSuggestionStore.load()) ?? []
         )
@@ -1621,6 +1628,10 @@ final class AppService {
     private func activeRecipes() -> [Recipe] {
         let config = loadConfig()
         return RecipeRegistry.builtIn()
+            + [PackageManagerRecipes.make(
+                extraRoots: config.packageManagerCacheRoots,
+                homeDirectory: NSHomeDirectory()
+            )]
             + ProjectRecipes.make(devRoots: config.devRoots, homeDirectory: NSHomeDirectory())
     }
 
@@ -1661,6 +1672,13 @@ final class AppService {
         writeConfig(config)
     }
 
+    /// 从监控中移除用户添加的包管理器缓存目录。
+    func removePackageManagerCacheRoot(_ path: String) {
+        var config = loadConfig()
+        config.packageManagerCacheRoots.removeAll { $0 == path }
+        writeConfig(config)
+    }
+
     /// 增长洞察展示：过滤配方覆盖项后，把多条"未覆盖空间"聚合成
     /// 只保留可归因的目录级增长（最新 30 条，新→旧）。
     private func growthInsights(from allEntries: [GrowthEntry]) -> [GrowthEntry] {
@@ -1671,10 +1689,11 @@ final class AppService {
         )
     }
 
-    /// 已列入 devRoots 或忽略列表的目录不再作为“加入现有配方”候选展示。
+    /// 已列入任一配方作用域（devRoots / 包管理器缓存）或忽略列表的目录
+    /// 不再作为“加入现有配方”候选展示。
     private func dedupeCandidatesAgainstDevRoots(_ candidates: [CandidateRecipe]) -> [CandidateRecipe] {
         let config = loadConfig()
-        let known = config.devRoots + config.declinedDevRoots
+        let known = config.devRoots + config.declinedDevRoots + config.packageManagerCacheRoots
         return candidates.filter { candidate in
             // 候选位于某个已确认/忽略的根之内（或其自身）→ 不再建议；
             // 已知根只是候选的子目录时仍保留候选（父目录建议可覆盖其余部分）。
@@ -1685,13 +1704,22 @@ final class AppService {
     func acceptCandidate(id: String) {
         guard let candidate = state.candidateRecipes.first(where: { $0.id == id }),
               candidate.status != .accepted else { return }
-        // 采纳 = 把该目录纳入现有“项目目录”配方族的管理范围（devRoots），
-        // 之后 node_modules / 构建产物两个配方会按既有规则覆盖它。
         var config = loadConfig()
-        if !config.devRoots.contains(candidate.samplePath) {
-            config.devRoots.append(candidate.samplePath)
+        switch candidate.recipeID {
+        case RecipeSuggester.projectFamilyID:
+            // 项目目录配方族：加入 devRoots，node_modules / 构建产物按既有规则覆盖
+            if !config.devRoots.contains(candidate.samplePath) {
+                config.devRoots.append(candidate.samplePath)
+            }
+            config.declinedDevRoots.removeAll { $0 == candidate.samplePath }
+        case RecipeSuggester.packageManagerFamilyID:
+            // 包管理器缓存配方族：加入缓存根，按“可自动清理 / 永久删除”规则管理
+            if !config.packageManagerCacheRoots.contains(candidate.samplePath) {
+                config.packageManagerCacheRoots.append(candidate.samplePath)
+            }
+        default:
+            return
         }
-        config.declinedDevRoots.removeAll { $0 == candidate.samplePath }
         writeConfig(config)
         setCandidateStatus(id: id, status: .accepted)
         // 立即重扫，让项目配方（聚合条目）出现在清理列表中
@@ -1699,12 +1727,15 @@ final class AppService {
     }
 
     func dismissCandidate(id: String) {
-        // 记入忽略列表，避免同目录反复建议（与 store 状态双保险）
+        // 项目配方族额外记入忽略列表（兼容旧流程）；包管理器配方族由
+        // store 状态抑制重复建议
         if let candidate = state.candidateRecipes.first(where: { $0.id == id }) {
-            var config = loadConfig()
-            if !config.declinedDevRoots.contains(candidate.samplePath) {
-                config.declinedDevRoots.append(candidate.samplePath)
-                writeConfig(config)
+            if candidate.recipeID == RecipeSuggester.projectFamilyID {
+                var config = loadConfig()
+                if !config.declinedDevRoots.contains(candidate.samplePath) {
+                    config.declinedDevRoots.append(candidate.samplePath)
+                    writeConfig(config)
+                }
             }
         }
         setCandidateStatus(id: id, status: .dismissed)

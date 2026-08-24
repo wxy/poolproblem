@@ -39,6 +39,29 @@ private func recipe(_ id: String, _ paths: [String]) -> Recipe {
     ))
 }
 
+@Test func coverageTreatsParentAggregateAsCoveredWhenDirectChildManaged() {
+    let home = "/Users/alice"
+    let covered = RecipeCoverage.coveredPatterns(
+        recipes: [
+            recipe("deriveddata", ["/Users/alice/Library/Developer/Xcode/DerivedData"]),
+            recipe("archives", ["/Users/alice/Library/Developer/Xcode/Archives"]),
+        ],
+        homeDirectory: home
+    )
+    // 父级聚合：子目录已由配方管理 → 视为已覆盖
+    #expect(RecipeCoverage.isCovered(
+        path: "/Users/alice/Library/Developer/Xcode",
+        coveredPatterns: covered,
+        homeDirectory: home
+    ))
+    // 更上层：覆盖根不是直接子级（还有一级未管理的中间目录）→ 仍视为未覆盖
+    #expect(!RecipeCoverage.isCovered(
+        path: "/Users/alice/Library/Developer",
+        coveredPatterns: covered,
+        homeDirectory: home
+    ))
+}
+
 @Test func coverageDeduplicatesPatterns() {
     let covered = RecipeCoverage.coveredPatterns(
         recipes: [

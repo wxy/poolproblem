@@ -7,8 +7,10 @@ import Foundation
     let ids = Set(recipes.map(\.id))
     #expect(ids.contains("xctestdevices"))
     #expect(ids.contains("deriveddata"))
-    #expect(ids.contains("npm-cache"))
-    #expect(ids.contains("uv-cache"))
+    // 包管理器缓存已合并为独立配方族（PackageManagerRecipes），不在内置列表
+    #expect(!ids.contains("npm-cache"))
+    #expect(!ids.contains("uv-cache"))
+    #expect(ids.contains("library-caches"))
     #expect(recipes.allSatisfy { !$0.id.isEmpty && !$0.name.isEmpty })
 }
 
@@ -70,10 +72,31 @@ import Foundation
     #expect(recipes["trash"]?.cleanability == .displayOnly)
     #expect(recipes["core-simulator-devices"]?.cleanability == .trashOnly)
     #expect(recipes["deriveddata"]?.disposition == .trash)
-    #expect(recipes["library-caches"]?.protectedChildren == ["org.swift.swiftpm", "node-gyp"])
+    #expect(recipes["library-caches"]?.protectedChildren == [
+        "org.swift.swiftpm", "node-gyp", "Homebrew", "CocoaPods",
+    ])
     #expect(recipes["library-caches"]?.cleanByChildOnly == true)
     #expect(recipes["simulator-runtimes"]?.usageProbe == .simulatorRuntimeLastBooted)
     #expect(recipes["simulator-dyld-cache"]?.usageProbe == .simulatorRuntimeLastBooted)
+}
+
+@Test func packageManagerRecipesMergeDefaultsAndExtras() {
+    let recipe = PackageManagerRecipes.make(
+        extraRoots: ["/Users/tester/.cache/yarn"],
+        homeDirectory: "/Users/tester"
+    )
+    #expect(recipe.id == PackageManagerRecipes.familyID)
+    #expect(recipe.aggregatesPaths)
+    #expect(recipe.disposition == .deletePermanently)
+    #expect(recipe.category == .packageManager)
+    let resolved = recipe.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: "/Users/tester"))
+    #expect(resolved.contains("/Users/tester/.npm"))
+    #expect(resolved.contains("/Users/tester/Library/pnpm"))
+    #expect(resolved.contains("/Users/tester/.cache/uv"))
+    #expect(resolved.contains("/Users/tester/Library/Caches/CocoaPods"))
+    #expect(resolved.contains("/Users/tester/Library/Caches/Homebrew"))
+    #expect(resolved.contains("/Users/tester/.cache/yarn"))
+    #expect(Set(resolved).count == resolved.count)
 }
 
 @Test func previewCacheRecipeResolvesToUserData() {

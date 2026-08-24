@@ -75,76 +75,6 @@ enum BuiltInRecipes {
             }
         ),
         Recipe(
-            id: "npm-cache",
-            name: "npm 缓存",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/.npm"]
-            }
-        ),
-        Recipe(
-            id: "pnpm-store",
-            name: "pnpm store",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/Library/pnpm"]
-            }
-        ),
-        Recipe(
-            id: "uv-cache",
-            name: "uv 缓存",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/.cache/uv"]
-            }
-        ),
-        Recipe(
-            id: "cocoapods-cache",
-            name: "CocoaPods 缓存",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/Library/Caches/CocoaPods"]
-            }
-        ),
-        Recipe(
-            id: "homebrew-cache",
-            name: "Homebrew 缓存",
-            category: .packageManager,
-            safety: .safeWhileRunning,
-            disposition: .deletePermanently,
-            cleanability: .regenerable,
-            defaultAgeDays: 30,
-            minimumSizeMB: 10,
-            processName: nil,
-            resolvePaths: { paths in
-                [paths.homeDirectory + "/Library/Caches/Homebrew"]
-            }
-        ),
-        Recipe(
             id: "library-caches",
             name: "应用缓存",
             category: .common,
@@ -154,7 +84,13 @@ enum BuiltInRecipes {
             defaultAgeDays: 30,
             minimumSizeMB: 100,
             processName: nil,
-            protectedChildren: ["org.swift.swiftpm", "node-gyp"],
+            // 包管理器缓存（Homebrew/CocoaPods 等）由专门的“包管理器缓存”
+            // 配方族管理（永久删除）；应用缓存配方按子目录渐进清理时不再碰它们，
+            // 避免同一目录被两套规则、两种处置重复管理。
+            protectedChildren: [
+                "org.swift.swiftpm", "node-gyp",
+                "Homebrew", "CocoaPods",
+            ],
             cleanByChildOnly: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Caches"]

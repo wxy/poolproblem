@@ -17,13 +17,22 @@ public enum RecipeCoverage {
         return result
     }
 
-    /// 路径是否被覆盖：与某个覆盖模式相等，或位于其子树内。
+    /// 路径是否被覆盖：
+    /// 1) 与某个覆盖模式相等，或位于其子树内；
+    /// 2) 某覆盖模式是它的“直接子级”（父级聚合记录如 ~/Library/Developer/Xcode，
+    ///    其子目录已由各配方管理 → 父级聚合视为已覆盖，不再显示为未覆盖增长）。
     public static func isCovered(
         path: String,
         coveredPatterns: [String],
         homeDirectory: String
     ) -> Bool {
         let pattern = PathPatternizer.patternize(path, homeDirectory: homeDirectory)
-        return coveredPatterns.contains { $0 == pattern || pattern.hasPrefix($0 + "/") }
+        return coveredPatterns.contains { root in
+            root == pattern || pattern.hasPrefix(root + "/")
+        } || coveredPatterns.contains { root in
+            // 覆盖根是当前路径的直接子级：root == "<pattern>/<一级名>"
+            root.hasPrefix(pattern + "/")
+                && !root.dropFirst(pattern.count + 1).contains("/")
+        }
     }
 }
