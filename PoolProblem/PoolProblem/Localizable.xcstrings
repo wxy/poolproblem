@@ -196,6 +196,118 @@
         }
       }
     },
+    "cache.children_hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleaned per subdirectory by automatic maintenance; the largest or fastest-growing ones are listed below."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "由自动维护按子目录渐进清理；以下列出最大/增长最快的子目录。"
+          }
+        }
+      }
+    },
+    "cache.clean_child" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clean this subdirectory (to Trash)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理该子目录（进回收站）"
+          }
+        }
+      }
+    },
+    "cache.cleaned" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleaned %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已清理 %@"
+          }
+        }
+      }
+    },
+    "cache.growth_rate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@/day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%@/天"
+          }
+        }
+      }
+    },
+    "cache.no_children" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No subdirectories found."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有找到子目录。"
+          }
+        }
+      }
+    },
+    "cache.protected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "受保护"
+          }
+        }
+      }
+    },
+    "cache.protected_help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Build-critical cache; never auto-deleted."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "构建必需缓存，永不自动删除。"
+          }
+        }
+      }
+    },
     "candidate.accept" : {
       "localizations" : {
         "en" : {
@@ -212,6 +324,22 @@
         }
       }
     },
+    "candidate.adds_to_recipe" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joins existing recipe: %@ · %@ / %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入现有配方：%@ · %@ / %@"
+          }
+        }
+      }
+    },
     "candidate.dismiss" : {
       "localizations" : {
         "en" : {
@@ -224,6 +352,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "忽略"
+          }
+        }
+      }
+    },
+    "candidate.disposition_monitor" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitor only"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅监控"
+          }
+        }
+      }
+    },
+    "candidate.disposition_permanent" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete permanently"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永久删除"
+          }
+        }
+      }
+    },
+    "candidate.disposition_trash" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To Trash"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进回收站"
           }
         }
       }
@@ -647,6 +823,22 @@
         }
       }
     },
+    "countdown.plan_trash" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty the Trash to free %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空废纸篓可释放 %@"
+          }
+        }
+      }
+    },
     "countdown.plan_waterline_prediction" : {
       "localizations" : {
         "en" : {
@@ -693,6 +885,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "水位稳定，暂无自动清理计划"
+          }
+        }
+      }
+    },
+    "detail.by_child_hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This cache is cleaned per subdirectory by automatic maintenance, never as a whole directory."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此缓存由自动维护按子目录渐进清理，不会整目录删除。"
           }
         }
       }
@@ -2365,118 +2573,6 @@
         }
       }
     },
-    "recipe.core-simulator-devices" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Simulator Device Data"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "模拟器设备数据"
-          }
-        }
-      }
-    },
-    "recipe.deriveddata" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Xcode DerivedData"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Xcode DerivedData"
-          }
-        }
-      }
-    },
-    "recipe.library-caches" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App Caches"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "应用缓存"
-          }
-        }
-      }
-    },
-    "recipe.package-manager-caches" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Package Manager Caches"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "包管理器缓存"
-          }
-        }
-      }
-    },
-    "recipe.project-build-output" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Project build output"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "项目构建产物"
-          }
-        }
-      }
-    },
-    "recipe.project-node-modules" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "node_modules"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "node_modules"
-          }
-        }
-      }
-    },
-    "recipe.nodejs-projects" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Node.js projects (node_modules / build output)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Node.js 项目（node_modules / 构建产物）"
-          }
-        }
-      }
-    },
     "recipe_group.nodejs" : {
       "localizations" : {
         "en" : {
@@ -2537,6 +2633,134 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xcode（含模拟器）"
+          }
+        }
+      }
+    },
+    "recipe.core-simulator-devices" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simulator Device Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模拟器设备数据"
+          }
+        }
+      }
+    },
+    "recipe.deriveddata" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode DerivedData"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode DerivedData"
+          }
+        }
+      }
+    },
+    "recipe.library-caches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Caches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用缓存"
+          }
+        }
+      }
+    },
+    "recipe.nodejs-projects" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Node.js projects (node_modules / build output)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Node.js 项目（node_modules / 构建产物）"
+          }
+        }
+      }
+    },
+    "recipe.own-trash-batches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App Trash Batches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本应用回收站批次"
+          }
+        }
+      }
+    },
+    "recipe.package-manager-caches" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Package Manager Caches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "包管理器缓存"
+          }
+        }
+      }
+    },
+    "recipe.project-build-output" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project build output"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目构建产物"
+          }
+        }
+      }
+    },
+    "recipe.project-node-modules" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "node_modules"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "node_modules"
           }
         }
       }
@@ -2813,18 +3037,50 @@
         }
       }
     },
-    "settings.candidates_section" : {
+    "settings.auto_empty_batches" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Recipe Suggestions"
+            "value" : "Empty app-created Trash batches after auto cleanup"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "候选配方"
+            "value" : "自动清理后清空本应用创建的回收站批次"
+          }
+        }
+      }
+    },
+    "settings.auto_empty_batches_footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only deletes folders named \"PoolProblem Cleanup …\" created by this app; items you put in the Trash manually are never touched. Requires Full Disk Access."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅删除本应用创建的 “PoolProblem Cleanup …” 批次；手动放入废纸篓的内容不受影响。需要完全磁盘访问。"
+          }
+        }
+      }
+    },
+    "settings.builtin" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内置"
           }
         }
       }
@@ -2873,6 +3129,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你添加的包管理器缓存目录"
+          }
+        }
+      }
+    },
+    "settings.candidates_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending Suggestions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待采纳建议"
           }
         }
       }
@@ -2973,34 +3245,34 @@
         }
       }
     },
-    "settings.group_age_unit" : {
+    "settings.group_age_footer" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "days"
+            "value" : "When unset, each recipe uses its own default idle days."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "天"
+            "value" : "未设置时按各配方自身的默认闲置天数。"
           }
         }
       }
     },
-    "settings.group_enabled" : {
+    "settings.group_idle_default" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Enable whole group"
+            "value" : "Per-recipe default"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "整组启用"
+            "value" : "各配方默认"
           }
         }
       }
@@ -3049,6 +3321,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "开机自启"
+          }
+        }
+      }
+    },
+    "settings.minimum_clean_size_footer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto cleanup skips targets below this size (progressive and waterline paths); too-small targets cost more than they free."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动清理跳过低于该规模的清理目标（渐进与水线共用）；过小目标收益不抵开销。"
+          }
+        }
+      }
+    },
+    "settings.minimum_clean_size_label" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip items smaller than"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳过小于以下规模的项"
+          }
+        }
+      }
+    },
+    "settings.minimum_clean_size_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum clean size"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最小清理规模"
           }
         }
       }
@@ -3149,6 +3469,22 @@
         }
       }
     },
+    "settings.path_missing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Path does not exist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径当前不存在"
+          }
+        }
+      }
+    },
     "settings.path_placeholder" : {
       "localizations" : {
         "en" : {
@@ -3214,6 +3550,7 @@
       }
     },
     "settings.project_badge" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3225,6 +3562,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "项目"
+          }
+        }
+      }
+    },
+    "settings.project_recipes_section" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project recipes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目配方"
           }
         }
       }
@@ -3277,7 +3631,72 @@
         }
       }
     },
+    "settings.recipes_expert_hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recipe settings are available in Expert mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配方设置在专家模式下可用"
+          }
+        }
+      }
+    },
+    "settings.recipes_expert_button" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Expert mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "开启专家模式"
+          }
+        }
+      }
+    },
+    "settings.recipes_count" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld recipes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 条配方"
+          }
+        }
+      }
+    },
+    "settings.recipes_overview" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld / %lld recipes enabled · %lld group(s) paused"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld / %lld 条配方启用 · %lld 组暂停"
+          }
+        }
+      }
+    },
     "settings.recipes_section" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3293,18 +3712,50 @@
         }
       }
     },
-    "settings.project_recipes_section" : {
+    "settings.tab_general" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Project recipes"
+            "value" : "General"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "项目配方"
+            "value" : "常规"
+          }
+        }
+      }
+    },
+    "settings.tab_protection" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保护"
+          }
+        }
+      }
+    },
+    "settings.tab_recipes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recipes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配方"
           }
         }
       }
@@ -3517,230 +3968,6 @@
         }
       }
     },
-    "countdown.plan_trash" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty the Trash to free %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清空废纸篓可释放 %@"
-          }
-        }
-      }
-    },
-    "settings.auto_empty_batches" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty app-created Trash batches after auto cleanup"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动清理后清空本应用创建的回收站批次"
-          }
-        }
-      }
-    },
-    "settings.auto_empty_batches_footer" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only deletes folders named \"PoolProblem Cleanup …\" created by this app; items you put in the Trash manually are never touched. Requires Full Disk Access."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "仅删除本应用创建的 “PoolProblem Cleanup …” 批次；手动放入废纸篓的内容不受影响。需要完全磁盘访问。"
-          }
-        }
-      }
-    },
-    "settings.builtin" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Built-in"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "内置"
-          }
-        }
-      }
-    },
-    "settings.minimum_clean_size_footer" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto cleanup skips targets below this size (progressive and waterline paths); too-small targets cost more than they free."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动清理跳过低于该规模的清理目标（渐进与水线共用）；过小目标收益不抵开销。"
-          }
-        }
-      }
-    },
-    "settings.minimum_clean_size_label" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skip items smaller than"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "跳过小于以下规模的项"
-          }
-        }
-      }
-    },
-    "settings.minimum_clean_size_section" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Minimum clean size"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最小清理规模"
-          }
-        }
-      }
-    },
-    "settings.path_missing" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Path does not exist"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "路径当前不存在"
-          }
-        }
-      }
-    },
-    "settings.recipes_expert_hint" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recipe settings are available in Expert mode"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "配方设置在专家模式下可用"
-          }
-        }
-      }
-    },
-    "settings.tab_general" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "General"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "常规"
-          }
-        }
-      }
-    },
-    "settings.tab_protection" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Protection"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保护"
-          }
-        }
-      }
-    },
-    "settings.tab_recipes" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recipes"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "配方"
-          }
-        }
-      }
-    },
-    "recipe.own-trash-batches" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App Trash Batches"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本应用回收站批次"
-          }
-        }
-      }
-    },
-    "trash.empty_own" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty all"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全部清空"
-          }
-        }
-      }
-    },
     "trash.empty_consequence" : {
       "localizations" : {
         "en" : {
@@ -3789,6 +4016,22 @@
         }
       }
     },
+    "trash.empty_own" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty all"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部清空"
+          }
+        }
+      }
+    },
     "trash.fda_note" : {
       "localizations" : {
         "en" : {
@@ -3801,6 +4044,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "需要完全磁盘访问才能列出废纸篓内容。"
+          }
+        }
+      }
+    },
+    "trash.manual_note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content you deleted manually must be emptied by you in the Trash."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动删除的内容需要用户自己在废纸篓里清空。"
           }
         }
       }
@@ -3929,214 +4188,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "为什么需要手动"
-          }
-        }
-      }
-    },
-    "trash.manual_note" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Content you deleted manually must be emptied by you in the Trash."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "手动删除的内容需要用户自己在废纸篓里清空。"
-          }
-        }
-      }
-    },
-    "detail.by_child_hint" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This cache is cleaned per subdirectory by automatic maintenance, never as a whole directory."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此缓存由自动维护按子目录渐进清理，不会整目录删除。"
-          }
-        }
-      }
-    },
-    "cache.children_hint" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cleaned per subdirectory by automatic maintenance; the largest or fastest-growing ones are listed below."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "由自动维护按子目录渐进清理；以下列出最大/增长最快的子目录。"
-          }
-        }
-      }
-    },
-    "cache.clean_child" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clean this subdirectory (to Trash)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "清理该子目录（进回收站）"
-          }
-        }
-      }
-    },
-    "cache.cleaned" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cleaned %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已清理 %@"
-          }
-        }
-      }
-    },
-    "cache.growth_rate" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "+%@/day"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "+%@/天"
-          }
-        }
-      }
-    },
-    "cache.no_children" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No subdirectories found."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有找到子目录。"
-          }
-        }
-      }
-    },
-    "cache.protected" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Protected"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "受保护"
-          }
-        }
-      }
-    },
-    "cache.protected_help" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Build-critical cache; never auto-deleted."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "构建必需缓存，永不自动删除。"
-          }
-        }
-      }
-    },
-    "candidate.adds_to_recipe" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Joins existing recipe: %@ · %@ / %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入现有配方：%@ · %@ / %@"
-          }
-        }
-      }
-    },
-    "candidate.disposition_monitor" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Monitor only"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "仅监控"
-          }
-        }
-      }
-    },
-    "candidate.disposition_permanent" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete permanently"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "永久删除"
-          }
-        }
-      }
-    },
-    "candidate.disposition_trash" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "To Trash"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "进回收站"
           }
         }
       }
