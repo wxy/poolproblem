@@ -468,6 +468,8 @@ final class AppService {
         let activeRootsByRecipe = projectActiveRootsByRecipe(recipes: recipes)
         let idleHours = idleHoursByRecipe(recipes: recipes)
         let ageRules = ageDaysByRecipe()
+        let groupsByRecipe = recipeGroups(recipes)
+        let defaultAgesByRecipe = recipeDefaultAges(recipes)
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? DiskReservoirCore.Scanner(
                 cloneRatios: cloneRatios,
@@ -480,7 +482,9 @@ final class AppService {
                 let evaluator = RuleEvaluator(
                     config: config,
                     activeProjectRootsByRecipe: activeRootsByRecipe,
-                    idleHoursByRecipe: idleHours
+                    idleHoursByRecipe: idleHours,
+                    groupByRecipe: groupsByRecipe,
+                    defaultAgeByRecipe: defaultAgesByRecipe
                 )
                 let suggestions = result.items.compactMap { item -> (ScanItem, EvaluatedAction)? in
                     let action = evaluator.evaluate(item: item) { name in
@@ -512,7 +516,9 @@ final class AppService {
                 evaluator: RuleEvaluator(
                     config: config,
                     activeProjectRootsByRecipe: activeRootsByRecipe,
-                    idleHoursByRecipe: idleHours
+                    idleHoursByRecipe: idleHours,
+                    groupByRecipe: groupsByRecipe,
+                    defaultAgeByRecipe: defaultAgesByRecipe
                 ),
                 deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
@@ -1175,12 +1181,16 @@ final class AppService {
         let recipes = activeRecipes()
         let activeRootsByRecipe = projectActiveRootsByRecipe(recipes: recipes)
         let idleHours = idleHoursByRecipe(recipes: recipes)
+        let groupsByRecipe = recipeGroups(recipes)
+        let defaultAgesByRecipe = recipeDefaultAges(recipes)
         let work = Task.detached(priority: .utility) { () -> CleanOutcome? in
             let cleaner = Cleaner(
                 evaluator: RuleEvaluator(
                     config: config,
                     activeProjectRootsByRecipe: activeRootsByRecipe,
-                    idleHoursByRecipe: idleHours
+                    idleHoursByRecipe: idleHours,
+                    groupByRecipe: groupsByRecipe,
+                    defaultAgeByRecipe: defaultAgesByRecipe
                 ),
                 deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
@@ -1292,6 +1302,10 @@ final class AppService {
         emergency: Bool
     ) -> [ProgressiveCleanupPolicy] {
         let home = NSHomeDirectory()
+        // 组级进程守卫：Xcode / Simulator 运行中的组，整组不参与渐进清理
+        let runningGroups = Set(RecipeGroup.allCases.filter { group in
+            group.guardProcessNames.contains { PGrepProcessInspector().isRunning($0) }
+        })
         var policies: [ProgressiveCleanupPolicy] = []
         for item in state.items {
             guard item.recipeID != "trash",
@@ -1307,6 +1321,14 @@ final class AppService {
                 continue
             }
             guard let recipe = activeRecipes().first(where: { $0.id == item.recipeID }) else {
+                continue
+            }
+            // 组级开关与组级进程守卫
+            if let groupRule = config.rules.first(where: { $0.recipeID == recipe.group.ruleID }),
+               !groupRule.enabled {
+                continue
+            }
+            if runningGroups.contains(recipe.group) {
                 continue
             }
             guard let childCount = POSIXDirectoryWalker.firstLevelCount(path: item.path),
@@ -1644,6 +1666,16 @@ final class AppService {
             }
         }
         return result
+    }
+
+    /// 配方 → 所属组（组级开关/闲置天数/进程守卫）。
+    private func recipeGroups(_ recipes: [Recipe]) -> [String: RecipeGroup] {
+        Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0.group) })
+    }
+
+    /// 配方 → 声明的默认闲置天数（组级/配方级规则未配置时回落）。
+    private func recipeDefaultAges(_ recipes: [Recipe]) -> [String: Int] {
+        Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0.defaultAgeDays) })
     }
 
     /// 各项目配方在“各自活跃窗口”内最近有 FSEvents 写活动的项目根：

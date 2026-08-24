@@ -12,4 +12,16 @@ public enum RecipeGroup: String, Codable, CaseIterable, Sendable {
     case packageManager
     /// 系统 / 通用（应用缓存、本应用回收站批次、废纸篓）。
     case system
+
+    /// 组级进程守卫：任一进程运行中，整组不参与自动清理
+    /// （如 Xcode 运行中，Xcode 及其模拟器整组暂停）。
+    public var guardProcessNames: [String] {
+        switch self {
+        case .xcode: return ["Xcode", "Simulator"]
+        default: return []
+        }
+    }
+
+    /// 组级规则在 Config.rules 中的稳定标识（如 "group:xcode"）。
+    public var ruleID: String { "group:" + rawValue }
 }

@@ -136,6 +136,7 @@ struct SettingsView: View {
                 let groupRecipes = allRecipes.filter { $0.group == group }
                 if !groupRecipes.isEmpty {
                     Section(Localized.recipeGroupName(group)) {
+                        groupRuleRow(group)
                         ForEach(groupRecipes, id: \.id) { recipe in
                             recipeRow(recipe)
                         }
@@ -433,6 +434,64 @@ struct SettingsView: View {
         var rules = config.rules.filter { $0.recipeID != newRule.recipeID }
         rules.append(newRule)
         config.rules = rules
+    }
+
+    // MARK: - 组级规则（总开关 + 组内默认闲置天数）
+
+    private func groupRule(_ group: RecipeGroup) -> CleanRule? {
+        config.rules.first { $0.recipeID == group.ruleID }
+    }
+
+    private func groupEnabled(_ group: RecipeGroup) -> Bool {
+        groupRule(group)?.enabled ?? true
+    }
+
+    private func groupAge(_ group: RecipeGroup) -> Int? {
+        groupRule(group)?.maxAgeDays
+    }
+
+    private func setGroupEnabled(_ group: RecipeGroup, _ value: Bool) {
+        upsertRule(CleanRule(
+            recipeID: group.ruleID,
+            enabled: value,
+            maxAgeDays: groupAge(group)
+        ))
+    }
+
+    private func setGroupAge(_ group: RecipeGroup, _ value: Int) {
+        upsertRule(CleanRule(
+            recipeID: group.ruleID,
+            enabled: groupEnabled(group),
+            maxAgeDays: value
+        ))
+    }
+
+    private func groupRuleRow(_ group: RecipeGroup) -> some View {
+        HStack {
+            Toggle("", isOn: Binding(
+                get: { groupEnabled(group) },
+                set: { setGroupEnabled(group, $0) }
+            ))
+            .labelsHidden()
+            Text(Localized.string("settings.group_enabled"))
+                .font(.caption)
+            Spacer()
+            Text(Localized.string("settings.group_age"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Stepper("", value: Binding(
+                get: { groupAge(group) ?? 30 },
+                set: { setGroupAge(group, $0) }
+            ), in: 1...365)
+            .labelsHidden()
+            Text(verbatim: "\(groupAge(group) ?? 30)")
+                .font(.caption)
+                .monospacedDigit()
+                .frame(width: 28, alignment: .trailing)
+            Text(Localized.string("settings.group_age_unit"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
     }
 
     /// 配方解析出的具体路径（可能为空：路径不存在时配方不生效）。

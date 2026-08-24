@@ -26,6 +26,81 @@ private func item(
     }
 }
 
+@Test func groupRuleDisablesWholeGroup() {
+    var config = Config.default
+    config.rules = [CleanRule(recipeID: RecipeGroup.xcode.ruleID, enabled: false)]
+    let evaluator = RuleEvaluator(
+        config: config,
+        groupByRecipe: ["r": .xcode],
+        defaultAgeByRecipe: ["r": 30]
+    )
+    let result = evaluator.evaluate(
+        item: item("x", safety: .safeWhileRunning, disposition: .trash),
+        isProcessRunning: { _ in false }
+    )
+    guard case .skip = result.action else {
+        Issue.record("expected skip for disabled group, got \(result.action)")
+        return
+    }
+}
+
+@Test func groupGuardSkipsWhileXcodeRunning() {
+    let evaluator = RuleEvaluator(
+        config: .default,
+        groupByRecipe: ["r": .xcode],
+        defaultAgeByRecipe: ["r": 30]
+    )
+    let result = evaluator.evaluate(
+        item: item("x", safety: .safeWhileRunning, disposition: .trash),
+        isProcessRunning: { _ in true }
+    )
+    guard case .skip = result.action else {
+        Issue.record("expected skip while Xcode running, got \(result.action)")
+        return
+    }
+}
+
+@Test func groupAgeRuleOverridesRecipeDefault() {
+    var config = Config.default
+    config.rules = [CleanRule(recipeID: RecipeGroup.xcode.ruleID, enabled: true, maxAgeDays: 10)]
+    let evaluator = RuleEvaluator(
+        config: config,
+        groupByRecipe: ["r": .xcode],
+        defaultAgeByRecipe: ["r": 30]
+    )
+    // 20 天前修改：组内阈值 10 天 → 可清理（而配方默认 30 天则太新）
+    let old = item(
+        "x",
+        safety: .safeWhileRunning,
+        disposition: .trash,
+        modified: Date().addingTimeInterval(-20 * 86_400)
+    )
+    let result = evaluator.evaluate(item: old, isProcessRunning: { _ in false })
+    guard case .trash = result.action else {
+        Issue.record("expected trash with group age override, got \(result.action)")
+        return
+    }
+}
+
+@Test func recipeDefaultAgeFallsBackToDeclaredValue() {
+    let evaluator = RuleEvaluator(
+        config: .default,
+        defaultAgeByRecipe: ["r": 30]
+    )
+    // 20 天前修改、配方默认 30 天 → 太新，跳过
+    let young = item(
+        "x",
+        safety: .safeWhileRunning,
+        disposition: .trash,
+        modified: Date().addingTimeInterval(-20 * 86_400)
+    )
+    let result = evaluator.evaluate(item: young, isProcessRunning: { _ in false })
+    guard case .skip = result.action else {
+        Issue.record("expected skip with 30d default, got \(result.action)")
+        return
+    }
+}
+
 @Test func projectItemSkipsWhenParentRecentlyActive() {
     let projectItem = ScanItem(
         id: "p1", recipeID: "project-node-modules", name: "NM", path: "/Users/alice/dev/A/node_modules",
