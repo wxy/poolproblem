@@ -737,6 +737,73 @@ final class AppService {
         return await work.value
     }
 
+    /// 应用缓存等“仅按子目录清理”项的详情：一级子目录（大小/增速/是否受保护）。
+    func cacheChildren(for item: ScanItem) async -> [CacheChildEntry] {
+        let parent = URL(fileURLWithPath: item.path, isDirectory: true)
+        guard let children = try? FileManager.default.contentsOfDirectory(
+            at: parent,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        ) else { return [] }
+        let recipe = activeRecipes().first { $0.id == item.recipeID }
+        let protected = recipe.map {
+            ProgressiveCleanupPolicy.mergedProtectedChildNames(recipe: $0, config: loadConfig())
+        } ?? []
+        let rates = childGrowthRates(parentPath: item.path, homeDirectory: NSHomeDirectory())
+        let work = Task.detached(priority: .utility) { () -> [CacheChildEntry] in
+            var entries: [CacheChildEntry] = []
+            for child in children {
+                guard ((try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory) == true else {
+                    continue
+                }
+                let bytes = POSIXDirectoryWalker.walk(
+                    url: child,
+                    itemID: "cache-child",
+                    includeRecords: false
+                )?.allocatedBytes ?? 0
+                entries.append(CacheChildEntry(
+                    name: child.lastPathComponent,
+                    path: child.path,
+                    bytes: bytes,
+                    ratePerDay: rates[child.path] ?? 0,
+                    isProtected: protected.contains(child.lastPathComponent)
+                ))
+            }
+            return entries.sorted { lhs, rhs in
+                if lhs.isProtected != rhs.isProtected { return !lhs.isProtected }
+                let ls = Double(lhs.bytes) + lhs.ratePerDay * ProgressiveCleanupPolicy.growthWindowDays
+                let rs = Double(rhs.bytes) + rhs.ratePerDay * ProgressiveCleanupPolicy.growthWindowDays
+                return ls > rs
+            }
+        }
+        return await work.value
+    }
+
+    /// 逐子目录清理（应用缓存等）：把该子目录移入回收站并记录日志。
+    func cleanCacheChild(path: String, recipeID: String, name: String) async {
+        await cleanupCoordinator.run { [weak self] in
+            guard let self else { return }
+            let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
+            let deletion = try? deleter.deleteReturningResult(
+                url: URL(fileURLWithPath: path),
+                disposition: .trash
+            )
+            let entry = CleanLogEntry(
+                id: UUID(),
+                timestamp: Date(),
+                itemIDs: ["\(recipeID):\(path)"],
+                itemNames: [name],
+                originalPaths: [path],
+                trashPaths: [deletion?.resultingURL?.path ?? ""],
+                batchID: UUID(),
+                freedBytes: deletion?.freedBytes ?? 0,
+                disposition: .trash,
+                source: .manual
+            )
+            try? self.logStore.append(entry)
+            await self.scanNow(autoClean: false)
+        }
+    }
+
     /// 恢复仍留在废纸篓里的本应用批次（依据清理记录），返回成功恢复的条数。
     @discardableResult
     func restoreOwnTrashBatches() async -> Int {
@@ -1226,6 +1293,7 @@ final class AppService {
         config: Config,
         emergency: Bool
     ) -> [ProgressiveCleanupPolicy] {
+        let home = NSHomeDirectory()
         var policies: [ProgressiveCleanupPolicy] = []
         for item in state.items {
             guard item.recipeID != "trash",
@@ -1250,6 +1318,8 @@ final class AppService {
             let ratio = recipe.cloneProne
                 ? (config.cloneRatios[item.recipeID] ?? 0.2)
                 : 1
+            // 子项增长率（近 7 天台账）：让“还在快速增长的子目录”优先被渐进清理
+            let rates = childGrowthRates(parentPath: item.path, homeDirectory: home)
 
             if emergency {
                 policies.append(ProgressiveCleanupPolicy(
@@ -1266,7 +1336,8 @@ final class AppService {
                     protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
                         recipe: recipe,
                         config: config
-                    )
+                    ),
+                    childGrowthRates: rates
                 ))
                 continue
             }
@@ -1289,10 +1360,23 @@ final class AppService {
                 protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
                     recipe: recipe,
                     config: config
-                )
+                ),
+                childGrowthRates: rates
             ))
         }
         return policies
+    }
+
+    /// 近 7 天增长台账中，父目录下一级子项的日增长率（bytes/day）。
+    private func childGrowthRates(parentPath: String, homeDirectory: String) -> [String: Double] {
+        let cutoff = Date().addingTimeInterval(-7 * 86_400)
+        let entries = (try? growthLedgerStore.entries()) ?? []
+        let prefix = parentPath.hasSuffix("/") ? parentPath : parentPath + "/"
+        var rates: [String: Double] = [:]
+        for entry in entries where entry.observedAt >= cutoff && entry.path.hasPrefix(prefix) {
+            rates[entry.path, default: 0] = max(rates[entry.path, default: 0], entry.rateBytesPerDay)
+        }
+        return rates
     }
 
     private func firstAutoPlannedItem(
@@ -1543,8 +1627,10 @@ final class AppService {
 
     /// 当前生效的配方：系统内置 + 用户确认的项目目录配方。
     private func activeRecipes() -> [Recipe] {
-        RecipeRegistry.builtIn()
-            + ProjectRecipes.make(devRoots: loadConfig().devRoots, homeDirectory: NSHomeDirectory())
+        let config = loadConfig()
+        return RecipeRegistry.builtIn()
+            + ProjectRecipes.make(devRoots: config.devRoots, homeDirectory: NSHomeDirectory())
+            + CustomRecipes.make(specs: config.customRecipes, homeDirectory: NSHomeDirectory())
     }
 
     /// 各配方用户配置的年龄阈值（天），未配置的配方回落 recipe.defaultAgeDays。
@@ -1666,6 +1752,24 @@ final class AppService {
     }
 
     func acceptCandidate(id: String) {
+        guard let candidate = state.candidateRecipes.first(where: { $0.id == id }),
+              candidate.status != .accepted else { return }
+        // 采纳 = 真正创建一条自定义配方（一个配方对应一种增长类型），
+        // 并明确其处理规则（安全级/处置方式）
+        var config = loadConfig()
+        let name = URL(fileURLWithPath: candidate.samplePath).lastPathComponent
+        config.customRecipes.append(CustomRecipeSpec(
+            id: candidate.id,
+            name: name,
+            pattern: candidate.pattern,
+            category: candidate.suggestedCategory,
+            safety: candidate.suggestedSafety,
+            cleanability: candidate.suggestedCleanability,
+            disposition: candidate.suggestedDisposition,
+            defaultAgeDays: 30,
+            minimumSizeMB: 100
+        ))
+        writeConfig(config)
         setCandidateStatus(id: id, status: .accepted)
     }
 

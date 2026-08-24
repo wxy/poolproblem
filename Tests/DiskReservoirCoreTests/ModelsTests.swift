@@ -103,6 +103,33 @@ import Foundation
     #expect(decoded.autoEmptyOwnTrashBatches == true)
 }
 
+@Test func configRoundTripsCustomRecipes() throws {
+    var config = Config.default
+    config.customRecipes = [
+        CustomRecipeSpec(
+            id: "~/Library/Caches/foo",
+            name: "foo",
+            pattern: "~/Library/Caches/foo",
+            category: .custom,
+            safety: .safeWhileRunning,
+            cleanability: .regenerable,
+            disposition: .trash
+        )
+    ]
+    let data = try JSONEncoder().encode(config)
+    let decoded = try JSONDecoder().decode(Config.self, from: data)
+    #expect(decoded.customRecipes.count == 1)
+    #expect(decoded.customRecipes[0].name == "foo")
+}
+
+@Test func legacyConfigDefaultsCustomRecipesToEmpty() throws {
+    let json = """
+    {"waterlineGB": 30, "rules": [], "whitelistPaths": [], "cloneRatios": {}}
+    """.data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(Config.self, from: json)
+    #expect(decoded.customRecipes.isEmpty)
+}
+
 @Test func cleanLogEntryRoundTrip() throws {
     let entry = CleanLogEntry(
         id: UUID(), timestamp: Date(timeIntervalSince1970: 1_000_000),

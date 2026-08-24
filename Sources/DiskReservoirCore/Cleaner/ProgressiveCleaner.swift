@@ -13,6 +13,11 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
     /// 单个候选子项的最小规模：过小的清理目标收益小于固定开销，直接跳过。
     public let minimumCandidateBytes: Int64
     public let protectedChildNames: Set<String>
+    /// 子项路径 → 日增长率（bytes/day）：用于“增长优先”排序。
+    /// 加权后（增长率 × 窗口天数 + 当前大小）越高的子项越先被清理。
+    public let childGrowthRates: [String: Double]
+    /// 增长加权的窗口天数：把“近 7 天会再涨多少”折算进选择分数。
+    public static let growthWindowDays: Double = 7
 
     public init(
         recipeID: String,
@@ -25,7 +30,8 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
         reclaimableRatio: Double = 1,
         minimumCleanBytes: Int64 = 0,
         minimumCandidateBytes: Int64 = 0,
-        protectedChildNames: Set<String> = []
+        protectedChildNames: Set<String> = [],
+        childGrowthRates: [String: Double] = [:]
     ) {
         self.recipeID = recipeID
         self.parentPath = parentPath
@@ -38,6 +44,7 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
         self.minimumCleanBytes = minimumCleanBytes
         self.minimumCandidateBytes = minimumCandidateBytes
         self.protectedChildNames = protectedChildNames
+        self.childGrowthRates = childGrowthRates
     }
 }
 
@@ -239,10 +246,27 @@ public struct ProgressiveCleaner: Sendable {
             // 过小的目标收益不抵固定开销（统计/移动/日志），跳过
             measuredCandidates
                 .filter { $0.estimatedBytes >= policy.minimumCandidateBytes }
-                .sorted { $0.estimatedBytes > $1.estimatedBytes }
+                .sorted { lhs, rhs in
+                    score(lhs, policy: policy) > score(rhs, policy: policy)
+                }
                 .prefix(policy.maxItemsPerRun)
         )
         return (count, candidates)
+    }
+
+    /// 选择分数：当前大小 + 增长率 × 窗口天数。让“还会继续快速增长”的子项优先。
+    private func score(
+        _ candidate: ProgressiveCleanupCandidate,
+        policy: ProgressiveCleanupPolicy
+    ) -> Double {
+        // /var 与 /private/var 是符号链接，路径需要归一化后再查增长率
+        let normalized = URL(fileURLWithPath: candidate.path).resolvingSymlinksInPath().path
+        let growth = policy.childGrowthRates
+            .first {
+                URL(fileURLWithPath: $0.key).resolvingSymlinksInPath().path == normalized
+            }?
+            .value ?? 0
+        return Double(candidate.estimatedBytes) + growth * ProgressiveCleanupPolicy.growthWindowDays
     }
 
     private func estimatedBytes(for url: URL, keys: Set<URLResourceKey>) -> Int64 {

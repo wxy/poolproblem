@@ -291,6 +291,9 @@ struct GrowthInsightsView: View {
                      + " · " + Format.bytes(candidate.totalGrowthBytes))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                Text(candidateRuleText(candidate))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                 Spacer()
                 Button(Localized.string("candidate.accept")) {
                     service.acceptCandidate(id: candidate.id)
@@ -309,27 +312,50 @@ struct GrowthInsightsView: View {
     }
 
     private func acceptedRow(_ candidate: CandidateRecipe) -> some View {
-        HStack(spacing: 6) {
-            Button {
-                revealInFinder(candidate.samplePath)
-            } label: {
-                Text(candidate.pattern)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Button {
+                    revealInFinder(candidate.samplePath)
+                } label: {
+                    Text(candidate.pattern)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+                .help(candidate.samplePath)
+                Spacer()
+                Button(Localized.string("common.remove")) {
+                    service.dismissCandidate(id: candidate.id)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .cursorPointingHand()
             }
-            .buttonStyle(.plain)
-            .focusEffectDisabled()
-            .cursorPointingHand()
-            .help(candidate.samplePath)
-            Spacer()
-            Button(Localized.string("common.remove")) {
-                service.dismissCandidate(id: candidate.id)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .cursorPointingHand()
+            Text(candidateRuleText(candidate))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
+    }
+
+    /// 采纳建议后加入的配方与处理规则。
+    private func candidateRuleText(_ candidate: CandidateRecipe) -> String {
+        let name = URL(fileURLWithPath: candidate.samplePath).lastPathComponent
+        let safety = candidate.suggestedSafety == .safeWhileRunning
+            ? Localized.string("candidate.safety_safe")
+            : Localized.string("candidate.safety_confirm")
+        let disposition: String
+        switch candidate.suggestedDisposition {
+        case .trash:
+            disposition = Localized.string("candidate.disposition_trash")
+        case .deletePermanently:
+            disposition = Localized.string("candidate.disposition_permanent")
+        case .none:
+            disposition = Localized.string("candidate.disposition_monitor")
+        }
+        return Localized.string("candidate.adds_to_recipe", name, safety, disposition)
     }
 
     private func revealInFinder(_ path: String) {

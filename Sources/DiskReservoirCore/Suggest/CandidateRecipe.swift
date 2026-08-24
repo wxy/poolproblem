@@ -21,6 +21,8 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
     public let suggestedSafety: SafetyLevel
     public let suggestedCleanability: Cleanability
     public let suggestedCategory: Category
+    /// 采纳后配方的处置方式：可再生缓存类进回收站，用户数据类仅监控。
+    public let suggestedDisposition: CleanDisposition
     /// 一个真实路径样本，供用户查看（不参与展示聚合）。
     public let samplePath: String
 
@@ -36,6 +38,7 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
         suggestedSafety: SafetyLevel,
         suggestedCleanability: Cleanability,
         suggestedCategory: Category,
+        suggestedDisposition: CleanDisposition = .trash,
         samplePath: String
     ) {
         self.id = id
@@ -49,6 +52,30 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
         self.suggestedSafety = suggestedSafety
         self.suggestedCleanability = suggestedCleanability
         self.suggestedCategory = suggestedCategory
+        self.suggestedDisposition = suggestedDisposition
         self.samplePath = samplePath
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, pattern, status, totalGrowthBytes, peakRateBytesPerDay, evidenceCount,
+             firstSeenAt, lastSeenAt, suggestedSafety, suggestedCleanability,
+             suggestedCategory, suggestedDisposition, samplePath
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        pattern = try c.decode(String.self, forKey: .pattern)
+        status = try c.decode(CandidateStatus.self, forKey: .status)
+        totalGrowthBytes = try c.decode(Int64.self, forKey: .totalGrowthBytes)
+        peakRateBytesPerDay = try c.decode(Double.self, forKey: .peakRateBytesPerDay)
+        evidenceCount = try c.decode(Int.self, forKey: .evidenceCount)
+        firstSeenAt = try c.decode(Date.self, forKey: .firstSeenAt)
+        lastSeenAt = try c.decode(Date.self, forKey: .lastSeenAt)
+        suggestedSafety = try c.decode(SafetyLevel.self, forKey: .suggestedSafety)
+        suggestedCleanability = try c.decode(Cleanability.self, forKey: .suggestedCleanability)
+        suggestedCategory = try c.decode(Category.self, forKey: .suggestedCategory)
+        suggestedDisposition = try c.decodeIfPresent(CleanDisposition.self, forKey: .suggestedDisposition) ?? .trash
+        samplePath = try c.decode(String.self, forKey: .samplePath)
     }
 }

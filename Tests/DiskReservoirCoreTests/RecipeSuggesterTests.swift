@@ -38,7 +38,19 @@ private func sample(_ id: String, total: Int64, status: CandidateStatus = .pendi
     #expect(candidates[0].totalGrowthBytes == 800 << 20)
     #expect(candidates[0].evidenceCount == 2)
     #expect(candidates[0].suggestedSafety == .safeWhileRunning)
+    #expect(candidates[0].suggestedDisposition == .trash)
+    #expect(candidates[0].suggestedCleanability == .regenerable)
     #expect(candidates[0].status == .pending)
+}
+
+@Test func suggesterMarksNonCachePatternsAsMonitorOnly() {
+    let entries = [
+        entry("~/Documents/archive", 700 << 20, "/Users/alice/Documents/archive"),
+    ]
+    let candidates = RecipeSuggester(minTotalBytes: 100 << 20)
+        .suggest(entries: entries, existingRecipes: [], homeDirectory: "/Users/alice")
+    #expect(candidates[0].suggestedDisposition == .none)
+    #expect(candidates[0].suggestedCleanability == .displayOnly)
 }
 
 @Test func suggesterRespectsMinimumAndTopK() {

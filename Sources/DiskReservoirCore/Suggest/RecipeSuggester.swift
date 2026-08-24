@@ -47,6 +47,7 @@ public struct RecipeSuggester: Sendable {
                 suggestedSafety: cacheish ? .safeWhileRunning : .userConfirm,
                 suggestedCleanability: cacheish ? .regenerable : .displayOnly,
                 suggestedCategory: .custom,
+                suggestedDisposition: cacheish ? .trash : .none,
                 samplePath: group.first?.path ?? pattern
             )
         }

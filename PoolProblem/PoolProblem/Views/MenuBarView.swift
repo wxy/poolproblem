@@ -114,6 +114,8 @@ struct MenuBarView: View {
                 Group {
                     if item.recipeID == "trash" {
                         TrashDetailView(state: state, service: service)
+                    } else if item.cleanByChildOnly {
+                        CacheChildrenView(state: state, service: service, item: item)
                     } else {
                         detailOverlay(item)
                     }

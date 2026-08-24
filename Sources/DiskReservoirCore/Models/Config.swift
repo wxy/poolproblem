@@ -16,6 +16,8 @@ public struct Config: Codable, Equatable, Sendable {
     public var minimumCleanItemMB: Double
     /// 自动清理后是否清空本应用创建的回收站批次（默认关；只删本应用批次，不碰用户内容）。
     public var autoEmptyOwnTrashBatches: Bool
+    /// 用户从增长洞察采纳创建的自定义配方。
+    public var customRecipes: [CustomRecipeSpec]
 
     public static let defaultProtectedCacheChildren = ["org.swift.swiftpm", "node-gyp"]
 
@@ -29,7 +31,8 @@ public struct Config: Codable, Equatable, Sendable {
         declinedDevRoots: [],
         protectedCacheChildren: Config.defaultProtectedCacheChildren,
         minimumCleanItemMB: 500,
-        autoEmptyOwnTrashBatches: false
+        autoEmptyOwnTrashBatches: false,
+        customRecipes: []
     )
 
     public init(
@@ -42,7 +45,8 @@ public struct Config: Codable, Equatable, Sendable {
         declinedDevRoots: [String] = [],
         protectedCacheChildren: [String] = Config.defaultProtectedCacheChildren,
         minimumCleanItemMB: Double = 500,
-        autoEmptyOwnTrashBatches: Bool = false
+        autoEmptyOwnTrashBatches: Bool = false,
+        customRecipes: [CustomRecipeSpec] = []
     ) {
         self.waterlineGB = waterlineGB
         self.rules = rules
@@ -54,12 +58,13 @@ public struct Config: Codable, Equatable, Sendable {
         self.protectedCacheChildren = protectedCacheChildren
         self.minimumCleanItemMB = minimumCleanItemMB
         self.autoEmptyOwnTrashBatches = autoEmptyOwnTrashBatches
+        self.customRecipes = customRecipes
     }
 
     private enum CodingKeys: String, CodingKey {
         case waterlineGB, rules, whitelistPaths, cloneRatios,
              keptItemIDs, devRoots, declinedDevRoots, protectedCacheChildren,
-             minimumCleanItemMB, autoEmptyOwnTrashBatches
+             minimumCleanItemMB, autoEmptyOwnTrashBatches, customRecipes
     }
 
     public init(from decoder: Decoder) throws {
@@ -75,6 +80,7 @@ public struct Config: Codable, Equatable, Sendable {
             ?? Config.defaultProtectedCacheChildren
         minimumCleanItemMB = try c.decodeIfPresent(Double.self, forKey: .minimumCleanItemMB) ?? 500
         autoEmptyOwnTrashBatches = try c.decodeIfPresent(Bool.self, forKey: .autoEmptyOwnTrashBatches) ?? false
+        customRecipes = try c.decodeIfPresent([CustomRecipeSpec].self, forKey: .customRecipes) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -89,5 +95,6 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(protectedCacheChildren, forKey: .protectedCacheChildren)
         try c.encode(minimumCleanItemMB, forKey: .minimumCleanItemMB)
         try c.encode(autoEmptyOwnTrashBatches, forKey: .autoEmptyOwnTrashBatches)
+        try c.encode(customRecipes, forKey: .customRecipes)
     }
 }
