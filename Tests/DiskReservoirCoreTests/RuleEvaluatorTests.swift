@@ -60,28 +60,6 @@ private func item(
     }
 }
 
-@Test func groupAgeRuleOverridesRecipeDefault() {
-    var config = Config.default
-    config.rules = [CleanRule(recipeID: RecipeGroup.xcode.ruleID, enabled: true, maxAgeDays: 10)]
-    let evaluator = RuleEvaluator(
-        config: config,
-        groupByRecipe: ["r": .xcode],
-        defaultAgeByRecipe: ["r": 30]
-    )
-    // 20 天前修改：组内阈值 10 天 → 可清理（而配方默认 30 天则太新）
-    let old = item(
-        "x",
-        safety: .safeWhileRunning,
-        disposition: .trash,
-        modified: Date().addingTimeInterval(-20 * 86_400)
-    )
-    let result = evaluator.evaluate(item: old, isProcessRunning: { _ in false })
-    guard case .trash = result.action else {
-        Issue.record("expected trash with group age override, got \(result.action)")
-        return
-    }
-}
-
 @Test func recipeDefaultAgeFallsBackToDeclaredValue() {
     let evaluator = RuleEvaluator(
         config: .default,

@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var settingsTab = 0
     @State private var expandedRecipeIDs: Set<String> = []
     @State private var expandedGroups: Set<RecipeGroup> = []
+    @State private var cleanStats: [String: (count: Int, bytes: Int64)] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,6 +46,7 @@ struct SettingsView: View {
         .onAppear {
             config = service.loadConfig()
             expertMode = UserDefaults.standard.bool(forKey: "expertMode")
+            cleanStats = service.cleanStatsByRecipe()
             Task { hasFullDiskAccess = await PermissionService.hasFullDiskAccess() }
         }
         // 从系统设置返回（应用被激活）时自动重新检测权限
@@ -170,16 +172,18 @@ struct SettingsView: View {
                 let groupRecipes = allRecipes.filter { $0.group == group }
                 if !groupRecipes.isEmpty {
                     Section {
-                        DisclosureGroup(isExpanded: groupExpandedBinding(group)) {
-                            VStack(alignment: .leading, spacing: 10) {
-                                groupRuleRow(group)
-                                scopeRows(for: group)
-                                ForEach(groupRecipes, id: \.id) { recipe in
-                                    recipeRow(recipe)
-                                }
-                            }
-                        } label: {
+                        VStack(alignment: .leading, spacing: 0) {
                             groupHeader(group, recipes: groupRecipes)
+                            if expandedGroups.contains(group) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    scopeRows(for: group)
+                                    ForEach(groupRecipes, id: \.id) { recipe in
+                                        recipeRow(recipe)
+                                    }
+                                }
+                                .padding(.leading, 18)
+                                .padding(.top, 6)
+                            }
                         }
                     }
                 }
@@ -288,28 +292,28 @@ struct SettingsView: View {
     @ViewBuilder
     private func recipeRow(_ recipe: Recipe) -> some View {
         let enabled = isEnabled(recipe) && groupEnabled(recipe.group)
-        DisclosureGroup(isExpanded: Binding(
-            get: { expandedRecipeIDs.contains(recipe.id) },
-            set: { expanded in
-                if expanded {
-                    expandedRecipeIDs.insert(recipe.id)
-                } else {
-                    expandedRecipeIDs.remove(recipe.id)
-                }
-            }
-        )) {
-            ForEach(recipePaths(recipe), id: \.self) { path in
-                recipePathRow(path)
-            }
-        } label: {
+        let expanded = expandedRecipeIDs.contains(recipe.id)
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
-                Image(systemName: recipeIcon(recipe))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 14)
-                Text(Localized.recipeName(recipe.id, fallback: recipe.name))
-                    .lineLimit(1)
-                    .foregroundStyle(enabled ? Color.primary : Color.secondary)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { toggleRecipe(recipe.id) }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: recipeIcon(recipe))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 14)
+                        Text(Localized.recipeName(recipe.id, fallback: recipe.name))
+                            .lineLimit(1)
+                            .foregroundStyle(enabled ? Color.primary : Color.secondary)
+                        Image(systemName: expanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .cursorPointingHand()
                 Spacer()
                 Text(Localized.string("settings.keep_days", age(recipe)))
                     .font(.caption)
@@ -327,6 +331,24 @@ struct SettingsView: View {
                 ))
                 .labelsHidden()
             }
+            if expanded {
+                VStack(alignment: .leading, spacing: 3) {
+                    cleanStatsLine(recipe)
+                    ForEach(recipePaths(recipe), id: \.self) { path in
+                        recipePathRow(path)
+                    }
+                }
+                .padding(.leading, 26)
+                .padding(.bottom, 4)
+            }
+        }
+    }
+
+    private func toggleRecipe(_ id: String) {
+        if expandedRecipeIDs.contains(id) {
+            expandedRecipeIDs.remove(id)
+        } else {
+            expandedRecipeIDs.insert(id)
         }
     }
 
@@ -363,7 +385,7 @@ struct SettingsView: View {
         config.rules = rules
     }
 
-    // MARK: - 组级规则（总开关 + 组内默认闲置天数）
+    // MARK: - 组级规则（总开关；组内闲置天数对规则差异大的配方无意义，已移除）
 
     private func groupRule(_ group: RecipeGroup) -> CleanRule? {
         config.rules.first { $0.recipeID == group.ruleID }
@@ -373,67 +395,22 @@ struct SettingsView: View {
         groupRule(group)?.enabled ?? true
     }
 
-    private func groupAge(_ group: RecipeGroup) -> Int? {
-        groupRule(group)?.maxAgeDays
-    }
-
     private func setGroupEnabled(_ group: RecipeGroup, _ value: Bool) {
         upsertRule(CleanRule(
             recipeID: group.ruleID,
             enabled: value,
-            maxAgeDays: groupAge(group)
+            maxAgeDays: nil
         ))
-    }
-
-    private func setGroupAge(_ group: RecipeGroup, _ value: Int) {
-        upsertRule(CleanRule(
-            recipeID: group.ruleID,
-            enabled: groupEnabled(group),
-            maxAgeDays: value
-        ))
-    }
-
-    private func groupRuleRow(_ group: RecipeGroup) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(Localized.string("settings.group_age"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if let days = groupAge(group) {
-                    Text(verbatim: "\(days)")
-                        .font(.caption)
-                        .monospacedDigit()
-                } else {
-                    Text(Localized.string("settings.group_idle_default"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Stepper("", value: Binding(
-                    get: { groupAge(group) ?? 30 },
-                    set: { setGroupAge(group, $0) }
-                ), in: 1...365)
-                .labelsHidden()
-            }
-            Text(Localized.string("settings.group_age_footer"))
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
     }
 
     // MARK: - 组卡片（组头 / 展开 / 作用域）
 
-    private func groupExpandedBinding(_ group: RecipeGroup) -> Binding<Bool> {
-        Binding(
-            get: { expandedGroups.contains(group) },
-            set: { expanded in
-                if expanded {
-                    expandedGroups.insert(group)
-                } else {
-                    expandedGroups.remove(group)
-                }
-            }
-        )
+    private func toggleGroup(_ group: RecipeGroup) {
+        if expandedGroups.contains(group) {
+            expandedGroups.remove(group)
+        } else {
+            expandedGroups.insert(group)
+        }
     }
 
     private func groupEnabledBinding(_ group: RecipeGroup) -> Binding<Bool> {
@@ -445,22 +422,35 @@ struct SettingsView: View {
 
     private func groupHeader(_ group: RecipeGroup, recipes: [Recipe]) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: groupIcon(group))
-                .foregroundStyle(
-                    groupEnabled(group)
-                        ? Color.secondary
-                        : Color(nsColor: .tertiaryLabelColor)
-                )
-            Text(Localized.recipeGroupName(group))
-                .fontWeight(.medium)
-                .foregroundStyle(groupEnabled(group) ? Color.primary : Color.secondary)
-            Text(Localized.string("settings.recipes_count", recipes.count))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { toggleGroup(group) }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: groupIcon(group))
+                        .foregroundStyle(
+                            groupEnabled(group)
+                                ? Color.secondary
+                                : Color(nsColor: .tertiaryLabelColor)
+                        )
+                    Text(Localized.recipeGroupName(group))
+                        .fontWeight(.medium)
+                        .foregroundStyle(groupEnabled(group) ? Color.primary : Color.secondary)
+                    Text(Localized.string("settings.recipes_count", recipes.count))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: expandedGroups.contains(group) ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .cursorPointingHand()
             Spacer()
             Toggle("", isOn: groupEnabledBinding(group))
                 .labelsHidden()
         }
+        .padding(.vertical, 2)
     }
 
     private func groupIcon(_ group: RecipeGroup) -> String {
@@ -619,6 +609,25 @@ struct SettingsView: View {
     /// 配方解析出的具体路径（可能为空：路径不存在时配方不生效）。
     private func recipePaths(_ recipe: Recipe) -> [String] {
         recipe.resolvePaths(StoragePaths(homeDirectory: NSHomeDirectory()))
+    }
+
+    /// 该配方在清理日志中的累计执行次数与清理字节。
+    @ViewBuilder
+    private func cleanStatsLine(_ recipe: Recipe) -> some View {
+        if let stats = cleanStats[recipe.id], stats.count > 0 {
+            HStack(spacing: 4) {
+                Image(systemName: "chart.bar")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(Localized.string(
+                    "settings.recipe_clean_stats",
+                    stats.count,
+                    Format.bytes(stats.bytes)
+                ))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+        }
     }
 
     /// 路径行：文件夹图标 + 路径文本。存在的路径可点击打开 Finder；

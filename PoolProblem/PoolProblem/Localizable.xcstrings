@@ -3086,6 +3086,7 @@
       }
     },
     "settings.cache_roots_empty" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3102,6 +3103,7 @@
       }
     },
     "settings.cache_roots_hint" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3150,6 +3152,7 @@
       }
     },
     "settings.devroots_empty" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3166,6 +3169,7 @@
       }
     },
     "settings.devroots_recipes_hint" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3225,54 +3229,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通用"
-          }
-        }
-      }
-    },
-    "settings.group_age" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Group idle days"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "组内闲置天数"
-          }
-        }
-      }
-    },
-    "settings.group_age_footer" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When unset, each recipe uses its own default idle days."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未设置时按各配方自身的默认闲置天数。"
-          }
-        }
-      }
-    },
-    "settings.group_idle_default" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Per-recipe default"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "各配方默认"
           }
         }
       }
@@ -3631,18 +3587,18 @@
         }
       }
     },
-    "settings.recipes_expert_hint" : {
+    "settings.recipes_count" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Recipe settings are available in Expert mode"
+            "value" : "%lld recipes"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "配方设置在专家模式下可用"
+            "value" : "%lld 条配方"
           }
         }
       }
@@ -3663,18 +3619,34 @@
         }
       }
     },
-    "settings.recipes_count" : {
+    "settings.recipes_expert_hint" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld recipes"
+            "value" : "Recipe settings are available in Expert mode"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld 条配方"
+            "value" : "配方设置在专家模式下可用"
+          }
+        }
+      }
+    },
+    "settings.recipe_clean_stats" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleaned %lld times · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已清理 %lld 次 · %@"
           }
         }
       }

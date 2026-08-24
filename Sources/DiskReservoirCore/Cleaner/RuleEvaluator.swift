@@ -116,8 +116,9 @@ public struct RuleEvaluator: Sendable {
         guard let modified = item.lastModified else {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "no modification date"))
         }
+        // 年龄只看配方级规则与配方自身默认值；组内各配方闲置窗口差异很大
+        // （如 node_modules 30 天 vs 构建产物 1 天），组级年龄没有意义。
         let ageLimitDays = rule?.maxAgeDays
-            ?? groupRule?.maxAgeDays
             ?? defaultAgeByRecipe[item.recipeID]
             ?? recipeDefaultAge(for: item)
         // 紧急清理可跳过年龄/最近修改保护，但保留处置方式与可清理性底线

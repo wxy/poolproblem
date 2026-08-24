@@ -454,6 +454,22 @@ final class AppService {
         }
     }
 
+    /// 每个配方在清理日志中的累计执行次数与清理字节（itemID 形如 "recipeID:path"）。
+    func cleanStatsByRecipe() -> [String: (count: Int, bytes: Int64)] {
+        let entries = (try? logStore.entries()) ?? []
+        var result: [String: (count: Int, bytes: Int64)] = [:]
+        for entry in entries {
+            var seen = Set<String>()
+            for itemID in entry.itemIDs {
+                guard let recipeID = itemID.split(separator: ":").first.map(String.init),
+                      seen.insert(recipeID).inserted else { continue }
+                result[recipeID, default: (count: 0, bytes: 0)].count += 1
+                result[recipeID, default: (count: 0, bytes: 0)].bytes += entry.freedBytes
+            }
+        }
+        return result
+    }
+
     private func smartCleanInternal(dryRun: Bool) async -> CleanOutcome? {
         let config = loadConfig()
         let logStore = self.logStore
