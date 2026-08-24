@@ -10,6 +10,10 @@ public struct RecipeSuggester: Sendable {
     public static let projectFamilyID = "project-recipes"
     /// 项目目录配方族的展示名（英文回退，UI 按 recipeID 本地化）。
     public static let projectFamilyName = "node_modules / Project build output"
+    /// 项目目录配方族建议统一的规则（采纳后按 devRoots 展开项目配方）。
+    public static let projectFamilySafety = SafetyLevel.userConfirm
+    public static let projectFamilyCleanability = Cleanability.regenerable
+    public static let projectFamilyDisposition = CleanDisposition.trash
 
     public let minTotalBytes: Int64
     public let topK: Int
@@ -58,6 +62,7 @@ public struct RecipeSuggester: Sendable {
                 suggestedCleanability: .regenerable,
                 suggestedCategory: .project,
                 suggestedDisposition: .trash,
+                source: .growth,
                 samplePath: root
             )
         }
@@ -74,5 +79,150 @@ public struct RecipeSuggester: Sendable {
         let parent = URL(fileURLWithPath: path).deletingLastPathComponent().path
         guard parent != path, DevDirectoryDetector.detect(path: parent) != nil else { return nil }
         return parent
+    }
+
+    /// 主动发现（可再生产物大小）→ 项目目录配方族候选。
+    public static func discoveryCandidates(
+        discovered: [DevProjectCandidate],
+        homeDirectory: String
+    ) -> [CandidateRecipe] {
+        discovered.map { project in
+            let pattern = PathPatternizer.patternize(project.path, homeDirectory: homeDirectory)
+            return CandidateRecipe(
+                id: pattern,
+                pattern: pattern,
+                totalGrowthBytes: project.regenerableBytes,
+                peakRateBytesPerDay: 0,
+                evidenceCount: 1,
+                firstSeenAt: Date(),
+                lastSeenAt: Date(),
+                recipeID: projectFamilyID,
+                recipeName: projectFamilyName,
+                suggestedSafety: projectFamilySafety,
+                suggestedCleanability: projectFamilyCleanability,
+                suggestedCategory: .project,
+                suggestedDisposition: projectFamilyDisposition,
+                source: .discovery,
+                samplePath: project.path
+            )
+        }
+    }
+
+    /// 近期写活动（FSEvents）→ 项目目录配方族候选。
+    public static func activityCandidates(
+        activities: [DevActivity],
+        homeDirectory: String
+    ) -> [CandidateRecipe] {
+        activities.map { activity in
+            let pattern = PathPatternizer.patternize(
+                activity.projectRoot,
+                homeDirectory: homeDirectory
+            )
+            return CandidateRecipe(
+                id: pattern,
+                pattern: pattern,
+                totalGrowthBytes: 0,
+                peakRateBytesPerDay: 0,
+                evidenceCount: 1,
+                firstSeenAt: activity.lastActivityAt,
+                lastSeenAt: activity.lastActivityAt,
+                recipeID: projectFamilyID,
+                recipeName: projectFamilyName,
+                suggestedSafety: projectFamilySafety,
+                suggestedCleanability: projectFamilyCleanability,
+                suggestedCategory: .project,
+                suggestedDisposition: projectFamilyDisposition,
+                source: .activity,
+                samplePath: activity.projectRoot
+            )
+        }
+    }
+
+    /// 把多来源候选归并成展示级建议：
+    /// 1) 同一父目录下有 ≥2 个建议 → 合并为父目录一条（一次采纳覆盖全部），
+    ///    但父目录为家目录/根目录时不合并（避免把整个家目录纳入监控）。
+    /// 2) 相同路径的多来源候选合并统计。
+    /// 3) 祖先/后代重叠时保留父目录建议（覆盖更广），丢弃仅落在其内的子建议。
+    public static func normalize(
+        _ candidates: [CandidateRecipe],
+        homeDirectory: String
+    ) -> [CandidateRecipe] {
+        var byParent: [String: [CandidateRecipe]] = [:]
+        var homeLevel: [CandidateRecipe] = []
+        for candidate in candidates {
+            let parent = URL(fileURLWithPath: candidate.samplePath)
+                .deletingLastPathComponent().path
+            if parent == homeDirectory || parent == "/" {
+                // 家目录/根目录下的散落项目保持单独建议（避免把整个家目录纳入监控）
+                homeLevel.append(candidate)
+                continue
+            }
+            byParent[parent, default: []].append(candidate)
+        }
+        var grouped: [CandidateRecipe] = []
+        grouped.append(contentsOf: homeLevel)
+        for (parent, group) in byParent {
+            if group.count >= 2 {
+                let names = Array(Set(
+                    group.compactMap { URL(fileURLWithPath: $0.samplePath).lastPathComponent }
+                )).sorted()
+                grouped.append(merged(group, path: parent, homeDirectory: homeDirectory, childNames: names))
+            } else if let single = group.first {
+                grouped.append(single)
+            }
+        }
+        // 同路径合并
+        var byPath: [String: CandidateRecipe] = [:]
+        for candidate in grouped {
+            if let existing = byPath[candidate.samplePath] {
+                let names = Array(Set(existing.childNames + candidate.childNames)).sorted()
+                byPath[candidate.samplePath] = merged(
+                    [existing, candidate],
+                    path: candidate.samplePath,
+                    homeDirectory: homeDirectory,
+                    childNames: names
+                )
+            } else {
+                byPath[candidate.samplePath] = candidate
+            }
+        }
+        // 按路径深度排序后保留最浅的覆盖建议
+        let depthSorted = byPath.values.sorted { $0.samplePath.count < $1.samplePath.count }
+        var kept: [CandidateRecipe] = []
+        for candidate in depthSorted {
+            if kept.contains(where: { candidate.samplePath.hasPrefix($0.samplePath + "/") }) {
+                continue
+            }
+            kept.append(candidate)
+        }
+        return kept.sorted { $0.totalGrowthBytes > $1.totalGrowthBytes }
+    }
+
+    private static func merged(
+        _ group: [CandidateRecipe],
+        path: String,
+        homeDirectory: String,
+        childNames: [String]
+    ) -> CandidateRecipe {
+        let first = group[0]
+        let pattern = PathPatternizer.patternize(path, homeDirectory: homeDirectory)
+        return CandidateRecipe(
+            id: pattern,
+            pattern: pattern,
+            totalGrowthBytes: group.reduce(Int64(0)) { $0 + $1.totalGrowthBytes },
+            peakRateBytesPerDay: group.map(\.peakRateBytesPerDay).max() ?? 0,
+            evidenceCount: group.reduce(0) { $0 + $1.evidenceCount },
+            firstSeenAt: group.map(\.firstSeenAt).min() ?? Date(),
+            lastSeenAt: group.map(\.lastSeenAt).max() ?? Date(),
+            recipeID: first.recipeID,
+            recipeName: first.recipeName,
+            suggestedSafety: first.suggestedSafety,
+            suggestedCleanability: first.suggestedCleanability,
+            suggestedCategory: first.suggestedCategory,
+            suggestedDisposition: first.suggestedDisposition,
+            source: first.source,
+            childNames: childNames,
+            samplePath: path
+        )
     }
 }

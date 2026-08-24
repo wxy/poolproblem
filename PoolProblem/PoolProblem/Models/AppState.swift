@@ -10,37 +10,6 @@ struct AutoCleanPlanItem: Identifiable {
     let progress: Double
 }
 
-/// 增长洞察中检测到的"疑似开发目录"，等待用户确认加入监控。
-enum DevRootSource {
-    case discovery   // 主动发现的可重建内容
-    case activity    // FSEvents 写活动（近期活跃）
-}
-
-struct DevRootCandidate: Identifiable, Equatable {
-    let path: String
-    let marker: String
-    /// 展示的字节数：含义由 source 决定（增长/当前占用/可清理约）。
-    let bytes: Int64
-    let source: DevRootSource
-    /// 归并到父目录的建议：列出其下项目名（供"含 N 个项目"展示）。
-    let childNames: [String]
-    var id: String { path }
-
-    init(
-        path: String,
-        marker: String,
-        bytes: Int64,
-        source: DevRootSource,
-        childNames: [String] = []
-    ) {
-        self.path = path
-        self.marker = marker
-        self.bytes = bytes
-        self.source = source
-        self.childNames = childNames
-    }
-}
-
 /// 废纸篓详情页里的一条一级条目。
 struct TrashEntry: Identifiable, Equatable {
     let name: String
@@ -98,7 +67,6 @@ final class AppState: ObservableObject {
     /// 菜单栏面板"增长洞察"明细 sheet 开关。
     @Published var showGrowthInsights = false
     /// 待确认的开发目录建议（增长洞察中发现，等待用户加入/忽略）。
-    @Published var pendingDevRoots: [DevRootCandidate] = []
 }
 
 enum Format {

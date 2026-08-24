@@ -149,3 +149,116 @@ private func makeProject(_ base: URL, _ name: String) throws -> URL {
     #expect(try store.load().first?.totalGrowthBytes == 2)
     #expect(try store.load().first?.recipeID == RecipeSuggester.projectFamilyID)
 }
+
+@Test func discoveryCandidatesMapToProjectRecipeFamily() {
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    let project = home.appendingPathComponent("develop/app", isDirectory: true)
+
+    let candidates = RecipeSuggester.discoveryCandidates(
+        discovered: [
+            DevProjectCandidate(
+                path: project.path,
+                marker: "project",
+                regenerableBytes: 300 << 20
+            ),
+        ],
+        homeDirectory: home.path
+    )
+    #expect(candidates.count == 1)
+    #expect(candidates[0].source == .discovery)
+    #expect(candidates[0].recipeID == RecipeSuggester.projectFamilyID)
+    #expect(candidates[0].suggestedCategory == .project)
+    #expect(candidates[0].totalGrowthBytes == 300 << 20)
+    #expect(candidates[0].samplePath == project.path)
+    #expect(candidates[0].pattern == "~/develop/app")
+}
+
+@Test func activityCandidatesMapToProjectRecipeFamily() {
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    let root = home.appendingPathComponent("work/site", isDirectory: true)
+    let when = Date(timeIntervalSince1970: 1_000_000)
+
+    let candidates = RecipeSuggester.activityCandidates(
+        activities: [
+            DevActivity(projectRoot: root.path, artifact: "dist", lastActivityAt: when),
+        ],
+        homeDirectory: home.path
+    )
+    #expect(candidates.count == 1)
+    #expect(candidates[0].source == .activity)
+    #expect(candidates[0].recipeID == RecipeSuggester.projectFamilyID)
+    #expect(candidates[0].samplePath == root.path)
+    #expect(candidates[0].lastSeenAt == when)
+}
+
+@Test func normalizeGroupsSiblingsUnderParentAndKeepsHomeLevelSeparate() throws {
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    let a = home.appendingPathComponent("develop/a", isDirectory: true)
+    let b = home.appendingPathComponent("develop/b", isDirectory: true)
+    let c = home.appendingPathComponent("c", isDirectory: true)
+
+    let candidates = RecipeSuggester.normalize(
+        [
+            sample(a.path, total: 100 << 20),
+            sample(b.path, total: 200 << 20),
+            sample(c.path, total: 50 << 20),
+        ],
+        homeDirectory: home.path
+    )
+    // develop/a + develop/b → 合并为父目录一条；家目录下的 c 保持单独
+    #expect(candidates.count == 2)
+    let grouped = candidates.first { $0.samplePath == home.appendingPathComponent("develop").path }
+    #expect(grouped != nil)
+    #expect(grouped?.childNames == ["a", "b"])
+    #expect(grouped?.totalGrowthBytes == 300 << 20)
+    #expect(candidates.contains { $0.samplePath == c.path })
+}
+
+@Test func normalizeMergesSamePathFromMultipleSources() throws {
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    let root = home.appendingPathComponent("develop/app", isDirectory: true)
+
+    let candidates = RecipeSuggester.normalize(
+        [
+            sample(root.path, total: 400 << 20),
+            sample(root.path, total: 100 << 20),
+        ],
+        homeDirectory: home.path
+    )
+    #expect(candidates.count == 1)
+    #expect(candidates[0].totalGrowthBytes == 500 << 20)
+    #expect(candidates[0].evidenceCount == 2)
+}
+
+@Test func normalizeDropsChildCandidateWhenParentSuggested() throws {
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    let develop = home.appendingPathComponent("develop", isDirectory: true)
+    let child = develop.appendingPathComponent("app", isDirectory: true)
+
+    let candidates = RecipeSuggester.normalize(
+        [
+            sample(develop.path, total: 400 << 20),
+            sample(child.path, total: 300 << 20),
+        ],
+        homeDirectory: home.path
+    )
+    // 父目录建议覆盖子目录建议 → 只保留父目录
+    #expect(candidates.count == 1)
+    #expect(candidates[0].samplePath == develop.path)
+}

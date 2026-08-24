@@ -34,6 +34,8 @@ public struct RecipeSuggestionStore: Sendable {
                     suggestedCleanability: candidate.suggestedCleanability,
                     suggestedCategory: candidate.suggestedCategory,
                     suggestedDisposition: candidate.suggestedDisposition,
+                    source: candidate.source,
+                    childNames: candidate.childNames,
                     samplePath: candidate.samplePath
                 )
             } else {

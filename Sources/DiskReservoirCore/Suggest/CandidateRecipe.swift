@@ -29,6 +29,10 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
     public let suggestedCategory: Category
     /// 采纳后纳入配方的处置方式（来自目标配方的既有规则）。
     public let suggestedDisposition: CleanDisposition
+    /// 候选来源：增长 / 主动发现 / 近期写活动。
+    public let source: RecipeCandidateSource
+    /// 归并到父目录建议时列出的子项目名（单个候选为空）。
+    public let childNames: [String]
     /// 采纳后加入配方作用域的目录（真实路径；项目目录候选即项目根）。
     public let samplePath: String
 
@@ -47,6 +51,8 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
         suggestedCleanability: Cleanability,
         suggestedCategory: Category,
         suggestedDisposition: CleanDisposition = .trash,
+        source: RecipeCandidateSource = .growth,
+        childNames: [String] = [],
         samplePath: String
     ) {
         self.id = id
@@ -63,13 +69,15 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
         self.suggestedCleanability = suggestedCleanability
         self.suggestedCategory = suggestedCategory
         self.suggestedDisposition = suggestedDisposition
+        self.source = source
+        self.childNames = childNames
         self.samplePath = samplePath
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, pattern, status, totalGrowthBytes, peakRateBytesPerDay, evidenceCount,
              firstSeenAt, lastSeenAt, recipeID, recipeName, suggestedSafety, suggestedCleanability,
-             suggestedCategory, suggestedDisposition, samplePath
+             suggestedCategory, suggestedDisposition, source, childNames, samplePath
     }
 
     public init(from decoder: Decoder) throws {
@@ -89,6 +97,8 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
         suggestedCleanability = try c.decode(Cleanability.self, forKey: .suggestedCleanability)
         suggestedCategory = try c.decode(Category.self, forKey: .suggestedCategory)
         suggestedDisposition = try c.decodeIfPresent(CleanDisposition.self, forKey: .suggestedDisposition) ?? .trash
+        source = try c.decodeIfPresent(RecipeCandidateSource.self, forKey: .source) ?? .growth
+        childNames = try c.decodeIfPresent([String].self, forKey: .childNames) ?? []
         samplePath = try c.decode(String.self, forKey: .samplePath)
     }
 }

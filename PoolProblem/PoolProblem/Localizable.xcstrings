@@ -276,6 +276,22 @@
         }
       }
     },
+    "candidate.source_growth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grew %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "增长 %@"
+          }
+        }
+      }
+    },
     "chart.auto" : {
       "localizations" : {
         "en" : {
@@ -1097,22 +1113,6 @@
         }
       }
     },
-    "devroot.add" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add to monitoring"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加入监控"
-          }
-        }
-      }
-    },
     "devroot.cleanable" : {
       "localizations" : {
         "en" : {
@@ -1178,38 +1178,6 @@
         }
       }
     },
-    "devroot.ignore" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ignore"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "忽略"
-          }
-        }
-      }
-    },
-    "devroot.marker" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Detected %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "检测到 %@"
-          }
-        }
-      }
-    },
     "devroot.rescan" : {
       "localizations" : {
         "en" : {
@@ -1222,22 +1190,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新扫描"
-          }
-        }
-      }
-    },
-    "devroot.section_title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Suggested dev directories"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开发目录建议"
           }
         }
       }

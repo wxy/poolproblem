@@ -233,15 +233,6 @@ struct MenuBarView: View {
                             .padding(.vertical, 1)
                             .background(Capsule().fill(Color.accentColor))
                     }
-                    if pendingDevRootCount > 0 {
-                        Text(verbatim: "\(pendingDevRootCount)")
-                            .font(.caption2)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.orange))
-                            .help(Localized.string("devroot.section_title"))
-                    }
                     Spacer()
                     Text(Localized.string("insights.view"))
                         .font(.caption2)
@@ -272,8 +263,7 @@ struct MenuBarView: View {
                 }
             }
             if state.growthInsights.isEmpty
-                && state.candidateRecipes.filter({ $0.status == .pending }).isEmpty
-                && state.pendingDevRoots.isEmpty {
+                && state.candidateRecipes.filter({ $0.status == .pending }).isEmpty {
                 Text(Localized.string("insights.empty"))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -283,10 +273,6 @@ struct MenuBarView: View {
 
     private var pendingCandidateCount: Int {
         state.candidateRecipes.filter { $0.status == .pending }.count
-    }
-
-    private var pendingDevRootCount: Int {
-        state.pendingDevRoots.count
     }
 
     private var autoCleanPlanList: some View {
