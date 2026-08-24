@@ -255,8 +255,6 @@ struct GrowthInsightsView: View {
 
     private func devRootBytesText(_ candidate: DevRootCandidate) -> String {
         switch candidate.source {
-        case .growth:
-            return Localized.string("devroot.growth", Format.bytes(candidate.bytes))
         case .discovery:
             return Localized.string("devroot.cleanable", Format.bytes(candidate.bytes))
         case .activity:
@@ -340,9 +338,9 @@ struct GrowthInsightsView: View {
         }
     }
 
-    /// 采纳建议后加入的配方与处理规则。
+    /// 采纳后纳入的现有配方与处理规则。
     private func candidateRuleText(_ candidate: CandidateRecipe) -> String {
-        let name = URL(fileURLWithPath: candidate.samplePath).lastPathComponent
+        let name = Localized.recipeName(candidate.recipeID, fallback: candidate.recipeName)
         let safety = candidate.suggestedSafety == .safeWhileRunning
             ? Localized.string("candidate.safety_safe")
             : Localized.string("candidate.safety_confirm")

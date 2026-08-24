@@ -12,7 +12,6 @@ struct AutoCleanPlanItem: Identifiable {
 
 /// 增长洞察中检测到的"疑似开发目录"，等待用户确认加入监控。
 enum DevRootSource {
-    case growth      // 增长量
     case discovery   // 主动发现的可重建内容
     case activity    // FSEvents 写活动（近期活跃）
 }

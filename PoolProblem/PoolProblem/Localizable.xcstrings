@@ -1162,22 +1162,6 @@
         }
       }
     },
-    "devroot.growth" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "grew %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "增长 %@"
-          }
-        }
-      }
-    },
     "devroot.hint" : {
       "localizations" : {
         "en" : {
@@ -2569,6 +2553,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "node_modules"
+          }
+        }
+      }
+    },
+    "recipe.project-recipes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "node_modules / Project build output"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "node_modules / 项目构建产物"
           }
         }
       }
@@ -4034,13 +4034,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Joins recipe: %@ · %@ / %@"
+            "value" : "Joins existing recipe: %@ · %@ / %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "加入配方：%@ · %@ / %@"
+            "value" : "加入现有配方：%@ · %@ / %@"
           }
         }
       }

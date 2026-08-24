@@ -28,9 +28,12 @@ public struct RecipeSuggestionStore: Sendable {
                     evidenceCount: candidate.evidenceCount,
                     firstSeenAt: candidate.firstSeenAt,
                     lastSeenAt: candidate.lastSeenAt,
+                    recipeID: candidate.recipeID,
+                    recipeName: candidate.recipeName,
                     suggestedSafety: candidate.suggestedSafety,
                     suggestedCleanability: candidate.suggestedCleanability,
                     suggestedCategory: candidate.suggestedCategory,
+                    suggestedDisposition: candidate.suggestedDisposition,
                     samplePath: candidate.samplePath
                 )
             } else {

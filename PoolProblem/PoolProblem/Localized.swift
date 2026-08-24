@@ -32,6 +32,7 @@ enum Localized {
         case "own-trash-batches": return string("recipe.own-trash-batches")
         case "project-node-modules": return string("recipe.project-node-modules")
         case "project-build-output": return string("recipe.project-build-output")
+        case "project-recipes": return string("recipe.project-recipes")
         case "trash": return string("recipe.trash")
         default: return fallback
         }

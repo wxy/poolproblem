@@ -284,14 +284,18 @@ final class AppService {
         try? growthLedgerStore.append(entries)
         try? growthLedgerStore.prune(retainingDays: 30)
         let allEntries = (try? growthLedgerStore.entries()) ?? []
-        let candidates = RecipeSuggester().suggest(
-            entries: allEntries,
-            existingRecipes: activeRecipes(),
-            homeDirectory: home
+        let candidates = dedupeCandidatesAgainstDevRoots(
+            RecipeSuggester().suggest(
+                entries: allEntries,
+                existingRecipes: activeRecipes(),
+                homeDirectory: home
+            )
         )
         try? recipeSuggestionStore.merge(candidates)
         state.growthInsights = growthInsights(from: allEntries)
-        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+        state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
+            (try? recipeSuggestionStore.load()) ?? []
+        )
     }
 
     #if DEBUG
@@ -1531,22 +1535,27 @@ final class AppService {
         try? growthLedgerStore.append(entries)
         try? growthLedgerStore.prune(retainingDays: 30)
         let allEntries = (try? growthLedgerStore.entries()) ?? []
-        let candidates = RecipeSuggester().suggest(
-            entries: allEntries,
-            existingRecipes: activeRecipes(),
-            homeDirectory: home
+        let candidates = dedupeCandidatesAgainstDevRoots(
+            RecipeSuggester().suggest(
+                entries: allEntries,
+                existingRecipes: activeRecipes(),
+                homeDirectory: home
+            )
         )
         try? recipeSuggestionStore.merge(candidates)
         state.growthInsights = growthInsights(from: allEntries)
-        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
-        suggestDevRootsFromGrowth(allEntries: allEntries)
+        state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
+            (try? recipeSuggestionStore.load()) ?? []
+        )
     }
 
     /// 启动时从磁盘恢复增长洞察与候选配方状态。
     private func refreshGrowthState() {
         let allEntries = (try? growthLedgerStore.entries()) ?? []
         state.growthInsights = growthInsights(from: allEntries)
-        state.candidateRecipes = (try? recipeSuggestionStore.load()) ?? []
+        state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
+            (try? recipeSuggestionStore.load()) ?? []
+        )
         Task { await maybeDiscoverDevDirectories() }
     }
 
@@ -1562,12 +1571,18 @@ final class AppService {
             DevDirectoryDiscovery.discover(homeDirectory: home)
         }.value
         let existing = Set(state.pendingDevRoots.map(\.path))
+        // 配方建议（增长来源）已列出的目录不再重复出现在开发目录建议中
+        let pendingCandidateRoots = state.candidateRecipes
+            .filter { $0.status == .pending }
+            .map(\.samplePath)
         var fresh = found
             .filter { !isKnownDevPath($0.path, known: known) && !existing.contains($0.path) }
+            .filter { !isWithinAny($0.path, roots: pendingCandidateRoots) }
             .map { DevRootCandidate(path: $0.path, marker: $0.marker, bytes: $0.regenerableBytes, source: .discovery) }
         // FSEvents 写活动：无标记/新项目也能被发现（来源"近期活跃"）
         for activity in devActivityTracker.activeProjects(since: 48 * 3600)
         where !isKnownDevPath(activity.projectRoot, known: known) && !existing.contains(activity.projectRoot)
+            && !isWithinAny(activity.projectRoot, roots: pendingCandidateRoots)
             && !fresh.contains(where: { $0.path == activity.projectRoot }) {
             fresh.append(DevRootCandidate(
                 path: activity.projectRoot,
@@ -1630,7 +1645,6 @@ final class AppService {
         let config = loadConfig()
         return RecipeRegistry.builtIn()
             + ProjectRecipes.make(devRoots: config.devRoots, homeDirectory: NSHomeDirectory())
-            + CustomRecipes.make(specs: config.customRecipes, homeDirectory: NSHomeDirectory())
     }
 
     /// 各配方用户配置的年龄阈值（天），未配置的配方回落 recipe.defaultAgeDays。
@@ -1702,26 +1716,26 @@ final class AppService {
         )
     }
 
-    /// 增长来源的开发目录建议：表面扫描发现的未覆盖增长中，命中项目标记的
-    /// 提示用户加入监控（来源"增长"）。已知/忽略/已在建议中的不再重复。
-    private func suggestDevRootsFromGrowth(allEntries: [GrowthEntry]) {
-        let config = loadConfig()
-        let known = Set(config.devRoots + config.declinedDevRoots)
-        let existing = Set(state.pendingDevRoots.map(\.path))
-        let fresh: [DevRootCandidate] = uncoveredInsights(allEntries).compactMap { entry in
-            guard !isKnownDevPath(entry.path, known: known),
-                  !existing.contains(entry.path),
-                  let kind = DevDirectoryDetector.detect(path: entry.path) else { return nil }
-            return DevRootCandidate(path: entry.path, marker: kind.rawValue, bytes: entry.deltaBytes, source: .growth)
-        }
-        if !fresh.isEmpty {
-            state.pendingDevRoots += Array(groupDevRootCandidates(fresh).prefix(3))
-        }
-    }
-
     /// 路径是否已被某个已确认/忽略的开发目录覆盖（自身或其子树）。
     private func isKnownDevPath(_ path: String, known: Set<String>) -> Bool {
         known.contains { $0 == path || path.hasPrefix($0 + "/") }
+    }
+
+    /// 路径是否位于某个候选根之内（或本身就是该根），用于两套建议之间去重。
+    private func isWithinAny(_ path: String, roots: [String]) -> Bool {
+        roots.contains { $0 == path || path.hasPrefix($0 + "/") || $0.hasPrefix(path + "/") }
+    }
+
+    /// 配方建议与开发目录建议 / 已确认目录去重：已列入 devRoots 或开发目录
+    /// 建议中的目录不再作为“加入现有配方”候选展示。
+    private func dedupeCandidatesAgainstDevRoots(_ candidates: [CandidateRecipe]) -> [CandidateRecipe] {
+        let config = loadConfig()
+        let known = config.devRoots + config.declinedDevRoots
+        let pendingDevRoots = state.pendingDevRoots.map(\.path)
+        return candidates.filter { candidate in
+            !isWithinAny(candidate.samplePath, roots: known)
+                && !isWithinAny(candidate.samplePath, roots: pendingDevRoots)
+        }
     }
 
     /// 把建议按父目录归并：同一父目录下有 ≥2 个项目时，只建议监控父目录
@@ -1754,23 +1768,17 @@ final class AppService {
     func acceptCandidate(id: String) {
         guard let candidate = state.candidateRecipes.first(where: { $0.id == id }),
               candidate.status != .accepted else { return }
-        // 采纳 = 真正创建一条自定义配方（一个配方对应一种增长类型），
-        // 并明确其处理规则（安全级/处置方式）
+        // 采纳 = 把该目录纳入现有“项目目录”配方族的管理范围（devRoots），
+        // 之后 node_modules / 构建产物两个配方会按既有规则覆盖它。
         var config = loadConfig()
-        let name = URL(fileURLWithPath: candidate.samplePath).lastPathComponent
-        config.customRecipes.append(CustomRecipeSpec(
-            id: candidate.id,
-            name: name,
-            pattern: candidate.pattern,
-            category: candidate.suggestedCategory,
-            safety: candidate.suggestedSafety,
-            cleanability: candidate.suggestedCleanability,
-            disposition: candidate.suggestedDisposition,
-            defaultAgeDays: 30,
-            minimumSizeMB: 100
-        ))
+        if !config.devRoots.contains(candidate.samplePath) {
+            config.devRoots.append(candidate.samplePath)
+        }
+        config.declinedDevRoots.removeAll { $0 == candidate.samplePath }
         writeConfig(config)
         setCandidateStatus(id: id, status: .accepted)
+        // 立即重扫，让项目配方（聚合条目）出现在清理列表中
+        Task { await scanNow(autoClean: false) }
     }
 
     func dismissCandidate(id: String) {
