@@ -29,6 +29,7 @@ public enum PackageManagerRecipes {
             id: familyID,
             name: "包管理器缓存",
             category: .packageManager,
+            group: .packageManager,
             safety: .safeWhileRunning,
             disposition: .deletePermanently,
             cleanability: .regenerable,

@@ -28,9 +28,19 @@ enum Localized {
         case "own-trash-batches": return string("recipe.own-trash-batches")
         case "project-node-modules": return string("recipe.project-node-modules")
         case "project-build-output": return string("recipe.project-build-output")
-        case "project-recipes": return string("recipe.project-recipes")
+        case "nodejs-projects": return string("recipe.nodejs-projects")
         case "trash": return string("recipe.trash")
         default: return fallback
+        }
+    }
+
+    /// 配方分组名。
+    static func recipeGroupName(_ group: RecipeGroup) -> String {
+        switch group {
+        case .xcode: return string("recipe_group.xcode")
+        case .nodejs: return string("recipe_group.nodejs")
+        case .packageManager: return string("recipe_group.packageManager")
+        case .system: return string("recipe_group.system")
         }
     }
 

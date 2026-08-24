@@ -121,24 +121,24 @@ struct SettingsView: View {
     @ViewBuilder
     private var recipesSections: some View {
         if expertMode {
-            Section(Localized.string("settings.recipes_section")) {
-                let packageManagerRecipe = PackageManagerRecipes.make(
-                    extraRoots: config.packageManagerCacheRoots,
-                    homeDirectory: NSHomeDirectory()
-                )
-                ForEach(RecipeRegistry.builtIn() + [packageManagerRecipe], id: \.id) { recipe in
-                    recipeRow(recipe)
-                }
-            }
-
+            let packageManagerRecipe = PackageManagerRecipes.make(
+                extraRoots: config.packageManagerCacheRoots,
+                homeDirectory: NSHomeDirectory()
+            )
             let projectRecipes = ProjectRecipes.make(
                 devRoots: config.devRoots,
                 homeDirectory: NSHomeDirectory()
             )
-            if !projectRecipes.isEmpty {
-                Section(Localized.string("settings.project_recipes_section")) {
-                    ForEach(projectRecipes, id: \.id) { recipe in
-                        recipeRow(recipe, projectBadge: true)
+            let allRecipes = RecipeRegistry.builtIn()
+                + [packageManagerRecipe]
+                + projectRecipes
+            ForEach(RecipeGroup.allCases, id: \.self) { group in
+                let groupRecipes = allRecipes.filter { $0.group == group }
+                if !groupRecipes.isEmpty {
+                    Section(Localized.recipeGroupName(group)) {
+                        ForEach(groupRecipes, id: \.id) { recipe in
+                            recipeRow(recipe)
+                        }
                     }
                 }
             }
@@ -365,7 +365,7 @@ struct SettingsView: View {
     // MARK: - 配方行（路径默认折叠）
 
     @ViewBuilder
-    private func recipeRow(_ recipe: Recipe, projectBadge: Bool = false) -> some View {
+    private func recipeRow(_ recipe: Recipe) -> some View {
         DisclosureGroup(isExpanded: Binding(
             get: { expandedRecipeIDs.contains(recipe.id) },
             set: { expanded in
@@ -388,14 +388,6 @@ struct SettingsView: View {
                 .labelsHidden()
                 Text(Localized.recipeName(recipe.id, fallback: recipe.name))
                     .lineLimit(1)
-                if projectBadge {
-                    Text(Localized.string("settings.project_badge"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .overlay(RoundedRectangle(cornerRadius: 3).stroke(.separator))
-                }
                 Spacer()
                 Text(Localized.string("settings.keep_days", age(recipe)))
                     .font(.caption)

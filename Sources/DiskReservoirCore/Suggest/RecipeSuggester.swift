@@ -5,12 +5,12 @@ import Foundation
 /// 可扩展配方（当前为项目目录配方族：node_modules / 构建产物）。命中后
 /// 按项目根聚合成候选，采纳时把该目录加入现有配方的管理范围（devRoots）。
 public struct RecipeSuggester: Sendable {
-    /// 项目目录配方族的稳定标识（采纳时加入 devRoots，同时扩展
+    /// Node.js 项目配方族的稳定标识（采纳时加入 devRoots，同时扩展
     /// “node_modules”与“项目构建产物”两个配方的作用域）。
-    public static let projectFamilyID = "project-recipes"
-    /// 项目目录配方族的展示名（英文回退，UI 按 recipeID 本地化）。
-    public static let projectFamilyName = "node_modules / Project build output"
-    /// 项目目录配方族建议统一的规则（采纳后按 devRoots 展开项目配方）。
+    public static let projectFamilyID = "nodejs-projects"
+    /// Node.js 项目配方族的展示名（英文回退，UI 按 recipeID 本地化）。
+    public static let projectFamilyName = "Node.js projects (node_modules / build output)"
+    /// Node.js 项目配方族建议统一的规则（采纳后按 devRoots 展开项目配方）。
     public static let projectFamilySafety = SafetyLevel.userConfirm
     public static let projectFamilyCleanability = Cleanability.regenerable
     public static let projectFamilyDisposition = CleanDisposition.trash

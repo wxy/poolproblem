@@ -8,8 +8,8 @@ public enum CandidateStatus: String, Codable, Sendable {
 }
 
 /// 一个“加入现有配方作用域”的候选目录：由增长台账中符合现有配方类型
-/// （如项目目录配方族）的未覆盖增长聚合而来。采纳后把目录加入对应配方的
-/// 管理范围（项目目录 → Config.devRoots），而不是创建新的配方。
+/// （如 Node.js 项目配方族）的未覆盖增长聚合而来。采纳后把目录加入对应配方的
+/// 管理范围（Node.js 项目 → Config.devRoots），而不是创建新的配方。
 public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
     /// 以脱敏路径模式作为稳定标识。
     public let id: String
@@ -20,7 +20,7 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
     public let evidenceCount: Int
     public let firstSeenAt: Date
     public let lastSeenAt: Date
-    /// 目标现有配方的稳定标识（如项目目录配方族 "project-recipes"）。
+    /// 目标现有配方的稳定标识（如 Node.js 项目配方族 "nodejs-projects"）。
     public let recipeID: String
     /// 目标现有配方的展示名（Core 提供英文回退，UI 可按 recipeID 本地化）。
     public let recipeName: String
@@ -90,9 +90,9 @@ public struct CandidateRecipe: Codable, Equatable, Identifiable, Sendable {
         evidenceCount = try c.decode(Int.self, forKey: .evidenceCount)
         firstSeenAt = try c.decode(Date.self, forKey: .firstSeenAt)
         lastSeenAt = try c.decode(Date.self, forKey: .lastSeenAt)
-        recipeID = try c.decodeIfPresent(String.self, forKey: .recipeID) ?? "project-recipes"
+        recipeID = try c.decodeIfPresent(String.self, forKey: .recipeID) ?? "nodejs-projects"
         recipeName = try c.decodeIfPresent(String.self, forKey: .recipeName)
-            ?? "node_modules / Project build output"
+            ?? "Node.js projects (node_modules / build output)"
         suggestedSafety = try c.decode(SafetyLevel.self, forKey: .suggestedSafety)
         suggestedCleanability = try c.decode(Cleanability.self, forKey: .suggestedCleanability)
         suggestedCategory = try c.decode(Category.self, forKey: .suggestedCategory)

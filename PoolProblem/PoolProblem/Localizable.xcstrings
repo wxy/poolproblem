@@ -2461,18 +2461,82 @@
         }
       }
     },
-    "recipe.project-recipes" : {
+    "recipe.nodejs-projects" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "node_modules / Project build output"
+            "value" : "Node.js projects (node_modules / build output)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "node_modules / 项目构建产物"
+            "value" : "Node.js 项目（node_modules / 构建产物）"
+          }
+        }
+      }
+    },
+    "recipe_group.nodejs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Node.js Projects"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Node.js 项目"
+          }
+        }
+      }
+    },
+    "recipe_group.packageManager" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Package Manager Caches"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "包管理器缓存"
+          }
+        }
+      }
+    },
+    "recipe_group.system" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System / General"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统 / 通用"
+          }
+        }
+      }
+    },
+    "recipe_group.xcode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode (incl. Simulator)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode（含模拟器）"
           }
         }
       }

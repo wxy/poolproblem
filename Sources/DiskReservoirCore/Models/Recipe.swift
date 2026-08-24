@@ -2,6 +2,8 @@ public struct Recipe: Sendable {
     public let id: String
     public let name: String
     public let category: Category
+    /// 产品/生态分组（Xcode、Node.js、包管理器缓存、系统通用）。
+    public let group: RecipeGroup
     public let safety: SafetyLevel
     public let disposition: CleanDisposition
     public let cleanability: Cleanability
@@ -28,6 +30,7 @@ public struct Recipe: Sendable {
         id: String,
         name: String,
         category: Category,
+        group: RecipeGroup = .system,
         safety: SafetyLevel,
         disposition: CleanDisposition,
         cleanability: Cleanability,
@@ -45,6 +48,7 @@ public struct Recipe: Sendable {
         self.id = id
         self.name = name
         self.category = category
+        self.group = group
         self.safety = safety
         self.disposition = disposition
         self.cleanability = cleanability

@@ -80,6 +80,27 @@ import Foundation
     #expect(recipes["simulator-dyld-cache"]?.usageProbe == .simulatorRuntimeLastBooted)
 }
 
+@Test func recipesAreGroupedByEcosystem() {
+    let recipes = Dictionary(uniqueKeysWithValues: RecipeRegistry.builtIn().map { ($0.id, $0) })
+    // Xcode 工具链与模拟器归入同一组
+    #expect(recipes["deriveddata"]?.group == .xcode)
+    #expect(recipes["xcode-devicesupport"]?.group == .xcode)
+    #expect(recipes["core-simulator-devices"]?.group == .xcode)
+    #expect(recipes["simulator-runtimes"]?.group == .xcode)
+    #expect(recipes["simulator-dyld-cache"]?.group == .xcode)
+    // 系统 / 通用
+    #expect(recipes["library-caches"]?.group == .system)
+    #expect(recipes["trash"]?.group == .system)
+
+    // 包管理器缓存族
+    let pkg = PackageManagerRecipes.make(extraRoots: [], homeDirectory: "/Users/tester")
+    #expect(pkg.group == .packageManager)
+
+    // Node.js 项目族
+    let projects = ProjectRecipes.make(devRoots: [], homeDirectory: "/Users/tester")
+    #expect(projects.allSatisfy { $0.group == .nodejs })
+}
+
 @Test func packageManagerRecipesMergeDefaultsAndExtras() {
     let recipe = PackageManagerRecipes.make(
         extraRoots: ["/Users/tester/.cache/yarn"],
