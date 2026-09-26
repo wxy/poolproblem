@@ -37,6 +37,11 @@ import Foundation
     #expect(roots.contains("/Users/alice/Library/Containers"))
     #expect(roots.contains("/Users/alice/develop"))
     #expect(roots.contains("/Users/alice/Downloads"))
+    // 增长证据门槛新增根：虚拟盘数据与 Go module 缓存
+    #expect(roots.contains("/Users/alice/Library/Group Containers"))
+    #expect(roots.contains("/Users/alice/go"))
+    // 根数量受成本预算约束（方案 §4：M-A 仅 +2）
+    #expect(roots.count == 10)
 }
 
 @Test func surfaceScannerMeasuresExplicitPaths() throws {

@@ -8,15 +8,21 @@ public struct SurfaceScanner: Sendable {
     public static func defaultRoots(homeDirectory: String) -> [String] {
         // 不做存在性过滤：scan 对不存在的根自然跳过（contentsOfDirectory 失败 → continue），
         // 保留完整候选列表便于测试与未来配置。
+        // 新增根须满足增长证据门槛（docs/superpowers/plans/2026-09-24-mole-informed-improvements.md
+        // §0.1）：只为增长显著的目标付出分析期遍历成本。
         [
             "\(homeDirectory)/Library/Caches",
             "\(homeDirectory)/Library/Logs",
             "\(homeDirectory)/Library/Developer",
             "\(homeDirectory)/Library/Application Support",
             "\(homeDirectory)/Library/Containers",
+            // OrbStack 等虚拟盘数据所在（开发期增长快）
+            "\(homeDirectory)/Library/Group Containers",
             "\(homeDirectory)/develop",
             "\(homeDirectory)/Downloads",
             "\(homeDirectory)/.cache",
+            // Go module 缓存默认位置（活跃开发期增长快）
+            "\(homeDirectory)/go",
         ]
     }
 
