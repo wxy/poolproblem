@@ -160,6 +160,7 @@ enum BuiltInRecipes {
                 let roots = [
                     paths.homeDirectory + "/Library/Developer/Xcode/iOS DeviceSupport",
                     paths.homeDirectory + "/Library/Developer/Xcode/watchOS DeviceSupport",
+                    paths.homeDirectory + "/Library/Developer/Xcode/tvOS DeviceSupport",
                 ]
                 var result: [String] = []
                 for root in roots {
@@ -181,6 +182,23 @@ enum BuiltInRecipes {
                     result += directories.filter { $0.path != newest.path }.map(\.path)
                 }
                 return result
+            }
+        ),
+        Recipe(
+            id: "coredevice-cache",
+            name: "CoreDevice 真机服务缓存",
+            category: .xcode,
+            group: .xcode,
+            safety: .userConfirm,
+            disposition: .trash,
+            cleanability: .regenerable,
+            defaultAgeDays: 30,
+            minimumSizeMB: 100,
+            processName: nil,
+            // Xcode 15+ 的真机服务（CoreDeviceService）缓存：重度真机调试可 GB 级。
+            // 容器路径需完全磁盘访问；Xcode 组进程守卫覆盖运行中的 Xcode。
+            resolvePaths: { paths in
+                [paths.homeDirectory + "/Library/Containers/com.apple.CoreDevice.CoreDeviceService/Data/Library/Caches"]
             }
         ),
         Recipe(

@@ -60,12 +60,40 @@ import Foundation
         [.modificationDate: Date()],
         ofItemAtPath: current.path
     )
+    // tvOS 平台同样按「保留最新、只列旧版」处理。
+    let tvSupport = root.appendingPathComponent("Library/Developer/Xcode/tvOS DeviceSupport", isDirectory: true)
+    let tvOld = tvSupport.appendingPathComponent("AppleTV5,3 25.1 (23K120)", isDirectory: true)
+    let tvCurrent = tvSupport.appendingPathComponent("AppleTV5,3 25.2 (23K333)", isDirectory: true)
+    try FileManager.default.createDirectory(at: tvOld, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: tvCurrent, withIntermediateDirectories: true)
+    try FileManager.default.setAttributes(
+        [.modificationDate: Date().addingTimeInterval(-90 * 86_400)],
+        ofItemAtPath: tvOld.path
+    )
+    try FileManager.default.setAttributes(
+        [.modificationDate: Date()],
+        ofItemAtPath: tvCurrent.path
+    )
 
     let recipe = RecipeRegistry.builtIn().first { $0.id == "xcode-devicesupport" }!
     let paths = StoragePaths(baseURL: nil, homeDirectory: root.path)
     let resolved = recipe.resolvePaths(paths)
-    #expect(resolved.count == 1)
-    #expect(resolved.first?.hasSuffix("iPhone12,8 26.5.2 (23F84)") == true)
+    // iOS 与 tvOS 各保留最新 1 个（拍板决策：维持 keep-1），各解析出旧版 1 条。
+    #expect(resolved.count == 2)
+    #expect(resolved.contains { $0.hasSuffix("iPhone12,8 26.5.2 (23F84)") })
+    #expect(resolved.contains { $0.hasSuffix("AppleTV5,3 25.1 (23K120)") })
+}
+
+@Test func coredeviceRecipeResolvesContainerCaches() {
+    let recipe = RecipeRegistry.builtIn().first { $0.id == "coredevice-cache" }!
+    let paths = StoragePaths(baseURL: nil, homeDirectory: "/Users/tester")
+    #expect(recipe.resolvePaths(paths) == [
+        "/Users/tester/Library/Containers/com.apple.CoreDevice.CoreDeviceService/Data/Library/Caches"
+    ])
+    // 真机服务缓存可清理但仅进回收站；不允许无人值守永久删除。
+    #expect(recipe.cleanability == .regenerable)
+    #expect(recipe.disposition == .trash)
+    #expect(!recipe.allowsAutomaticPermanentDeletion)
 }
 
 @Test func recipesCarryCleanabilityAndProtection() {
