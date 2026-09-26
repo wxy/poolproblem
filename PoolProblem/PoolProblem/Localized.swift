@@ -42,6 +42,7 @@ enum Localized {
         case .nodejs: return string("recipe_group.nodejs")
         case .packageManager: return string("recipe_group.packageManager")
         case .system: return string("recipe_group.system")
+        case .assets: return string("recipe_group.assets")
         }
     }
 

@@ -4461,6 +4461,22 @@
           }
         }
       }
+    },
+    "recipe_group.assets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched Assets"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "监视资产（只观察不清理）"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

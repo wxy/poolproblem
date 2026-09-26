@@ -464,6 +464,7 @@ struct SettingsView: View {
         case .nodejs: return "cube.fill"
         case .packageManager: return "shippingbox.fill"
         case .system: return "gearshape.fill"
+        case .assets: return "eye.fill"
         }
     }
 
@@ -475,6 +476,7 @@ struct SettingsView: View {
         case .project: return "cube.fill"
         case .common: return "folder.fill"
         case .custom: return "tag.fill"
+        case .asset: return "externaldrive.fill"
         }
     }
 
