@@ -1,5 +1,5 @@
 public struct RecipeRegistry {
     public static func builtIn() -> [Recipe] {
-        BuiltInRecipes.all
+        BuiltInRecipes.all + WatchRecipes.all
     }
 }
