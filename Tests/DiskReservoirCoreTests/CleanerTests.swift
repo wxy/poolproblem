@@ -482,6 +482,12 @@ final class CaptureBox: @unchecked Sendable {
     #expect(Cleaner.guardedDisposition(for: .deletePermanently, cleanability: .displayOnly) == nil)
 }
 
+@Test func cleanabilityGuardBlocksWatchOnly() {
+    // 监视清单硬排除：任何处置在任何 cleanability 校验点都不可删除。
+    #expect(Cleaner.guardedDisposition(for: .trash, cleanability: .watchOnly) == nil)
+    #expect(Cleaner.guardedDisposition(for: .deletePermanently, cleanability: .watchOnly) == nil)
+}
+
 @Test func automaticCleanupRequiresExplicitPermanentDeletionAuthorization() throws {
     let dir = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-auto-auth-\(UUID().uuidString)", isDirectory: true)

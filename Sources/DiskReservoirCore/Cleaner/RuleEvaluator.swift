@@ -86,6 +86,9 @@ public struct RuleEvaluator: Sendable {
         switch item.cleanability {
         case .displayOnly:
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "display only"))
+        case .watchOnly:
+            // 监视清单：参与扫描与归因，永不参与任何清理决策。
+            return EvaluatedAction(itemID: item.id, action: .skip(reason: "watch only"))
         case .trashOnly:
             if force {
                 return EvaluatedAction(itemID: item.id, action: .trash)

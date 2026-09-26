@@ -116,6 +116,17 @@ private func item(
     #expect(rationale.confirmation == nil)
 }
 
+@Test func watchOnlyIsUserData() {
+    let rationale = CleanupRationale.make(for: item(
+        "asset",
+        safety: .userConfirm,
+        disposition: .none,
+        cleanability: .watchOnly
+    ))
+    #expect(rationale.suggestion == .userDataOnly)
+    #expect(rationale.confirmation == nil)
+}
+
 @Test func regenerableCacheNeedsNoConfirmation() {
     let rationale = CleanupRationale.make(for: item("npm-cache"))
     #expect(rationale.suggestion == .regenerable)

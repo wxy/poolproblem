@@ -53,7 +53,7 @@ public struct CleanupRationale: Equatable, Sendable {
 
     public static func make(for item: ScanItem) -> CleanupRationale {
         switch item.cleanability {
-        case .displayOnly:
+        case .displayOnly, .watchOnly:
             return CleanupRationale(
                 suggestion: .userDataOnly,
                 confirmation: nil,

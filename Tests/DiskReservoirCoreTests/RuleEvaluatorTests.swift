@@ -26,6 +26,30 @@ private func item(
     }
 }
 
+@Test func watchOnlyItemsAreNeverCleanable() {
+    // 监视清单硬排除：即使 force 也不产生 trash/delete 动作，只 skip。
+    let watchItem = ScanItem(
+        id: "docker-data:/tmp/docker", recipeID: "docker-data", name: "Docker",
+        path: "/tmp/docker", category: .asset, safety: .safeWhileRunning,
+        disposition: .none, sizeBytes: 50_000_000_000,
+        allocatedBytes: 50_000_000_000, reclaimableBytes: 50_000_000_000,
+        fileCount: 10, lastModified: nil, cleanability: .watchOnly
+    )
+    let evaluator = RuleEvaluator(config: .default)
+    for force in [false, true] {
+        let result = evaluator.evaluate(
+            item: watchItem,
+            isProcessRunning: { _ in false },
+            force: force
+        )
+        guard case .skip(let reason) = result.action else {
+            Issue.record("expected skip, got \(result.action)")
+            return
+        }
+        #expect(reason == "watch only")
+    }
+}
+
 @Test func groupRuleDisablesWholeGroup() {
     var config = Config.default
     config.rules = [CleanRule(recipeID: RecipeGroup.xcode.ruleID, enabled: false)]
