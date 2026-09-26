@@ -1343,6 +1343,31 @@ final class AppService {
         state.growthInsights = growthInsights(from: allEntries)
     }
 
+    /// 显式「增长发现」：表面扫描 + 归因下钻 → 与上次表面快照 diff → 增长台账。
+    ///
+    /// 产品契约（docs/product-principles.md）：增长发现是显式二次动作，只由
+    /// 增长洞察面板的按钮触发，绝不进入默认五分钟循环。扫描在后台优先级执行，
+    /// 命中识别表的条目（AttributionCatalog）再向下钻一层定位缓存子目录。
+    func runGrowthDiscovery() async {
+        guard !state.isGrowthDiscovering else { return }
+        state.isGrowthDiscovering = true
+        defer { state.isGrowthDiscovering = false }
+        let home = NSHomeDirectory()
+        let scanned = await Task.detached(priority: .utility) { () -> [SurfaceDirectory] in
+            let scanner = SurfaceScanner()
+            var latest = scanner.scan(roots: SurfaceScanner.defaultRoots(homeDirectory: home))
+            latest.append(contentsOf: AttributionCatalog.drillDown(directories: latest, scanner: scanner))
+            return latest
+        }.value
+        let builder = GrowthLedgerBuilder()
+        let previous = (try? growthLedgerStore.surfaceDirectories()) ?? []
+        let entries = builder.surfaceEntries(previous: previous, latest: scanned, homeDirectory: home)
+        try? growthLedgerStore.saveSurface(scanned, scannedAt: Date())
+        try? growthLedgerStore.append(entries)
+        try? growthLedgerStore.prune(retainingDays: 30)
+        state.growthInsights = growthInsights(from: (try? growthLedgerStore.entries()) ?? [])
+    }
+
     /// 启动时从磁盘恢复增长洞察与候选配方状态。
     private func refreshGrowthState() {
         let allEntries = (try? growthLedgerStore.entries()) ?? []

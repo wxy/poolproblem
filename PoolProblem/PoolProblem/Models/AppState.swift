@@ -71,6 +71,8 @@ final class AppState: ObservableObject {
     @Published var cleanCelebrationID = 0
     /// 增长洞察：最近的增长台账条目（新→旧）。
     @Published var growthInsights: [GrowthEntry] = []
+    /// 显式「增长发现」（表面扫描）进行中：按钮禁用，防止并发扫描。
+    @Published var isGrowthDiscovering = false
     /// 候选配方（含用户已采纳/忽略的状态）。
     @Published var candidateRecipes: [CandidateRecipe] = []
     /// 菜单栏面板"增长洞察"明细 sheet 开关。

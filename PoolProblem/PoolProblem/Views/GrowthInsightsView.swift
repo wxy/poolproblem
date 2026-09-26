@@ -23,6 +23,7 @@ struct GrowthInsightsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     growthLogSection
+                    watchSection
                     Divider()
                     candidateSection
                 }
@@ -67,10 +68,23 @@ struct GrowthInsightsView: View {
 
     private var growthLogSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(Localized.string("insights.entries"))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text(Localized.string("insights.entries"))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(state.isGrowthDiscovering
+                    ? Localized.string("insights.discovering")
+                    : Localized.string("insights.discover")
+                ) {
+                    Task { await service.runGrowthDiscovery() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(state.isGrowthDiscovering)
+                .cursorPointingHand()
+            }
             if state.growthInsights.isEmpty {
                 Text(Localized.string("insights.empty"))
                     .font(.caption)
@@ -78,6 +92,48 @@ struct GrowthInsightsView: View {
             } else {
                 ForEach(state.growthInsights.prefix(20)) { entry in
                     growthRow(entry)
+                }
+            }
+        }
+    }
+
+    /// 监视清单：watchOnly 配方条目（体积展示，无任何清理按钮）。
+    private var watchSection: some View {
+        let watchItems = state.items.filter { $0.cleanability == .watchOnly }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(Localized.string("insights.watch_section"))
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+            if watchItems.isEmpty {
+                Text(Localized.string("insights.watch_empty"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(watchItems) { item in
+                    HStack(spacing: 6) {
+                        Image(systemName: "eye.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Button {
+                            revealInFinder(item.path)
+                        } label: {
+                            Text(Localized.recipeName(item.recipeID, fallback: item.name))
+                                .font(.caption)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .buttonStyle(.plain)
+                        .focusEffectDisabled()
+                        .cursorPointingHand()
+                        .help(item.path)
+                        Spacer()
+                        Text(Format.bytes(item.sizeBytes))
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(height: 22)
                 }
             }
         }
@@ -141,7 +197,8 @@ struct GrowthInsightsView: View {
     }
 
     private func displayName(_ entry: GrowthEntry) -> String {
-        entry.pattern
+        // 归因命名：命中识别表用可读名，否则回落脱敏路径模式。
+        AttributionCatalog.displayName(forPath: entry.path) ?? entry.pattern
     }
 
     private var candidateSection: some View {
