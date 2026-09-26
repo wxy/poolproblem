@@ -159,7 +159,30 @@ import Foundation
     #expect(resolved.contains("/Users/tester/Library/Caches/CocoaPods"))
     #expect(resolved.contains("/Users/tester/Library/Caches/Homebrew"))
     #expect(resolved.contains("/Users/tester/.cache/yarn"))
+    // M-B2 扩容：Go 构建缓存 / Cargo registry 压缩包镜像 / Yarn berry / Bun
+    #expect(resolved.contains("/Users/tester/.cache/go-build"))
+    #expect(resolved.contains("/Users/tester/.cargo/registry/cache"))
+    #expect(resolved.contains("/Users/tester/.yarn/berry/cache"))
+    #expect(resolved.contains("/Users/tester/.bun/install/cache"))
     #expect(Set(resolved).count == resolved.count)
+    // non-target 清单：混合态与 owner 管理的数据绝不进「可永久删除」族
+    #expect(!resolved.contains("/Users/tester/.cargo/registry/src"))
+    #expect(!resolved.contains("/Users/tester/go/pkg/mod"))
+    #expect(!resolved.contains("/Users/tester/.gradle/caches"))
+}
+
+@Test func gradleCachesRecipeStaysManualAndRecoverable() {
+    let recipe = RecipeRegistry.builtIn().first { $0.id == PackageManagerRecipes.gradleCacheID }!
+    // Gradle daemon 常驻并持有缓存锁：不授予无人值守永久删除，
+    // 用户确认后逐项进回收站，可恢复。
+    #expect(recipe.safety == .userConfirm)
+    #expect(recipe.disposition == .trash)
+    #expect(recipe.cleanability == .regenerable)
+    #expect(!recipe.allowsAutomaticPermanentDeletion)
+    #expect(recipe.resolvePaths(StoragePaths(
+        baseURL: nil,
+        homeDirectory: "/Users/tester"
+    )) == ["/Users/tester/.gradle/caches"])
 }
 
 @Test func userAddedPackageManagerRootsRemainManualOnly() {

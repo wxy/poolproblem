@@ -245,6 +245,8 @@ enum BuiltInRecipes {
                     .map(\.path)
             }
         ),
+        // Gradle 缓存：daemon 常驻风险 → userConfirm + 回收站（见 PackageManagerRecipes 注释）
+        PackageManagerRecipes.makeGradle(),
         Recipe(
             id: "own-trash-batches",
             name: "本应用回收站批次",

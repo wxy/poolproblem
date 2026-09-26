@@ -9,13 +9,47 @@ public enum PackageManagerRecipes {
     public static let familyID = "package-manager-caches"
 
     public static func defaultPaths(homeDirectory: String) -> [String] {
+        // 准入遵循增长证据门槛与恢复契约（方案 §1.3）。明确不纳入的 non-target：
+        // - `~/go/pkg/mod`：Go 模块缓存，文件只读，owner 命令 `go clean -modcache`
+        //   才是文档化重置路径（ownerCommand 机制接入后单独处理）；
+        // - `~/.cargo/registry/src`：解压源码是混合态，可能被离线构建直接消费；
+        // - `~/.cargo/.crates.toml` / `.crates2.json`：cargo 安装清单，删除会孤儿化已装二进制；
+        // - `~/.gradle/caches`：daemon 常驻，见独立 gradle-caches 配方。
         [
             homeDirectory + "/.npm",
             homeDirectory + "/Library/pnpm",
             homeDirectory + "/.cache/uv",
+            // Go 构建缓存：纯再生，重建成本只是重新编译
+            homeDirectory + "/.cache/go-build",
+            // 仅 registry/cache（压缩包镜像）；registry/src 是 non-target
+            homeDirectory + "/.cargo/registry/cache",
+            homeDirectory + "/.yarn/berry/cache",
+            homeDirectory + "/.bun/install/cache",
             homeDirectory + "/Library/Caches/CocoaPods",
             homeDirectory + "/Library/Caches/Homebrew",
         ]
+    }
+
+    /// Gradle 缓存独立配方：daemon 可能长期常驻并持有缓存锁，不适合
+    /// 「safeWhileRunning + 永久删除」的族默认。降级为 userConfirm + 回收站，
+    /// 不授予无人值守永久删除；用户手动确认时逐项进回收站，可恢复。
+    public static let gradleCacheID = "gradle-caches"
+
+    public static func makeGradle() -> Recipe {
+        Recipe(
+            id: gradleCacheID,
+            name: "Gradle 缓存",
+            category: .packageManager,
+            group: .packageManager,
+            safety: .userConfirm,
+            disposition: .trash,
+            cleanability: .regenerable,
+            defaultAgeDays: 30,
+            minimumSizeMB: 100,
+            processName: nil,
+            allowsAutomaticPermanentDeletion: false,
+            resolvePaths: { paths in [paths.homeDirectory + "/.gradle/caches"] }
+        )
     }
 
     public static func make(
