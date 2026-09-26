@@ -7,13 +7,14 @@ enum BuiltInRecipes {
             name: "XCTestDevices 测试快照",
             category: .xcode,
             group: .xcode,
-            safety: .safeWhileRunning,
+            safety: .requiresQuit,
             disposition: .deletePermanently,
             cleanability: .regenerable,
             defaultAgeDays: 3,
             minimumSizeMB: 100,
             processName: nil,
             cloneProne: true,
+            allowsAutomaticPermanentDeletion: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Developer/XCTestDevices"]
             }
@@ -23,7 +24,7 @@ enum BuiltInRecipes {
             name: "Xcode DerivedData",
             category: .xcode,
             group: .xcode,
-            safety: .safeWhileRunning,
+            safety: .userConfirm,
             disposition: .trash,
             cleanability: .regenerable,
             defaultAgeDays: 7,
@@ -38,9 +39,9 @@ enum BuiltInRecipes {
             name: "Xcode Archives",
             category: .xcode,
             group: .xcode,
-            safety: .safeWhileRunning,
-            disposition: .trash,
-            cleanability: .regenerable,
+            safety: .userConfirm,
+            disposition: .none,
+            cleanability: .displayOnly,
             defaultAgeDays: 30,
             minimumSizeMB: 100,
             processName: nil,
@@ -53,12 +54,13 @@ enum BuiltInRecipes {
             name: "Xcode DocumentationCache",
             category: .xcode,
             group: .xcode,
-            safety: .safeWhileRunning,
+            safety: .requiresQuit,
             disposition: .deletePermanently,
             cleanability: .regenerable,
             defaultAgeDays: 30,
             minimumSizeMB: 10,
             processName: nil,
+            allowsAutomaticPermanentDeletion: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Developer/Xcode/DocumentationCache"]
             }
@@ -84,7 +86,7 @@ enum BuiltInRecipes {
             name: "应用缓存",
             category: .common,
             group: .system,
-            safety: .safeWhileRunning,
+            safety: .userConfirm,
             disposition: .trash,
             cleanability: .regenerable,
             defaultAgeDays: 30,
@@ -96,6 +98,8 @@ enum BuiltInRecipes {
             protectedChildren: [
                 "org.swift.swiftpm", "node-gyp",
                 "Homebrew", "CocoaPods",
+                // Never clean the cache currently used by PoolProblem itself.
+                "xingyu.wang.poolproblem", "xingyu.wang.poolproblem.dev", "group.xingyu.wang.poolproblem",
             ],
             cleanByChildOnly: true,
             resolvePaths: { paths in
@@ -103,16 +107,37 @@ enum BuiltInRecipes {
             }
         ),
         Recipe(
+            id: TemporaryBuildArtifacts.recipeID,
+            name: "临时构建与测试产物",
+            category: .common,
+            group: .system,
+            safety: .userConfirm,
+            disposition: .trash,
+            cleanability: .regenerable,
+            defaultAgeDays: 1,
+            minimumSizeMB: 100,
+            processName: nil,
+            aggregatesPaths: true,
+            minimumIdleHours: TemporaryBuildArtifacts.minimumIdleHours,
+            // `/private/tmp` is outside a synthetic test home. Keep package
+            // scans hermetic and enable this host-level recipe only in-app.
+            resolvePaths: { paths in
+                guard paths.homeDirectory == NSHomeDirectory() else { return [] }
+                return TemporaryBuildArtifacts.discover()
+            }
+        ),
+        Recipe(
             id: "xcode-preview-cache",
             name: "Xcode 预览缓存",
             category: .xcode,
             group: .xcode,
-            safety: .safeWhileRunning,
-            disposition: .trash,
+            safety: .requiresQuit,
+            disposition: .deletePermanently,
             cleanability: .regenerable,
             defaultAgeDays: 30,
             minimumSizeMB: 10,
             processName: nil,
+            allowsAutomaticPermanentDeletion: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Developer/Xcode/UserData/Previews"]
             }

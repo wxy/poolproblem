@@ -19,7 +19,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// 自动清理后是否清空本应用创建的回收站批次（默认关；只删本应用批次，不碰用户内容）。
     public var autoEmptyOwnTrashBatches: Bool
 
-    public static let defaultProtectedCacheChildren = ["org.swift.swiftpm", "node-gyp"]
+    public static let defaultProtectedCacheChildren = [
+        "org.swift.swiftpm", "node-gyp",
+        "xingyu.wang.poolproblem", "xingyu.wang.poolproblem.dev", "group.xingyu.wang.poolproblem",
+    ]
 
     public static let `default` = Config(
         waterlineGB: 30,

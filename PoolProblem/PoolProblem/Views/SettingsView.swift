@@ -2,6 +2,11 @@ import SwiftUI
 import AppKit
 import DiskReservoirCore
 
+/// 空标题控件（无标签的 Picker/Stepper/Toggle）使用普通 String 而非 LocalizedStringKey：
+/// 避免 SwiftUI 用空 key 查 Localizable 表，产生
+/// "ERROR:  not found in table Localizable" 控制台噪音。
+private let emptyControlTitle = ""
+
 struct SettingsView: View {
     @ObservedObject var state: AppState
     let service: AppService
@@ -19,7 +24,7 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $settingsTab) {
+            Picker(emptyControlTitle, selection: $settingsTab) {
                 Text(Localized.string("settings.tab_general")).tag(0)
                 Text(Localized.string("settings.tab_recipes")).tag(1)
                 Text(Localized.string("settings.tab_protection")).tag(2)
@@ -87,7 +92,7 @@ struct SettingsView: View {
             HStack {
                 Text(Localized.string("settings.minimum_clean_size_label"))
                 Spacer()
-                Stepper("", value: Binding(
+                Stepper(emptyControlTitle, value: Binding(
                     get: { config.minimumCleanItemMB },
                     set: { config.minimumCleanItemMB = $0 }
                 ), in: 100...5000, step: 100)
@@ -320,12 +325,12 @@ struct SettingsView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                     .frame(width: 64, alignment: .trailing)
-                Stepper("", value: Binding(
+                Stepper(emptyControlTitle, value: Binding(
                     get: { age(recipe) },
                     set: { setAge(recipe, $0) }
                 ), in: 1...365)
                 .labelsHidden()
-                Toggle("", isOn: Binding(
+                Toggle(emptyControlTitle, isOn: Binding(
                     get: { isEnabled(recipe) },
                     set: { setEnabled(recipe, $0) }
                 ))
@@ -447,7 +452,7 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .cursorPointingHand()
             Spacer()
-            Toggle("", isOn: groupEnabledBinding(group))
+            Toggle(emptyControlTitle, isOn: groupEnabledBinding(group))
                 .labelsHidden()
         }
         .padding(.vertical, 2)
@@ -608,7 +613,12 @@ struct SettingsView: View {
 
     /// 配方解析出的具体路径（可能为空：路径不存在时配方不生效）。
     private func recipePaths(_ recipe: Recipe) -> [String] {
-        recipe.resolvePaths(StoragePaths(homeDirectory: NSHomeDirectory()))
+        let home = NSHomeDirectory()
+        return recipe.resolvePaths(StoragePaths(
+            baseURL: URL(fileURLWithPath: home, isDirectory: true)
+                .appendingPathComponent("Library/Application Support/PoolProblem", isDirectory: true),
+            homeDirectory: home
+        ))
     }
 
     /// 该配方在清理日志中的累计执行次数与清理字节。

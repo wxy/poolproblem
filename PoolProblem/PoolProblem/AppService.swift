@@ -1,5 +1,63 @@
+import AppKit
 import Foundation
 import DiskReservoirCore
+
+enum ManualCleanFailure: Equatable, Sendable {
+    case unavailable
+    case processRunning(String)
+    case recentlyModified
+    case permissionDenied
+    case fileInUse
+    case fileSystem(String)
+}
+
+enum ManualCleanResult: Sendable {
+    case cleaned(CleanOutcome)
+    case failed(ManualCleanFailure)
+}
+
+private struct ManualCleanExecution: Sendable {
+    var entries: [CleanLogEntry]
+    var firstFailure: ManualCleanFailure?
+}
+
+private struct TrashDirectoryFingerprint: Sendable {
+    let exists: Bool
+    let childCount: Int?
+    let modificationDate: Date?
+}
+
+private struct DashboardConsistencyReading: Sendable {
+    let volume: VolumeInfo
+    let trashReplacements: [String: ScanItem]
+    let trashFingerprints: [String: TrashDirectoryFingerprint]
+    let allTrashPathsReadable: Bool
+}
+
+nonisolated private func manualCleanFailure(for error: Error) -> ManualCleanFailure {
+    let nsError = error as NSError
+    if nsError.domain == NSCocoaErrorDomain {
+        switch CocoaError.Code(rawValue: nsError.code) {
+        case .fileReadNoPermission, .fileWriteNoPermission:
+            return .permissionDenied
+        case .fileLocking, .fileWriteVolumeReadOnly:
+            return .fileInUse
+        default:
+            break
+        }
+    }
+    if nsError.domain == NSPOSIXErrorDomain {
+        switch POSIXErrorCode(rawValue: Int32(nsError.code)) {
+        case .EACCES, .EPERM:
+            return .permissionDenied
+        case .EBUSY, .ETXTBSY:
+            return .fileInUse
+        default:
+            break
+        }
+    }
+    return .fileSystem(nsError.localizedDescription)
+}
 
 @MainActor
 final class AppService {
@@ -9,27 +67,25 @@ final class AppService {
     private let logStore: CleanLogStore
     private let growthLedgerStore: GrowthLedgerStore
     private let recipeSuggestionStore: RecipeSuggestionStore
-    private let fseventMonitor = FSEventMonitor()
-    private let activityMonitor = FSEventMonitor(latency: 5.0)
-    private let devActivityTracker = DevActivityTracker()
     private let cleanupCoordinator: CleanupCoordinator
-    private var dirtyTracker = DirtyTracker(trackedPaths: [])
-    private var incrementalTimer: Timer?
-    private var lastIncrementalAt = Date.distantPast
     private var lastDevDiscoveryAt = Date.distantPast
-    private var watchedPaths: Set<String>?
-    private var watchedActivityRoots: Set<String>?
     private let automationEnabled: Bool
     private var timer: Timer?
     private var lowSpaceNotified = false
     private var trashAccumulationNotified = false
-    private let fastGrowthTriggerBytesPerDay: Double = 500_000_000
-    private let emergencyProgressiveMinimumAgeSeconds: TimeInterval = 2 * 3600
-
-    /// 与水位线成比例的自动清理阈值（见 CleanThresholds）。
-    private func thresholds(for config: Config) -> CleanThresholds {
-        CleanThresholds(waterlineGB: config.waterlineGB)
-    }
+    private var interactionResumeTask: Task<Void, Never>?
+    private let launchedAt = Date()
+    private var lastPressureState: DiskPressureState?
+    private var lastAnalysisAt = Date.distantPast
+    private var lastAnalyzedAvailableBytes: Int64?
+    /// A scan request arriving during another scan must be coalesced, not lost.
+    private var pendingScanRequested = false
+    private var pendingScanAutoClean = false
+    private var pendingScanClearsSummary = false
+    /// Incremented after a filesystem mutation so an older in-flight scan
+    /// cannot overwrite the optimistic post-cleanup state with stale results.
+    private var scanRevision = 0
+    private var trashFingerprints: [String: TrashDirectoryFingerprint] = [:]
 
     /// 最小清理规模（MB → bytes），专家设置，默认 500MB。
     private func minimumCleanItemBytes(_ config: Config) -> Int64 {
@@ -60,15 +116,95 @@ final class AppService {
                 )
             }
         }
-        Task { await loadLatestState() }
         Task {
+            await loadLatestState()
+            await reconcileDashboardState()
             try? await Task.sleep(nanoseconds: 2_000_000_000)
-            await scanNow()
+            await monitorAvailableSpace()
         }
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in await self?.scanNow() }
+        // Capacity probing is cheap; recursive analysis is pressure-triggered.
+        timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in await self?.monitorAvailableSpace() }
         }
+    }
+
+    private func monitorAvailableSpace() async {
+        let volume = await reconcileDashboardState()
+
+        let policy = DiskPressurePolicy(targetBytes: waterlineBytes())
+        let pressure = policy.state(availableBytes: volume.availableBytes)
+        let shouldAnalyze = policy.shouldAnalyze(
+            state: pressure,
+            previousState: lastPressureState,
+            now: Date(),
+            lastAnalysisAt: lastAnalysisAt,
+            availableBytes: volume.availableBytes,
+            lastAnalyzedAvailableBytes: lastAnalyzedAvailableBytes
+        )
+        lastPressureState = pressure
+        guard shouldAnalyze else { return }
+        lastAnalysisAt = Date()
+        lastAnalyzedAvailableBytes = volume.availableBytes
+
+        switch pressure {
+        case .healthy:
+            return
+        case .warning:
+            await scanNow(autoClean: false)
+        case .critical:
+            await scanNow(autoClean: true)
+        }
+    }
+
+    /// Reconciles the cheap live facts that can change without a Pool Problem
+    /// scan: APFS capacity and Trash contents. All visible consumers receive
+    /// one frame, so the menu icon, tank, and right panel cannot mix different
+    /// generations of these values.
+    @discardableResult
+    func reconcileDashboardState() async -> VolumeInfo {
+        if state.consistencyStatus == .reconciling {
+            return VolumeInfo(
+                totalBytes: state.totalBytes,
+                availableBytes: state.availableBytes,
+                timestamp: Date()
+            )
+        }
+        state.consistencyStatus = .reconciling
+        let currentItems = state.items
+        let lastScanAt = state.lastScanAt
+        let previousFingerprints = trashFingerprints
+        let homeDirectory = NSHomeDirectory()
+        let reading = await Task.detached(priority: .utility) {
+            Self.readDashboardConsistency(
+                homeDirectory: homeDirectory,
+                currentItems: currentItems,
+                lastScanAt: lastScanAt,
+                previousFingerprints: previousFingerprints
+            )
+        }.value
+
+        var replacements = reading.trashReplacements
+        var items = state.items.map { item -> ScanItem in
+            guard item.recipeID == "trash", let replacement = replacements.removeValue(forKey: item.path) else {
+                return item
+            }
+            return replacement
+        }
+        items.append(contentsOf: replacements.values.sorted { $0.path < $1.path })
+        let trashChanged = items != state.items
+        if trashChanged {
+            // Any recursive scan already in flight predates this external
+            // filesystem observation and must not overwrite it.
+            scanRevision &+= 1
+        }
+        state.availableBytes = reading.volume.availableBytes
+        state.totalBytes = reading.volume.totalBytes
+        state.items = items
+        trashFingerprints = reading.trashFingerprints
+        state.consistencyStatus = reading.allTrashPathsReadable ? .current : .partial
+        refreshGaugeImage()
+        return reading.volume
     }
 
     func loadLatestState() async {
@@ -94,16 +230,36 @@ final class AppService {
         refreshGaugeImage()
     }
 
-    func scanNow(autoClean: Bool = true) async {
-        guard !state.isScanning else { return }
+    func scanNow(autoClean: Bool = false, clearCleanSummary: Bool = true) async {
+        guard !state.isScanning else {
+            pendingScanRequested = true
+            pendingScanAutoClean = pendingScanAutoClean || autoClean
+            pendingScanClearsSummary = pendingScanClearsSummary || clearCleanSummary
+            return
+        }
         state.isScanning = true
-        state.lastCleanSummary = nil
-        defer { state.isScanning = false }
+        if clearCleanSummary {
+            state.lastCleanSummary = nil
+        }
+        let startedAtRevision = scanRevision
+        defer {
+            state.isScanning = false
+            if pendingScanRequested {
+                let autoClean = pendingScanAutoClean
+                let clearSummary = pendingScanClearsSummary
+                pendingScanRequested = false
+                pendingScanAutoClean = false
+                pendingScanClearsSummary = false
+                Task { @MainActor [weak self] in
+                    await self?.scanNow(autoClean: autoClean, clearCleanSummary: clearSummary)
+                }
+            }
+        }
         let paths = self.paths
         let cloneRatios = loadConfig().cloneRatios
         let ageRules = ageDaysByRecipe()
         let recipes = activeRecipes()
-        let work = Task.detached(priority: .utility) { () -> (ScanResult, Snapshot?, [Snapshot])? in
+        let work = Task.detached(priority: .background) { () -> (ScanResult, Snapshot?, [Snapshot])? in
             guard let result = try? DiskReservoirCore.Scanner(
                 cloneRatios: cloneRatios,
                 ageDaysByRecipe: ageRules
@@ -119,6 +275,10 @@ final class AppService {
             return (result, previous, all)
         }
         guard let (result, previous, all) = await work.value else { return }
+        guard startedAtRevision == scanRevision else {
+            pendingScanRequested = true
+            return
+        }
         state.availableBytes = result.volume.availableBytes
         state.totalBytes = result.volume.totalBytes
         state.items = result.items
@@ -144,179 +304,35 @@ final class AppService {
         if !state.isCleaning {
             state.cleanedItemIDs = []
         }
-        if automationEnabled, autoClean {
+        // Never delete during the first five minutes after launch. This grace
+        // period lets process/activity state settle and keeps startup read-only.
+        let automationWarmedUp = Date().timeIntervalSince(launchedAt) >= 5 * 60
+        if automationEnabled, autoClean, automationWarmedUp {
             await maybeAutoClean(result: result)
             checkTrashAccumulation()
         }
         refreshGaugeImage()
-        startWatching()
-        #if DEBUG
-        debugLogPermission()
-        #endif
     }
 
-    /// 全量扫描成功后启动 FSEvents 监听（幂等：内部先 stop 再 start）。
-    private func startWatching() {
-        let home = NSHomeDirectory()
-        let recipePaths = activeRecipes()
-            .flatMap { $0.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: home)) }
-        let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
-        // 只排除系统级 /Library（模拟器挂载卷等只读系统卷）；
-        // ~/Library 保留监听——构建缓存/日志等快速增长源需要增量识别。
-        // FileID 噪音已通过“目录级事件”根治，与监听范围无关。
-        let paths = Array(Set(recipePaths + roots)).filter { path in
-            !path.hasPrefix("/Library/")
-        }
-        // 写活动识别：只监听开发目录（避免整个家目录触发 FileID 噪音）
-        let devRoots = loadConfig().devRoots
-        let activityRoots = ([home + "/develop"] + devRoots)
-            .filter { FileManager.default.fileExists(atPath: $0) }
-        // FSEvents 流创建/启动时，CarbonCore 会对 /dev/fsevents（devfs）做一次
-        // 必然失败的 FileID 查找（FileIDTreeGetVRefNumForDevice(-892394663) → -36）。
-        // 这是良性系统噪音、无法消除；路径没变时不重建流，避免每轮扫描都爆发一次。
-        // 注意：必须按 Set 比较——Array(Set(...)) 的元素顺序不稳定，
-        // 用数组比较会导致守卫永远不生效、每轮扫描都重建流。
-        let pathSet = Set(paths)
-        let activitySet = Set(activityRoots)
-        guard pathSet != watchedPaths || activitySet != watchedActivityRoots else { return }
-        watchedPaths = pathSet
-        watchedActivityRoots = activitySet
-        let sortedPaths = pathSet.sorted()
-        dirtyTracker = DirtyTracker(trackedPaths: sortedPaths)
-        fseventMonitor.start(paths: sortedPaths) { [weak self] eventPaths in
-            Task { @MainActor [weak self] in
-                self?.handleEvents(eventPaths)
-            }
-        }
-        activityMonitor.start(paths: activitySet.sorted()) { [devActivityTracker] eventPaths in
-            devActivityTracker.record(eventPaths: eventPaths)
-        }
-        incrementalTimer?.invalidate()
-        incrementalTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in await self?.incrementalScanIfDirty() }
+    /// Give the menu popover a short, deterministic head start over a running
+    /// directory walk. The scan pauses cooperatively and resumes without losing
+    /// progress after the first frame has settled.
+    func prioritizePopoverPresentation() {
+        interactionResumeTask?.cancel()
+        ScanWorkloadGate.shared.pause()
+        interactionResumeTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            ScanWorkloadGate.shared.resume()
+            self?.interactionResumeTask = nil
         }
     }
 
-    private func handleEvents(_ eventPaths: [String]) {
-        dirtyTracker.mark(eventPaths: eventPaths)
+    func endPopoverPresentationPriority() {
+        interactionResumeTask?.cancel()
+        interactionResumeTask = nil
+        ScanWorkloadGate.shared.resume()
     }
-
-    private func incrementalScanIfDirty() async {
-        guard !dirtyTracker.dirty.isEmpty else { return }
-        guard Date().timeIntervalSince(lastIncrementalAt) >= 30 else { return }
-        lastIncrementalAt = Date()
-        let dirty = dirtyTracker.dirty
-        dirtyTracker.clear()
-        await runIncrementalScan(dirty: dirty)
-    }
-
-    /// 增量重扫：脏配方路径 + 脏表面目录 → 合成增量快照 → 更新台账与候选配方。
-    /// 不触发自动清理、通知与水位预测（由下一次全量扫描接管）。
-    private func runIncrementalScan(dirty: Set<String>) async {
-        let home = NSHomeDirectory()
-        let paths = self.paths
-        let recipes = activeRecipes()
-        let cloneRatios = loadConfig().cloneRatios
-        let ageRules = ageDaysByRecipe()
-        let surfaceRoots = SurfaceScanner.defaultRoots(homeDirectory: home)
-        let work = Task.detached(priority: .utility) { () -> (Snapshot, [SurfaceDirectory])? in
-            let store = SnapshotStore(paths: paths)
-            var items = (try? store.snapshots().last?.items) ?? []
-            var dirtySurface: [String] = []
-            let storagePaths = StoragePaths(baseURL: nil, homeDirectory: home)
-            let allResolved = recipes.map { $0.resolvePaths(storagePaths) }
-            for path in dirty {
-                if let recipe = recipes.first(where: {
-                    $0.resolvePaths(storagePaths).contains { $0 == path || path.hasPrefix($0 + "/") }
-                }) {
-                    let ownPaths = Set(recipe.resolvePaths(storagePaths))
-                    let excludedPaths = Set(allResolved.flatMap { $0 }).subtracting(ownPaths)
-                    let fresh = Scanner(
-                        cloneRatios: cloneRatios,
-                        ageDaysByRecipe: ageRules
-                    ).rescan(
-                        path: path,
-                        recipe: recipe,
-                        homeDirectory: home,
-                        excludedPaths: excludedPaths
-                    )
-                    if recipe.aggregatesPaths {
-                        // 聚合配方：脏路径可能只是其中某个项目，旧条目以配方为单位整体替换
-                        items.removeAll { $0.recipeID == recipe.id }
-                    } else {
-                        items.removeAll { $0.path == path || $0.path.hasPrefix(path + "/") }
-                    }
-                    items.append(contentsOf: fresh)
-                } else if surfaceRoots.contains(where: { path.hasPrefix($0 + "/") || $0.hasPrefix(path + "/") }) {
-                    dirtySurface.append(path)
-                }
-            }
-            let surface = SurfaceScanner().measure(paths: dirtySurface)
-            let volume = VolumeReader.read(fileURL: URL(fileURLWithPath: home))
-            return (Snapshot(volume: volume, items: items, source: .incremental), surface)
-        }
-        guard let (snapshot, surface) = await work.value else { return }
-        let store = SnapshotStore(paths: paths)
-        let previous = try? store.snapshots().last
-        try? store.append(snapshot)
-        state.items = snapshot.items
-        state.availableBytes = snapshot.volume.availableBytes
-        state.totalBytes = snapshot.volume.totalBytes
-        await updateIncrementalInsights(previous: previous, latest: snapshot, surface: surface)
-    }
-
-    /// 增量更新增长台账与候选配方（不走 24h 表面扫描门控；只更新脏表面目录）。
-    private func updateIncrementalInsights(
-        previous: Snapshot?,
-        latest: Snapshot,
-        surface: [SurfaceDirectory]
-    ) async {
-        let home = NSHomeDirectory()
-        let builder = GrowthLedgerBuilder()
-        var entries = builder.entries(previous: previous, latest: latest, homeDirectory: home)
-        if !surface.isEmpty {
-            let oldDirs = (try? growthLedgerStore.surfaceDirectories()) ?? []
-            var merged = oldDirs.filter { dir in !surface.contains(where: { $0.path == dir.path }) }
-            merged.append(contentsOf: surface)
-            entries.append(contentsOf: builder.surfaceEntries(
-                previous: oldDirs,
-                latest: merged,
-                homeDirectory: home
-            ))
-            try? growthLedgerStore.saveSurface(merged, scannedAt: Date())
-        }
-        try? growthLedgerStore.append(entries)
-        try? growthLedgerStore.prune(retainingDays: 30)
-        let allEntries = (try? growthLedgerStore.entries()) ?? []
-        state.growthInsights = growthInsights(from: allEntries)
-        await refreshRecipeSuggestions()
-    }
-
-    #if DEBUG
-    /// 诊断：记录受保护目录的可读性，定位废纸篓检测为 0 的问题
-    private func debugLogPermission() {
-        let fm = FileManager.default
-        let home = NSHomeDirectory()
-        let trash = home + "/.Trash"
-        let containers = home + "/Library/Containers"
-        let tcc = home + "/Library/Application Support/com.apple.TCC/TCC.db"
-        let safari = home + "/Library/Safari"
-        let trashReadable = fm.isReadableFile(atPath: trash)
-        // 只做轻量探测（避免全量遍历几十万文件的废纸篓拖慢扫描）
-        var contentsCount = -1
-        if let list = try? fm.contentsOfDirectory(atPath: trash) { contentsCount = list.count }
-        let containersOK = (try? fm.contentsOfDirectory(atPath: containers)) != nil
-        let posixCount = POSIXDirectoryWalker.firstLevelCount(path: trash)
-        var safariCount = -1
-        if let en = fm.enumerator(atPath: safari) { safariCount = en.allObjects.count }
-        DebugLog.write(
-            "perm: home=\(home) tccReadable=\(fm.contents(atPath: tcc) != nil) "
-            + "containersOK=\(containersOK) trashReadable=\(trashReadable) "
-            + "trashContents=\(contentsCount) posixCount=\(posixCount.map(String.init) ?? "nil") "
-            + "safariEnum=\(safariCount)"
-        )
-    }
-    #endif
 
     /// 数据变化后预生成 E 字型标尺位图（避免弹窗打开时执行重活）
     private func refreshGaugeImage() {
@@ -329,6 +345,18 @@ final class AppService {
             excludedItemIDs: state.cleanedItemIDs
         )
         state.poolGaugeImage = GaugeImageRenderer.render(layout: made.layout)
+    }
+
+    /// Refresh only the volume counters after a filesystem mutation. This is
+    /// intentionally separate from recursive analysis so the available-space
+    /// label and water level do not wait for a full scan.
+    private func refreshVolumeCapacity() async {
+        let volume = await Task.detached(priority: .userInitiated) {
+            VolumeReader.read(fileURL: URL(fileURLWithPath: NSHomeDirectory()))
+        }.value
+        state.availableBytes = volume.availableBytes
+        state.totalBytes = volume.totalBytes
+        refreshGaugeImage()
     }
 
     private func updateFlowMetrics(snapshots: [Snapshot]) async {
@@ -361,7 +389,7 @@ final class AppService {
         let cutoff = Date().addingTimeInterval(-7 * 86_400)
         let entries = (try? logStore.entries()) ?? []
         state.weeklyCleanedBytes = entries
-            .filter { $0.timestamp >= cutoff }
+            .filter { $0.timestamp >= cutoff && $0.disposition == .deletePermanently }
             .reduce(0) { $0 + $1.freedBytes }
         state.keptItemIDs = loadConfig().keptItemIDs
         let sorted = snapshots.sorted { $0.volume.timestamp < $1.volume.timestamp }
@@ -556,12 +584,13 @@ final class AppService {
                         state.cleanedItemIDs = cleaned
                         state.deletingItemID = nil
                         if let item = state.items.first(where: { $0.id == itemID }) {
-                            state.availableBytes = min(
-                                state.totalBytes,
-                                state.availableBytes + item.reclaimableBytes
-                            )
                             if disposition == .trash {
                                 self.growTrashItem(by: item.reclaimableBytes)
+                            } else {
+                                state.availableBytes = min(
+                                    state.totalBytes,
+                                    state.availableBytes + item.reclaimableBytes
+                                )
                             }
                         }
                     }
@@ -571,6 +600,9 @@ final class AppService {
         }
         guard let (_, outcome) = await work.value, let outcome else {
             return nil
+        }
+        if outcome.entries.contains(where: { $0.disposition == .trash }) {
+            notifyTrashChanged()
         }
         if !outcome.calibrationUpdates.isEmpty {
             var updated = config
@@ -585,13 +617,13 @@ final class AppService {
         return outcome
     }
 
-    func cleanItem(_ item: ScanItem) async -> CleanOutcome? {
+    func cleanItem(_ item: ScanItem) async -> ManualCleanResult {
         return await cleanupCoordinator.run { [weak self] in
-            await self?.cleanItemSerialized(item) ?? nil
+            await self?.cleanItemSerialized(item) ?? .failed(.unavailable)
         }
     }
 
-    private func cleanItemSerialized(_ item: ScanItem) async -> CleanOutcome? {
+    private func cleanItemSerialized(_ item: ScanItem) async -> ManualCleanResult {
         // 详情页点击“立即清理”即用户确认：
         // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
         // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
@@ -601,7 +633,13 @@ final class AppService {
               item.recipeID != "trash",
               // 仅按子目录清理的项（如应用缓存）不整项删除
               !item.cleanByChildOnly else {
-            return nil
+            return .failed(.unavailable)
+        }
+        if item.recipeID == TemporaryBuildArtifacts.recipeID {
+            let inspector = PGrepProcessInspector()
+            if let running = TemporaryBuildArtifacts.guardProcessNames.first(where: inspector.isRunning) {
+                return .failed(.processRunning(running))
+            }
         }
         switch item.safety {
         case .safeWhileRunning, .userConfirm:
@@ -609,66 +647,91 @@ final class AppService {
         case .requiresQuit:
             guard let processName = Self.processName(for: item),
                   !PGrepProcessInspector().isRunning(processName) else {
-                return nil
+                return .failed(.processRunning(Self.processName(for: item) ?? item.name))
             }
         }
         state.cleanedItemIDs = []
         state.deletingItemID = item.id
         let logStore = self.logStore
         let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
-        let work = Task.detached(priority: .userInitiated) { () -> CleanOutcome? in
-            do {
-                let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
-                var freedBytes: Int64 = 0
-                var trashPaths: [String] = []
-                for target in targetPaths {
+        let work = Task.detached(priority: .userInitiated) { () -> ManualCleanExecution in
+            let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
+            let batchID = UUID()
+            var entries: [CleanLogEntry] = []
+            var firstFailure: ManualCleanFailure?
+            for target in targetPaths {
+                if item.recipeID == TemporaryBuildArtifacts.recipeID,
+                   !TemporaryBuildArtifacts.isEligibleForCleanup(path: target) {
+                    firstFailure = firstFailure ?? .recentlyModified
+                    continue
+                }
+                do {
                     let deletion = try deleter.deleteReturningResult(
                         url: URL(fileURLWithPath: target),
                         disposition: .trash
                     )
-                    freedBytes += deletion.freedBytes
-                    if let trash = deletion.resultingURL?.path {
-                        trashPaths.append(trash)
+                    let entry = CleanLogEntry(
+                        id: UUID(),
+                        timestamp: Date(),
+                        itemIDs: [item.id],
+                        itemNames: [item.name],
+                        originalPaths: [target],
+                        trashPaths: [deletion.resultingURL?.path ?? ""],
+                        batchID: batchID,
+                        freedBytes: deletion.freedBytes,
+                        disposition: .trash,
+                        source: .manual
+                    )
+                    do {
+                        try logStore.append(entry)
+                        entries.append(entry)
+                    } catch {
+                        firstFailure = firstFailure ?? manualCleanFailure(for: error)
+                        if let moved = deletion.resultingURL,
+                           FileManager.default.fileExists(atPath: moved.path),
+                           !FileManager.default.fileExists(atPath: target) {
+                            try? FileManager.default.moveItem(at: moved, to: URL(fileURLWithPath: target))
+                        }
                     }
+                } catch {
+                    firstFailure = firstFailure ?? manualCleanFailure(for: error)
                 }
-                let entry = CleanLogEntry(
-                    id: UUID(),
-                    timestamp: Date(),
-                    itemIDs: [item.id],
-                    itemNames: [item.name],
-                    originalPaths: targetPaths,
-                    trashPaths: trashPaths,
-                    batchID: UUID(),
-                    freedBytes: freedBytes,
-                    disposition: .trash,
-                    source: .manual
-                )
-                try logStore.append(entry)
-                return CleanOutcome(
-                    entries: [entry],
-                    freedBytes: freedBytes,
-                    actualFreedBytes: 0,
-                    stillBelowWaterline: false
-                )
-            } catch {
-                return nil
             }
+            return ManualCleanExecution(entries: entries, firstFailure: firstFailure)
         }
-        guard let outcome = await work.value else {
+        let execution = await work.value
+        guard !execution.entries.isEmpty else {
             state.deletingItemID = nil
             state.deletingProgress = 1
-            return nil
+            return .failed(execution.firstFailure ?? .unavailable)
         }
-        // 乐观更新后立即重绘标尺；scanNow 会在重新扫描后再次刷新
-        refreshGaugeImage()
-        await scanNow(autoClean: false)
+        let outcome = CleanOutcome(
+            entries: execution.entries,
+            freedBytes: execution.entries.reduce(0) { $0 + $1.freedBytes },
+            actualFreedBytes: 0,
+            stillBelowWaterline: false
+        )
+        // Moving to Trash does not free blocks on the volume. Update the tank
+        // immediately by transferring the layer from its source to Trash, then
+        // reconcile with a fresh scan. This keeps the UI responsive and honest.
+        scanRevision &+= 1
+        var cleaned = state.cleanedItemIDs
+        cleaned.insert(item.id)
+        state.cleanedItemIDs = cleaned
+        growTrashItem(by: outcome.freedBytes)
+        state.deletingItemID = nil
+        notifyTrashChanged()
+        refreshCleanLogEntries()
         state.lastCleanSummary = Localized.string(
-            "clean.summary",
+            "clean.summary_trash_pending",
             outcome.entries.count,
             Format.bytes(outcome.freedBytes)
         )
+        refreshGaugeImage()
+        await refreshVolumeCapacity()
+        await scanNow(autoClean: false, clearCleanSummary: false)
         state.cleanCelebrationID += 1
-        return outcome
+        return .cleaned(outcome)
     }
 
     /// 清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）。
@@ -680,7 +743,10 @@ final class AppService {
 
     private func emptyOwnTrashBatchesSerialized() async {
         _ = try? TrashBatchDeleter.emptyOwnBatches()
-        await scanNow(autoClean: false)
+        scanRevision &+= 1
+        notifyTrashChanged()
+        _ = await reconcileDashboardState()
+        await scanNow(autoClean: false, clearCleanSummary: false)
     }
 
     /// 清空单个本应用批次。
@@ -692,7 +758,10 @@ final class AppService {
 
     private func emptyOwnBatchSerialized(named name: String) async {
         try? TrashBatchDeleter.emptyBatch(named: name)
-        await scanNow(autoClean: false)
+        scanRevision &+= 1
+        notifyTrashChanged()
+        _ = await reconcileDashboardState()
+        await scanNow(autoClean: false, clearCleanSummary: false)
     }
 
     /// 恢复单个本应用批次（依据清理记录），返回恢复的条目数。
@@ -803,23 +872,33 @@ final class AppService {
         await cleanupCoordinator.run { [weak self] in
             guard let self else { return }
             let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
-            let deletion = try? deleter.deleteReturningResult(
+            guard let deletion = try? deleter.deleteReturningResult(
                 url: URL(fileURLWithPath: path),
                 disposition: .trash
-            )
+            ) else { return }
             let entry = CleanLogEntry(
                 id: UUID(),
                 timestamp: Date(),
                 itemIDs: ["\(recipeID):\(path)"],
                 itemNames: [name],
                 originalPaths: [path],
-                trashPaths: [deletion?.resultingURL?.path ?? ""],
+                trashPaths: [deletion.resultingURL?.path ?? ""],
                 batchID: UUID(),
-                freedBytes: deletion?.freedBytes ?? 0,
+                freedBytes: deletion.freedBytes,
                 disposition: .trash,
                 source: .manual
             )
-            try? self.logStore.append(entry)
+            do {
+                try self.logStore.append(entry)
+            } catch {
+                if let moved = deletion.resultingURL,
+                   FileManager.default.fileExists(atPath: moved.path),
+                   !FileManager.default.fileExists(atPath: path) {
+                    try? FileManager.default.moveItem(at: moved, to: URL(fileURLWithPath: path))
+                }
+                return
+            }
+            self.notifyTrashChanged()
             await self.scanNow(autoClean: false)
         }
     }
@@ -866,6 +945,7 @@ final class AppService {
 
         let work = Task.detached(priority: .userInitiated) { () -> Bool in
             var restored = false
+            var restoredCount = 0
             for (index, originalPath) in originalPaths.enumerated() {
                 let originalURL = URL(fileURLWithPath: originalPath)
                 let source: URL?
@@ -883,11 +963,12 @@ final class AppService {
                         to: Self.availableDestination(for: originalURL)
                     )
                     restored = true
+                    restoredCount += 1
                 } catch {
                     continue
                 }
             }
-            if restored {
+            if restored, restoredCount == originalPaths.count {
                 try? logStore.remove(id: entry.id)
             }
             return restored
@@ -895,6 +976,7 @@ final class AppService {
 
         let restored = await work.value
         if restored {
+            notifyTrashChanged()
             await scanNow(autoClean: false)
         } else {
             state.lastCleanSummary = Localized.string("history.undo_failed")
@@ -956,14 +1038,6 @@ final class AppService {
         return candidate
     }
 
-    nonisolated private static func progressiveBatchName(for policy: ProgressiveCleanupPolicy) -> String {
-        let sourceName = URL(fileURLWithPath: policy.parentPath).lastPathComponent
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH.mm.ss"
-        return "PoolProblem Cleanup \(sourceName) \(formatter.string(from: Date()))"
-    }
-
     /// 通用清理批次名：智能清理 / 水线自动清理 / 详情页一键清理共用。
     /// 所有“移入废纸篓”都进批次文件夹，才能在废纸篓详情里被识别为本应用批次。
     nonisolated private static func cleanupBatchName() -> String {
@@ -976,120 +1050,31 @@ final class AppService {
     // MARK: - Proactive auto-clean
 
     private func upcomingAutoCleanPlans(result: ScanResult) -> [AutoCleanPlanItem] {
-        let now = Date()
         let waterline = waterlineBytes()
-        let thresholds = CleanThresholds(waterlineGB: Double(waterline) / 1_000_000_000)
-        let nextScan = now.addingTimeInterval(30 * 60)
-        let oneWeek: Double = 7 * 86_400
-        var plans: [AutoCleanPlanItem] = []
-
-        let safeItems = result.items.filter {
-            $0.recipeID != "trash"
-                && $0.safety == .safeWhileRunning
-                && $0.reclaimableBytes > 0
-        }
-        let safeReclaimableBytes = safeItems.reduce(Int64(0)) { $0 + $1.reclaimableBytes }
-        let safeItemIDs = Set(safeItems.map(\.id))
-        let safeGrowthRate = state.growthRates
-            .filter { safeItemIDs.contains($0.key) && $0.value > 0 }
-            .values
-            .reduce(0, +)
-
-        // 1. 水线守护 / 接近水线
-        if result.volume.availableBytes < waterline {
-            plans.append(AutoCleanPlanItem(
+        let policy = DiskPressurePolicy(targetBytes: waterline)
+        switch policy.state(availableBytes: result.volume.availableBytes) {
+        case .healthy:
+            return []
+        case .warning:
+            let span = Double(policy.analysisMarginBytes)
+            let distance = Double(max(0, result.volume.availableBytes - waterline))
+            return [AutoCleanPlanItem(
+                id: UUID(),
+                title: Localized.string(
+                    "countdown.plan_near",
+                    Format.bytes(policy.recoveryMarginBytes)
+                ),
+                estimatedDate: nil,
+                progress: 1 - min(1, distance / span)
+            )]
+        case .critical:
+            return [AutoCleanPlanItem(
                 id: UUID(),
                 title: Localized.string("countdown.plan_below"),
-                estimatedDate: nextScan,
+                estimatedDate: Date(),
                 progress: 1
-            ))
-        } else if result.volume.availableBytes < waterline + thresholds.proactiveTriggerBytes {
-            let distance = Double(max(0, result.volume.availableBytes - waterline))
-            let span = Double(thresholds.proactiveTriggerBytes)
-            let progress = 1 - min(1, distance / span)
-            plans.append(AutoCleanPlanItem(
-                id: UUID(),
-                title: Localized.string("countdown.plan_near", Format.bytes(thresholds.batchBytes)),
-                estimatedDate: nextScan,
-                progress: progress
-            ))
-        } else if let days = state.predictionDays, days <= 7 {
-            let progress = min(1, max(0.05, 1 - min(1, days / 30)))
-            plans.append(AutoCleanPlanItem(
-                id: UUID(),
-                title: Localized.string("countdown.plan_waterline_prediction"),
-                estimatedDate: now.addingTimeInterval(days * 86_400),
-                progress: progress
-            ))
+            )]
         }
-
-        // 2. 可清理项库存 / 快速增长 / 子项数量
-        let fastGrowingItem = safeItems.max { left, right in
-            (state.growthRates[left.id] ?? 0) < (state.growthRates[right.id] ?? 0)
-        }
-        let fastestGrowthRate = fastGrowingItem.map { state.growthRates[$0.id] ?? 0 } ?? 0
-        if fastestGrowthRate >= fastGrowthTriggerBytesPerDay, let fastGrowingItem {
-            plans.append(AutoCleanPlanItem(
-                id: UUID(),
-                title: Localized.string("countdown.plan_fast_growth", name(for: fastGrowingItem.recipeID)),
-                estimatedDate: nextScan,
-                progress: 1
-            ))
-        } else if let manyChildrenItem = safeItems.first(where: { item in
-            (POSIXDirectoryWalker.firstLevelCount(path: item.path) ?? 0) > 10
-        }) {
-            let childCount = POSIXDirectoryWalker.firstLevelCount(path: manyChildrenItem.path) ?? 0
-                plans.append(AutoCleanPlanItem(
-                    id: UUID(),
-                    title: Localized.string("countdown.plan_many_children", name(for: manyChildrenItem.recipeID), childCount),
-                    estimatedDate: nextScan,
-                    progress: min(1, Double(childCount) / 12)
-                ))
-        }
-
-        if plans.count < 2, safeReclaimableBytes >= thresholds.earlyTriggerBytes {
-            plans.append(AutoCleanPlanItem(
-                id: UUID(),
-                title: Localized.string("countdown.plan_large_reclaimable", Format.bytes(safeReclaimableBytes)),
-                estimatedDate: nextScan,
-                progress: 1
-            ))
-        }
-
-        if plans.count < 2, safeGrowthRate > 0 {
-            let remainingBytes = max(0, thresholds.earlyTriggerBytes - safeReclaimableBytes)
-            let daysToThreshold = Double(remainingBytes) / safeGrowthRate
-            if daysToThreshold <= 7 {
-                let estimatedDate = now.addingTimeInterval(daysToThreshold * 86_400)
-                plans.append(AutoCleanPlanItem(
-                    id: UUID(),
-                    title: Localized.string("countdown.plan_inventory_waiting"),
-                    estimatedDate: estimatedDate,
-                    progress: min(1, Double(safeReclaimableBytes) / Double(thresholds.earlyTriggerBytes))
-                ))
-            }
-        }
-
-        // 3. 废纸篓积累：自动清理移入废纸篓的项并不释放空间，提示清空
-        let trashBytes = result.items
-            .filter { $0.recipeID == "trash" }
-            .reduce(Int64(0)) { $0 + max(0, $1.reclaimableBytes) }
-        if trashBytes >= 5_000_000_000 {
-            plans.append(AutoCleanPlanItem(
-                id: UUID(),
-                title: Localized.string("countdown.plan_trash", Format.bytes(trashBytes)),
-                estimatedDate: nil,
-                progress: 1
-            ))
-        }
-
-        return plans
-            .filter { plan in
-                guard let estimatedDate = plan.estimatedDate else { return true }
-                return estimatedDate.timeIntervalSince(now) <= oneWeek
-            }
-            .prefix(2)
-            .map { $0 }
     }
 
     private func maybeAutoClean(result: ScanResult) async {
@@ -1100,66 +1085,37 @@ final class AppService {
     }
 
     private func performAutoClean(result: ScanResult) async {
-        let config = loadConfig()
-        let thresholds = thresholds(for: config)
+        guard let config = loadAutomationConfig() else {
+            state.lastCleanSummary = "Automatic cleanup paused: configuration could not be read."
+            return
+        }
+        let target = Int64(config.waterlineGB * 1_000_000_000)
+        let pressure = DiskPressurePolicy(targetBytes: target)
+        // Warning mode is analysis-only. Unattended deletion exists solely as
+        // an emergency response below the configured waterline.
+        guard pressure.state(availableBytes: result.volume.availableBytes) == .critical else {
+            return
+        }
         let minItemBytes = minimumCleanItemBytes(config)
-        var totalCount = 0
-        var totalFreed: Int64 = 0
-        let waterline = waterlineBytes()
-        let safeItems = result.items.filter {
-            $0.recipeID != "trash"
-                && $0.safety == .safeWhileRunning
-                && $0.reclaimableBytes > 0
-        }
-        let safeReclaimableBytes = safeItems.reduce(Int64(0)) { $0 + $1.reclaimableBytes }
-        let earlyTrigger = safeReclaimableBytes >= thresholds.earlyTriggerBytes
-
-        let target: Int64?
-        if result.volume.availableBytes < waterline {
-            target = waterline
-        } else if result.volume.availableBytes < waterline + thresholds.proactiveTriggerBytes {
-            target = min(
-                result.volume.availableBytes + thresholds.batchBytes,
-                waterline + thresholds.proactiveTriggerBytes
-            )
-        } else if earlyTrigger {
-            target = result.volume.availableBytes + thresholds.batchBytes
-        } else {
-            target = nil
-        }
-
-        let emergency = result.volume.availableBytes < waterline + thresholds.proactiveTriggerBytes
-        if let target {
-            if let outcome = await runAutoWaterlineClean(
-                scan: result,
-                config: config,
-                waterlineBytes: target,
-                forceClean: false,
-                // 紧急（低于水位附近）时忽略年龄/最近修改保护，但保留处置方式
-                ignoreAge: emergency,
-                minimumItemBytes: minItemBytes,
-                itemGrowthRates: state.growthRates
-            ) {
-                totalCount += outcome.entries.count
-                // 以实测释放为准：移入废纸篓的项实际不释放空间，不虚报
-                totalFreed += outcome.actualFreedBytes
-                if !outcome.calibrationUpdates.isEmpty {
-                    var updated = config
-                    for (recipeID, ratio) in outcome.calibrationUpdates {
-                        updated.cloneRatios[recipeID] = ratio
-                    }
-                    writeConfig(updated)
-                }
-            }
-        }
-
-        let progressive = await runProgressiveCleanup(config: config, emergency: emergency)
-        totalCount += progressive.entries.count
-        totalFreed += progressive.freedBytes
-
-        // 开关开启时：清空本应用自己创建的回收站批次（只删 PoolProblem Cleanup 目录）
-        if config.autoEmptyOwnTrashBatches {
-            _ = try? TrashBatchDeleter.emptyOwnBatches()
+        let outcome = await runAutoWaterlineClean(
+            scan: result,
+            config: config,
+            waterlineBytes: pressure.recoveryTargetBytes,
+            forceClean: false,
+            // Urgency never overrides age or recent-use protection.
+            ignoreAge: false,
+            minimumItemBytes: minItemBytes,
+            itemGrowthRates: state.growthRates
+        )
+        let totalCount = outcome?.entries.count ?? 0
+        var totalFreed = outcome?.actualFreedBytes ?? 0
+        if totalCount > 0 {
+            let volume = await Task.detached(priority: .utility) {
+                VolumeReader.read(fileURL: URL(fileURLWithPath: NSHomeDirectory()))
+            }.value
+            state.availableBytes = volume.availableBytes
+            state.totalBytes = volume.totalBytes
+            totalFreed = max(0, volume.availableBytes - result.volume.availableBytes)
         }
 
         if totalCount > 0 {
@@ -1172,8 +1128,6 @@ final class AppService {
             state.autoCleanPlans = []
             refreshCleanLogEntries()
         }
-        // 自动清理会乐观更新可用空间/废纸篓/项目条目，立即重绘标尺，
-        // 避免菜单栏图标、水池标尺与状态卡在下次扫描前不一致。
         refreshGaugeImage()
     }
 
@@ -1233,12 +1187,13 @@ final class AppService {
                         state.cleanedItemIDs = cleaned
                         state.deletingItemID = nil
                         if let item = state.items.first(where: { $0.id == itemID }) {
-                            state.availableBytes = min(
-                                state.totalBytes,
-                                state.availableBytes + item.reclaimableBytes
-                            )
                             if disposition == .trash {
                                 self.growTrashItem(by: item.reclaimableBytes)
+                            } else {
+                                state.availableBytes = min(
+                                    state.totalBytes,
+                                    state.availableBytes + item.reclaimableBytes
+                                )
                             }
                         }
                     }
@@ -1251,156 +1206,6 @@ final class AppService {
         }
         state.deletingItemID = nil
         return outcome
-    }
-
-    private func runProgressiveCleanup(
-        config: Config,
-        emergency: Bool
-    ) async -> ProgressiveCleanupOutcome {
-        let policies = progressivePolicies(config: config, emergency: emergency)
-        guard !policies.isEmpty else { return .empty }
-        let logStore = self.logStore
-        let work = Task.detached(priority: .utility) { () -> ProgressiveCleanupOutcome in
-            var entries: [CleanLogEntry] = []
-            var freedBytes: Int64 = 0
-            var trimmedCount = 0
-            var remainingCount = 0
-            for policy in policies {
-                let batchName = Self.progressiveBatchName(for: policy)
-                let deleter: FileDeleting = policy.disposition == .trash
-                    ? TrashBatchDeleter(batchName: batchName)
-                    : FileManagerFileDeleter()
-                let cleaner = ProgressiveCleaner(
-                    deleter: deleter,
-                    logStore: logStore
-                )
-                guard let outcome = try? cleaner.run(policy: policy) else { continue }
-                entries.append(contentsOf: outcome.entries)
-                freedBytes += outcome.freedBytes
-                trimmedCount += outcome.trimmedCount
-                remainingCount += outcome.remainingCount
-            }
-            return ProgressiveCleanupOutcome(
-                entries: entries,
-                freedBytes: freedBytes,
-                trimmedCount: trimmedCount,
-                remainingCount: remainingCount
-            )
-        }
-        let outcome = await work.value
-        if outcome.freedBytes > 0 {
-            let trashFreed = outcome.entries
-                .filter { $0.disposition == .trash }
-                .reduce(Int64(0)) { $0 + $1.freedBytes }
-            let permanentFreed = outcome.entries
-                .filter { $0.disposition == .deletePermanently }
-                .reduce(Int64(0)) { $0 + $1.freedBytes }
-            if trashFreed > 0 {
-                growTrashItem(by: trashFreed)
-            }
-            if permanentFreed > 0 {
-                state.availableBytes = min(
-                    state.totalBytes,
-                    state.availableBytes + permanentFreed
-                )
-            }
-            updateParentItemAfterProgressiveCleanup(
-                policies: policies,
-                freedBytes: outcome.freedBytes,
-                trimmedCount: outcome.trimmedCount
-            )
-        }
-        return outcome
-    }
-
-    private func progressivePolicies(
-        config: Config,
-        emergency: Bool
-    ) -> [ProgressiveCleanupPolicy] {
-        let home = NSHomeDirectory()
-        // 组级进程守卫：Xcode / Simulator 运行中的组，整组不参与渐进清理
-        let runningGroups = Set(RecipeGroup.allCases.filter { group in
-            group.guardProcessNames.contains { PGrepProcessInspector().isRunning($0) }
-        })
-        var policies: [ProgressiveCleanupPolicy] = []
-        for item in state.items {
-            guard item.recipeID != "trash",
-                  !item.recipeID.hasPrefix("project-"),
-                  item.safety == .safeWhileRunning,
-                  item.reclaimableBytes > 0,
-                  !config.whitelistPaths.contains(item.path),
-                  !config.keptItemIDs.contains(item.id) else {
-                continue
-            }
-            if let rule = config.rules.first(where: { $0.recipeID == item.recipeID }),
-               !rule.enabled {
-                continue
-            }
-            guard let recipe = activeRecipes().first(where: { $0.id == item.recipeID }) else {
-                continue
-            }
-            // 组级开关与组级进程守卫
-            if let groupRule = config.rules.first(where: { $0.recipeID == recipe.group.ruleID }),
-               !groupRule.enabled {
-                continue
-            }
-            if runningGroups.contains(recipe.group) {
-                continue
-            }
-            guard let childCount = POSIXDirectoryWalker.firstLevelCount(path: item.path),
-                  childCount > 0 else {
-                continue
-            }
-            let ratio = recipe.cloneProne
-                ? (config.cloneRatios[item.recipeID] ?? 0.2)
-                : 1
-            // 子项增长率（近 7 天台账）：让“还在快速增长的子目录”优先被渐进清理
-            let rates = childGrowthRates(parentPath: item.path, homeDirectory: home)
-
-            if emergency {
-                policies.append(ProgressiveCleanupPolicy(
-                    recipeID: item.recipeID,
-                    parentPath: item.path,
-                    maxChildren: 0,
-                    maxItemsPerRun: 3,
-                    minimumAgeSeconds: emergencyProgressiveMinimumAgeSeconds,
-                    disposition: .trash,
-                    source: .auto,
-                    reclaimableRatio: ratio,
-                    minimumCleanBytes: minimumCleanItemBytes(config),
-                    minimumCandidateBytes: minimumCleanItemBytes(config),
-                    protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
-                        recipe: recipe,
-                        config: config
-                    ),
-                    childGrowthRates: rates
-                ))
-                continue
-            }
-
-            let growthRate = state.growthRates[item.id] ?? 0
-            let fastGrowing = growthRate >= fastGrowthTriggerBytesPerDay
-            let tooManyChildren = childCount > 10
-            guard fastGrowing || tooManyChildren else { continue }
-            policies.append(ProgressiveCleanupPolicy(
-                recipeID: item.recipeID,
-                parentPath: item.path,
-                maxChildren: fastGrowing ? 0 : 10,
-                maxItemsPerRun: 3,
-                minimumAgeSeconds: 86_400,
-                disposition: .trash,
-                source: .auto,
-                reclaimableRatio: ratio,
-                minimumCleanBytes: minimumCleanItemBytes(config),
-                minimumCandidateBytes: minimumCleanItemBytes(config),
-                protectedChildNames: ProgressiveCleanupPolicy.mergedProtectedChildNames(
-                    recipe: recipe,
-                    config: config
-                ),
-                childGrowthRates: rates
-            ))
-        }
-        return policies
     }
 
     /// 近 7 天增长台账中，父目录下一级子项的日增长率（bytes/day）。
@@ -1424,41 +1229,23 @@ final class AppService {
             .filter { item in
                 item.reclaimableBytes > 0
                     && (minimumItemBytes.map { item.reclaimableBytes >= $0 } ?? true)
-                    && item.recipeID != "trash"
-                    && item.safety == .safeWhileRunning
+                    && item.allowsAutomaticPermanentDeletion
+                    && item.cleanability == .regenerable
+                    && item.disposition == .deletePermanently
                     && !config.whitelistPaths.contains(item.path)
                     && !config.keptItemIDs.contains(item.id)
             }
-            .sorted { $0.reclaimableBytes < $1.reclaimableBytes }
+            .sorted { left, right in
+                let leftRate = state.growthRates[left.id]
+                let rightRate = state.growthRates[right.id]
+                if let leftRate, let rightRate, leftRate != rightRate {
+                    return leftRate > rightRate
+                }
+                if leftRate != nil, rightRate == nil { return true }
+                if leftRate == nil, rightRate != nil { return false }
+                return left.reclaimableBytes > right.reclaimableBytes
+            }
             .first
-    }
-
-    private func updateParentItemAfterProgressiveCleanup(
-        policies: [ProgressiveCleanupPolicy],
-        freedBytes: Int64,
-        trimmedCount: Int
-    ) {
-        for policy in policies {
-            let parentID = "\(policy.recipeID):\(policy.parentPath)"
-            guard let index = state.items.firstIndex(where: { $0.id == parentID }) else { continue }
-            let item = state.items[index]
-            let updated = ScanItem(
-                id: item.id,
-                recipeID: item.recipeID,
-                name: item.name,
-                path: item.path,
-                paths: item.paths,
-                category: item.category,
-                safety: item.safety,
-                disposition: item.disposition,
-                sizeBytes: max(0, item.sizeBytes - freedBytes),
-                allocatedBytes: max(0, item.allocatedBytes - freedBytes),
-                reclaimableBytes: max(0, item.reclaimableBytes - freedBytes),
-                fileCount: max(0, item.fileCount - trimmedCount),
-                lastModified: item.lastModified
-            )
-            state.items[index] = updated
-        }
     }
 
     /// 预计手动清理第一个处理的项目：按可清理量从小到大，
@@ -1485,20 +1272,11 @@ final class AppService {
             ?? state.items.firstIndex(where: { $0.recipeID == "trash" })
         else { return }
         let item = state.items[index]
-        let updated = ScanItem(
-            id: item.id,
-            recipeID: item.recipeID,
-            name: item.name,
-            path: item.path,
-            paths: item.paths,
-            category: item.category,
-            safety: item.safety,
-            disposition: item.disposition,
+        let updated = item.replacing(
             sizeBytes: item.sizeBytes + bytes,
             allocatedBytes: item.allocatedBytes + bytes,
             reclaimableBytes: item.reclaimableBytes + bytes,
-            fileCount: item.fileCount + 1,
-            lastModified: item.lastModified
+            fileCount: item.fileCount + 1
         )
         var items = state.items
         items[index] = updated
@@ -1507,6 +1285,16 @@ final class AppService {
 
     func loadConfig() -> Config {
         (try? JSONStore().load(Config.self, from: paths.configURL)) ?? .default
+    }
+
+    /// Missing config means first launch and safely uses defaults. A present
+    /// but unreadable/corrupt config pauses automation instead of erasing the
+    /// user's whitelist and disabled rules through a fail-open fallback.
+    private func loadAutomationConfig() -> Config? {
+        if !FileManager.default.fileExists(atPath: paths.configURL.path) {
+            return .default
+        }
+        return try? JSONStore().load(Config.self, from: paths.configURL)
     }
 
     func saveConfig(_ config: Config) {
@@ -1543,32 +1331,16 @@ final class AppService {
         }
     }
 
-    /// 每次扫描后：更新增长台账（含配方外未知空间与表面目录），
-    /// 并刷新候选配方建议。
+    /// Full analyses record growth only for the explicit recipe catalog. Broad
+    /// surface scans and automatic recipe discovery are intentionally excluded.
     private func updateGrowthInsights(previous: Snapshot?, latest: Snapshot) async {
         let home = NSHomeDirectory()
         let builder = GrowthLedgerBuilder()
-        var entries = builder.entries(previous: previous, latest: latest, homeDirectory: home)
-        // 表面扫描兜底：每 6 小时一次（目录级归因的基础；实时由 FSEvents 增量承担）
-        let lastScan = growthLedgerStore.lastSurfaceScanAt()
-        if lastScan == nil || Date().timeIntervalSince(lastScan!) >= 6 * 3600 {
-            let roots = SurfaceScanner.defaultRoots(homeDirectory: home)
-            let dirs = await Task.detached(priority: .utility) {
-                SurfaceScanner().scan(roots: roots)
-            }.value
-            let prevDirs = (try? growthLedgerStore.surfaceDirectories()) ?? []
-            entries.append(contentsOf: builder.surfaceEntries(
-                previous: prevDirs,
-                latest: dirs,
-                homeDirectory: home
-            ))
-            try? growthLedgerStore.saveSurface(dirs, scannedAt: Date())
-        }
+        let entries = builder.entries(previous: previous, latest: latest, homeDirectory: home)
         try? growthLedgerStore.append(entries)
         try? growthLedgerStore.prune(retainingDays: 30)
         let allEntries = (try? growthLedgerStore.entries()) ?? []
         state.growthInsights = growthInsights(from: allEntries)
-        await refreshRecipeSuggestions()
     }
 
     /// 启动时从磁盘恢复增长洞察与候选配方状态。
@@ -1578,7 +1350,6 @@ final class AppService {
         state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
             (try? recipeSuggestionStore.load()) ?? []
         )
-        Task { await refreshRecipeSuggestions() }
     }
 
     /// 统一刷新“配方建议”：增长台账 + 主动发现 + 近期写活动三个来源，
@@ -1612,10 +1383,6 @@ final class AppService {
             }
             #endif
         }
-        raw += RecipeSuggester.activityCandidates(
-            activities: devActivityTracker.activeProjects(since: 48 * 3600),
-            homeDirectory: home
-        )
         let allEntries = (try? growthLedgerStore.entries()) ?? []
         raw += RecipeSuggester().suggest(
             entries: allEntries,
@@ -1667,9 +1434,12 @@ final class AppService {
         let config = loadConfig()
         return RecipeRegistry.builtIn()
             + [PackageManagerRecipes.make(
-                extraRoots: config.packageManagerCacheRoots,
+                extraRoots: [],
                 homeDirectory: NSHomeDirectory()
             )]
+            + (config.packageManagerCacheRoots.isEmpty
+                ? []
+                : [PackageManagerRecipes.makeCustom(extraRoots: config.packageManagerCacheRoots)])
             + ProjectRecipes.make(devRoots: config.devRoots, homeDirectory: NSHomeDirectory())
     }
 
@@ -1694,18 +1464,10 @@ final class AppService {
         Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0.defaultAgeDays) })
     }
 
-    /// 各项目配方在“各自活跃窗口”内最近有 FSEvents 写活动的项目根：
-    /// 构建产物窗口短（6h），node_modules 窗口长（72h），由 recipe.minimumIdleHours 决定。
+    /// Project artifacts are manual-only. Activity remains a veto concept, but
+    /// the app no longer runs continuous filesystem surveillance to infer it.
     private func projectActiveRootsByRecipe(recipes: [Recipe]) -> [String: Set<String>] {
-        Dictionary(uniqueKeysWithValues: recipes.compactMap { recipe in
-            guard recipe.id.hasPrefix("project-") else { return nil }
-            let roots = Set(
-                devActivityTracker
-                    .activeProjects(since: recipe.minimumIdleHours * 3600)
-                    .map(\.projectRoot)
-            )
-            return (recipe.id, roots)
-        })
+        [:]
     }
 
     /// 各配方最短闲置小时数（mtime 判定），供 RuleEvaluator 使用。
@@ -1828,6 +1590,172 @@ final class AppService {
             trashAccumulationNotified = false
         }
     }
+
+    private func notifyTrashChanged() {
+        NSWorkspace.shared.noteFileSystemChanged(
+            URL(fileURLWithPath: NSHomeDirectory())
+                .appendingPathComponent(".Trash", isDirectory: true)
+                .path
+        )
+    }
+
+    nonisolated private static func readDashboardConsistency(
+        homeDirectory: String,
+        currentItems: [ScanItem],
+        lastScanAt: Date?,
+        previousFingerprints: [String: TrashDirectoryFingerprint]
+    ) -> DashboardConsistencyReading {
+        let volume = VolumeReader.read(fileURL: URL(fileURLWithPath: homeDirectory))
+        let standardPaths = [
+            homeDirectory + "/.Trash",
+            homeDirectory + "/Library/Mobile Documents/.Trash",
+        ]
+        let cachedByPath = Dictionary(
+            uniqueKeysWithValues: currentItems
+                .filter { $0.recipeID == "trash" }
+                .map { ($0.path, $0) }
+        )
+        let paths = Set(standardPaths + Array(cachedByPath.keys)).sorted()
+        var replacements: [String: ScanItem] = [:]
+        var fingerprints: [String: TrashDirectoryFingerprint] = [:]
+        var allReadable = true
+
+        for path in paths {
+            let exists = POSIXDirectoryWalker.itemExists(path: path)
+            guard exists else {
+                let fingerprint = TrashDirectoryFingerprint(
+                    exists: false,
+                    childCount: 0,
+                    modificationDate: nil
+                )
+                fingerprints[path] = fingerprint
+                if let cached = cachedByPath[path] {
+                    replacements[path] = cached.replacing(
+                        sizeBytes: 0,
+                        allocatedBytes: 0,
+                        reclaimableBytes: 0,
+                        fileCount: 0,
+                        lastModified: .some(nil)
+                    )
+                }
+                continue
+            }
+
+            let childCount = POSIXDirectoryWalker.firstLevelCount(path: path)
+            let rootModified = POSIXDirectoryWalker.modificationDate(path: path)
+            let fingerprint = TrashDirectoryFingerprint(
+                exists: true,
+                childCount: childCount,
+                modificationDate: rootModified
+            )
+            fingerprints[path] = fingerprint
+            guard let childCount else {
+                allReadable = false
+                continue
+            }
+
+            let cached = cachedByPath[path]
+            if childCount == 0 {
+                replacements[path] = makeTrashItem(
+                    path: path,
+                    cached: cached,
+                    sizeBytes: 0,
+                    allocatedBytes: 0,
+                    fileCount: 0,
+                    lastModified: rootModified
+                )
+                continue
+            }
+
+            let changedSinceSnapshot = rootModified.map { modified in
+                lastScanAt.map { modified > $0 } ?? true
+            } ?? (lastScanAt == nil)
+            let fingerprintChanged = previousFingerprints[path].map {
+                $0.exists != fingerprint.exists
+                    || $0.childCount != fingerprint.childCount
+                    || $0.modificationDate != fingerprint.modificationDate
+            } ?? false
+            let cachedWasEmpty = cached.map { $0.fileCount == 0 || $0.allocatedBytes == 0 } ?? true
+            guard changedSinceSnapshot || fingerprintChanged || cachedWasEmpty else {
+                continue
+            }
+            guard let walk = POSIXDirectoryWalker.walk(
+                url: URL(fileURLWithPath: path, isDirectory: true),
+                itemID: "trash:\(path)",
+                includeRecords: false
+            ) else {
+                allReadable = false
+                continue
+            }
+            replacements[path] = makeTrashItem(
+                path: path,
+                cached: cached,
+                sizeBytes: walk.sizeBytes,
+                allocatedBytes: walk.allocatedBytes,
+                fileCount: walk.fileCount,
+                lastModified: newest(walk.newest, rootModified)
+            )
+        }
+
+        return DashboardConsistencyReading(
+            volume: volume,
+            trashReplacements: replacements,
+            trashFingerprints: fingerprints,
+            allTrashPathsReadable: allReadable
+        )
+    }
+
+    nonisolated private static func makeTrashItem(
+        path: String,
+        cached: ScanItem?,
+        sizeBytes: Int64,
+        allocatedBytes: Int64,
+        fileCount: Int,
+        lastModified: Date?
+    ) -> ScanItem {
+        if let cached {
+            return cached.replacing(
+                sizeBytes: sizeBytes,
+                allocatedBytes: allocatedBytes,
+                reclaimableBytes: allocatedBytes,
+                fileCount: fileCount,
+                lastModified: .some(lastModified)
+            )
+        }
+        return ScanItem(
+            id: "trash:\(path)",
+            recipeID: "trash",
+            name: "废纸篓",
+            path: path,
+            category: .common,
+            safety: .userConfirm,
+            disposition: .none,
+            sizeBytes: sizeBytes,
+            allocatedBytes: allocatedBytes,
+            reclaimableBytes: allocatedBytes,
+            fileCount: fileCount,
+            lastModified: lastModified,
+            cleanability: .displayOnly
+        )
+    }
+
+    nonisolated private static func newest(_ first: Date?, _ second: Date?) -> Date? {
+        switch (first, second) {
+        case let (a?, b?): max(a, b)
+        case let (a?, nil): a
+        case let (nil, b?): b
+        case (nil, nil): nil
+        }
+    }
+
+    nonisolated private static func recipeStoragePaths(homeDirectory: String) -> StoragePaths {
+        StoragePaths(
+            baseURL: URL(fileURLWithPath: homeDirectory, isDirectory: true)
+                .appendingPathComponent("Library/Application Support/PoolProblem", isDirectory: true),
+            homeDirectory: homeDirectory
+        )
+    }
+
 }
 
 #if DEBUG

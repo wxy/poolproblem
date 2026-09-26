@@ -48,9 +48,6 @@ struct GrowthInsightsView: View {
         .padding(40)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.black.opacity(0.15))
-            .onAppear {
-                Task { await service.refreshSuggestions(forceDiscovery: false) }
-            }
     }
 
     private var header: some View {

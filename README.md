@@ -4,18 +4,18 @@
 
 <p align="center"><code>macOS MENU BAR · SWIFTUI · MACOS 14+</code></p>
 
-The Pool Problem is a disk attribution and governance tool for developers. It treats your disk as the classic cistern problem — measuring the inflow from every source of regenerable waste (Xcode build products, simulator snapshots, package-manager caches, and more), predicting when the disk will fill up, tracking why space returns after a cleanup, and governing at the source so free space stays at a healthy waterline.
+The Pool Problem is a free-space guard for developers. It watches the cheap signal first — available disk capacity — and analyzes known regenerable caches only when space approaches the configured waterline. Unattended cleanup is reserved for explicitly authorized caches; everything else stays manual and recoverable.
 
-> The Pool Problem 是面向开发者的磁盘“归因与治理”工具：把磁盘当作一道经典的蓄水池问题——测量各产废源（Xcode 构建产物、模拟器快照、包管理器缓存等）的流速，预测磁盘何时会满，追踪清理后空间为何回涨，并在源头治理，让可用空间稳定在健康水位。
+> The Pool Problem 是面向开发者的可用空间守护器：平时只读取低成本的磁盘余量；接近水线时才分析已知的可再生缓存。无人值守清理只作用于明确授权的缓存，其余项目始终保留为手动、可恢复操作。
 
 <p align="center"><img src="assets/readme/section-features.svg" width="100%" alt="Features · 功能特性"></p>
 
 | Feature 功能 | What it does 说明 |
 | --- | --- |
-| Space bill · 空间账单 | Attribute every GB to a tool, project, or recipe by day / week / month.<br>按日 / 周 / 月归因：每个工具、项目、配方类别产生了多少 GB。 |
-| Fill prediction · 满盘预测 | Estimate when the disk will run out from the historical flow rate.<br>按历史流速预测磁盘何时会满，提前提醒。 |
-| Rebound tracking · 回涨追踪 | Record how much each recipe grows back after a cleanup, answering “why is it full again”.<br>记录清理后各配方的大小回涨，回答“为什么又满了”。 |
-| Waterline guard · 水线守护 | Keep free space above a target waterline (default 30 GB) with quiet, automatic cleanups.<br>保持可用空间不低于目标水位（默认 30GB），静默自动清理。 |
+| Pressure states · 空间压力 | Healthy: capacity probe only; warning: analyze; critical: consider cleanup.<br>健康时只探测余量；接近水线时分析；低于水线时才考虑清理。 |
+| Safe automation · 安全自动化 | Automatic permanent deletion requires explicit recipe authorization plus age and process guards.<br>自动永久删除必须同时具备配方明确授权、年龄保护与进程保护。 |
+| Growth priority · 增长优先 | Among equally safe candidates, measured fast-growing caches are handled first.<br>仅在同等安全级别内，优先处理实测快速增长的缓存。 |
+| Recoverable manual cleanup · 可恢复手动清理 | Projects, user-added paths, broad caches, and archives remain manual and go to Trash when applicable.<br>项目、用户添加路径、宽泛缓存和归档保持手动；适用时进入废纸篓。 |
 | Honest metering · 诚实计量 | APFS clone-aware scanning reports real reclaimable space, not surface size.<br>感知 APFS 克隆与稀疏文件，报告真实可释放空间而非表面大小。 |
 | Three-level safety · 三级安全分级 | `safeWhileRunning` / `requiresQuit` / `userConfirm`, with dry-run previews before any deletion.<br>`safeWhileRunning` / `requiresQuit` / `userConfirm` 三级安全，一切删除先 dry-run 预览。 |
 | Scriptable CLI · 可脚本化 CLI | `scan` / `suggest` / `clean` / `status` with stable JSON output.<br>`scan` / `suggest` / `clean` / `status` 命令，稳定 JSON 输出。 |
@@ -74,9 +74,9 @@ A reservoir water-level icon appears in the menu bar, updating in real time with
 
 > 菜单栏出现蓄水池水位图标（水位随磁盘占用实时变化）：
 
-- Click the panel for the free-space primary reading, fill prediction, cleanable items with safety badges, and one-tap smart cleanup (preview first, then confirm).
+- Click the panel for available space, target waterline, the explicitly authorized auto-clean ceiling, recovery gap, safety-labelled items, and one-tap manual cleanup (preview first, then confirm).
 
-    > 点击弹出面板：可用空间主读数、满盘预测、可清理项列表（含安全级别徽标）、一键“智能清理”（先预览后确认）。
+    > 点击弹出面板：可用空间、目标水线、明确授权的自动清理上限、恢复缺口、含安全标记的条目，以及先预览再确认的一键手动清理。
 
 - Settings: target waterline (default 30 GB), novice / expert mode, recipe toggles and retention days, whitelist, Full Disk Access status and onboarding, launch at login.
 
@@ -86,9 +86,9 @@ A reservoir water-level icon appears in the menu bar, updating in real time with
 
     > 通知：空间紧张（<20GB）、异常增长、需要操作（如退出 Simulator）、清理摘要。
 
-- Automatic scans every 30 minutes; snapshots are saved to `~/Library/Application Support/PoolProblem` or the App Group container.
+- Available capacity is probed every five minutes. Recursive analysis runs only near or below the waterline, or when the user explicitly refreshes. Snapshots are saved to `~/Library/Application Support/PoolProblem` or the App Group container.
 
-    > 每 30 分钟自动扫描并保存快照（`~/Library/Application Support/PoolProblem` 或 App Group 容器）。
+    > 每五分钟只探测一次可用容量；仅在接近/低于水线或用户主动刷新时进行递归分析。快照保存在 `~/Library/Application Support/PoolProblem` 或 App Group 容器。
 
 On first launch, grant **Full Disk Access** in System Settings → Privacy & Security so protected directories such as `~/Library/Containers` can be scanned.
 
@@ -174,9 +174,9 @@ The app, CLI, and a future widget share one core library and one snapshot store;
 
 **Data flow · 数据流**
 
-Launch / login item → permission check and onboarding (Full Disk Access) → scheduled scan → snapshot written to the shared container → growth detection / flow computation → notify or clean by rule → refresh the menu bar.
+Launch / login item → load the latest snapshot → cheap capacity probe → healthy: stop; warning: analyze known recipes; critical: analyze, apply safety gates, then clean only explicitly authorized caches → verify actual available space → refresh the menu bar.
 
-> 启动 / 开机自启 → 权限检查与引导（完全磁盘访问）→ 定时扫描 → 快照写入共享容器 → 增长检测 / 流速计算 → 需要时通知或按规则清理 → 菜单栏刷新。
+> 启动 / 开机自启 → 载入最近快照 → 低成本容量探测 → 健康：结束；警告：分析已知配方；紧急：分析并通过全部安全门后，仅清理明确授权缓存 → 复测真实可用空间 → 刷新菜单栏。
 
 <p align="center"><img src="assets/readme/section-privacy.svg" width="100%" alt="Privacy · 隐私"></p>
 
@@ -208,9 +208,9 @@ APFS clone files (`cp -c`, Xcode test snapshots) share physical blocks but not i
 
     > 应用图标打磨。
 
-- FSEvents source governance.
+- Broader automatic cleanup only after per-recipe safety evidence and recovery testing.
 
-    > FSEvents 源头治理。
+    > 只有在逐配方安全证据与恢复测试充分后，才扩大自动清理范围。
 
 <p align="center"><img src="assets/readme/section-design-docs.svg" width="100%" alt="Design Docs · 设计文档"></p>
 

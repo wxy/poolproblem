@@ -143,8 +143,9 @@ final class CaptureBox: @unchecked Sendable {
     let outcome = try cleaner.run(scan: scan, config: .default, waterlineBytes: 30_000, forceClean: true)
     #expect(outcome.freedBytes == 2048)
     #expect(Set(deleter.urls.map(\.path)) == Set(["/tmp/A/node_modules", "/tmp/B/node_modules"]))
-    let entry = try logStore.entries().first
-    #expect(entry?.originalPaths == ["/tmp/A/node_modules", "/tmp/B/node_modules"])
+    let entries = try logStore.entries()
+    #expect(entries.count == 2)
+    #expect(Set(entries.flatMap(\.originalPaths)) == Set(["/tmp/A/node_modules", "/tmp/B/node_modules"]))
 }
 
 @Test func cleanerSkipsRequiresQuitWhenRunning() throws {
@@ -479,4 +480,80 @@ final class CaptureBox: @unchecked Sendable {
 @Test func cleanabilityGuardBlocksDisplayOnly() {
     #expect(Cleaner.guardedDisposition(for: .trash, cleanability: .displayOnly) == nil)
     #expect(Cleaner.guardedDisposition(for: .deletePermanently, cleanability: .displayOnly) == nil)
+}
+
+@Test func automaticCleanupRequiresExplicitPermanentDeletionAuthorization() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-auto-auth-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    let item = ScanItem(
+        id: "rebuildable", recipeID: "project-build-output", name: "build", path: "/tmp/build",
+        category: .project, safety: .safeWhileRunning, disposition: .deletePermanently,
+        sizeBytes: 2_000_000_000, allocatedBytes: 2_000_000_000,
+        reclaimableBytes: 2_000_000_000, fileCount: 1,
+        lastModified: now.addingTimeInterval(-40 * 86_400),
+        cleanability: .regenerable,
+        allowsAutomaticPermanentDeletion: false
+    )
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000_000_000, availableBytes: 10_000_000_000, timestamp: now),
+        items: [item], records: [], volumeURL: URL(fileURLWithPath: "/")
+    )
+    let store = CleanLogStore(paths: StoragePaths(baseURL: dir))
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: MockDeleter(),
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: store,
+        now: { now }
+    )
+    let outcome = try cleaner.run(
+        scan: scan,
+        config: .default,
+        waterlineBytes: 30_000_000_000,
+        source: .auto
+    )
+    #expect(outcome.entries.isEmpty)
+}
+
+@Test func automaticCleanupPrioritizesMeasuredFastGrowth() throws {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-auto-growth-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    func item(_ id: String, bytes: Int64) -> ScanItem {
+        ScanItem(
+            id: id, recipeID: "trusted-cache", name: id, path: "/tmp/\(id)",
+            category: .packageManager, safety: .safeWhileRunning,
+            disposition: .deletePermanently,
+            sizeBytes: bytes, allocatedBytes: bytes, reclaimableBytes: bytes,
+            fileCount: 1, lastModified: now.addingTimeInterval(-40 * 86_400),
+            cleanability: .regenerable,
+            allowsAutomaticPermanentDeletion: true
+        )
+    }
+    let scan = ScanResult(
+        volume: VolumeInfo(totalBytes: 100_000_000_000, availableBytes: 10_000_000_000, timestamp: now),
+        items: [item("large-slow", bytes: 8_000_000_000), item("small-fast", bytes: 1_000_000_000)],
+        records: [], volumeURL: URL(fileURLWithPath: "/")
+    )
+    let deleter = RecordingDeleter()
+    let store = CleanLogStore(paths: StoragePaths(baseURL: dir))
+    let cleaner = Cleaner(
+        evaluator: RuleEvaluator(config: .default, now: { now }),
+        deleter: deleter,
+        inspector: AlwaysFalseProcessInspector(),
+        logStore: store,
+        availableBytesReader: { _ in 10_000_000_000 },
+        now: { now }
+    )
+    _ = try cleaner.run(
+        scan: scan,
+        config: .default,
+        waterlineBytes: 30_000_000_000,
+        source: .auto,
+        itemGrowthRates: ["small-fast": 2_000_000_000, "large-slow": 10_000_000]
+    )
+    #expect(deleter.urls.first?.path == "/tmp/small-fast")
 }

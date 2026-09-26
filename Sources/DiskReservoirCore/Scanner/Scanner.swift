@@ -35,14 +35,19 @@ public struct Scanner: Sendable {
     }
 
     public func scan(recipes: [Recipe], homeDirectory: String) throws -> ScanResult {
-        let paths = StoragePaths(baseURL: nil, homeDirectory: homeDirectory)
+        let paths = Self.recipeStoragePaths(homeDirectory: homeDirectory)
         // 其他配方已解析的路径：测量本配方时跳过这些子树，避免同一目录被
         // 两个配方分别统计（如 ~/Library/Caches 与其内部 Homebrew/CocoaPods）。
         let allResolved = recipes.map { $0.resolvePaths(paths) }
         var items: [ScanItem] = []
         var records: [FileRecord] = []
         for recipe in recipes {
-            let resolved = recipe.resolvePaths(paths)
+            let resolved = recipe.resolvePaths(paths).filter { path in
+                // A custom/test home must be hermetic. In particular, do not
+                // scan the host's global CoreSimulator volumes for CLI tests.
+                homeDirectory == NSHomeDirectory()
+                    || !path.hasPrefix("/Library/Developer/CoreSimulator/")
+            }
             let ownPaths = Set(resolved)
             let excludedPaths = Set(allResolved.flatMap { $0 }).subtracting(ownPaths)
             if recipe.aggregatesPaths {
@@ -84,7 +89,9 @@ public struct Scanner: Sendable {
                     reclaimableBytes: allocated,
                     fileCount: count,
                     lastModified: effectiveLastModified(modified, recipe: recipe, path: path),
-                    cleanByChildOnly: recipe.cleanByChildOnly
+                    cleanability: recipe.cleanability,
+                    cleanByChildOnly: recipe.cleanByChildOnly,
+                    allowsAutomaticPermanentDeletion: recipe.allowsAutomaticPermanentDeletion
                 ))
                 records.append(contentsOf: files)
             }
@@ -97,20 +104,8 @@ public struct Scanner: Sendable {
                 return item
             }
             let ratio = cloneRatios[item.recipeID] ?? 0.2
-            return ScanItem(
-                id: item.id,
-                recipeID: item.recipeID,
-                name: item.name,
-                path: item.path,
-                paths: item.paths,
-                category: item.category,
-                safety: item.safety,
-                disposition: item.disposition,
-                sizeBytes: item.sizeBytes,
-                allocatedBytes: item.allocatedBytes,
+            return item.replacing(
                 reclaimableBytes: Int64(Double(item.allocatedBytes) * ratio),
-                fileCount: item.fileCount,
-                lastModified: item.lastModified
             )
         }
         return ScanResult(
@@ -130,7 +125,7 @@ public struct Scanner: Sendable {
     ) -> [ScanItem] {
         guard FileManager.default.fileExists(atPath: path) else { return [] }
         if recipe.aggregatesPaths {
-            let resolved = recipe.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: homeDirectory))
+            let resolved = recipe.resolvePaths(Self.recipeStoragePaths(homeDirectory: homeDirectory))
             return aggregateItem(recipe: recipe, paths: resolved, homeDirectory: homeDirectory).map { [$0] } ?? []
         }
         if recipe.usageProbe == .simulatorRuntimeLastBooted {
@@ -157,23 +152,13 @@ public struct Scanner: Sendable {
             reclaimableBytes: allocated,
             fileCount: count,
             lastModified: effectiveLastModified(modified, recipe: recipe, path: path),
-            cleanability: recipe.cleanability
+            cleanability: recipe.cleanability,
+            cleanByChildOnly: recipe.cleanByChildOnly,
+            allowsAutomaticPermanentDeletion: recipe.allowsAutomaticPermanentDeletion
         )
         if recipe.cloneProne {
-            item = ScanItem(
-                id: item.id,
-                recipeID: item.recipeID,
-                name: item.name,
-                path: item.path,
-                category: item.category,
-                safety: item.safety,
-                disposition: item.disposition,
-                sizeBytes: item.sizeBytes,
-                allocatedBytes: item.allocatedBytes,
+            item = item.replacing(
                 reclaimableBytes: Int64(Double(item.allocatedBytes) * (self.cloneRatios[recipe.id] ?? 0.2)),
-                fileCount: item.fileCount,
-                lastModified: item.lastModified,
-                cleanability: item.cleanability
             )
         }
         return [item]
@@ -195,7 +180,7 @@ public struct Scanner: Sendable {
             guard let (s, a, c, m, _) = try? measureDirectory(
                 url,
                 itemID: itemID,
-                lightWeight: recipe.disposition == .none
+                lightWeight: true
             ) else { continue }
             // 只聚合“足够老”的子路径：未达到年龄阈值或最近 24h 有修改的
             // 项目不进入可清理清单（也不参与清理）。
@@ -226,20 +211,28 @@ public struct Scanner: Sendable {
             path: paths.first ?? "",
             paths: existing,
             category: recipe.category,
-            // 聚合条目里的路径都已通过年龄门槛，视为可直接清理，不再要求用户逐次确认
-            safety: .safeWhileRunning,
+            // 项目聚合条目即使足够老也仍需用户确认；mtime 不能证明项目已停用。
+            safety: recipe.safety,
             disposition: recipe.disposition,
             sizeBytes: size,
             allocatedBytes: allocated,
             reclaimableBytes: reclaimable,
             fileCount: count,
             lastModified: newest,
-            cleanability: recipe.cleanability
+            cleanability: recipe.cleanability,
+            cleanByChildOnly: recipe.cleanByChildOnly,
+            allowsAutomaticPermanentDeletion: recipe.allowsAutomaticPermanentDeletion
         )
     }
 
     /// parentAndSelfNewestModified 探针：最后使用时间取 自身 与 上级目录 最新 mtime 的较新者。
     private func effectiveLastModified(_ modified: Date?, recipe: Recipe, path: String) -> Date? {
+        // Temporary build output may be assembled from copied files whose
+        // preserved mtimes predate the directory. Include the root directory's
+        // own mtime so freshly-created output always receives the idle window.
+        if recipe.id == TemporaryBuildArtifacts.recipeID {
+            return newest(modified, POSIXDirectoryWalker.modificationDate(path: path))
+        }
         guard recipe.usageProbe == .parentAndSelfNewestModified else { return modified }
         let parent = URL(fileURLWithPath: path).deletingLastPathComponent()
         guard let walk = POSIXDirectoryWalker.walk(
@@ -247,7 +240,11 @@ public struct Scanner: Sendable {
             itemID: parent.path,
             includeRecords: false
         ) else { return modified }
-        switch (modified, walk.newest) {
+        return newest(modified, walk.newest)
+    }
+
+    private func newest(_ first: Date?, _ second: Date?) -> Date? {
+        switch (first, second) {
         case let (a?, b?): return max(a, b)
         case let (a?, nil): return a
         case let (nil, b?): return b
@@ -299,10 +296,22 @@ public struct Scanner: Sendable {
                 reclaimableBytes: allocated,
                 fileCount: count,
                 lastModified: lastUsed,
-                cleanability: recipe.cleanability
+                cleanability: recipe.cleanability,
+                cleanByChildOnly: recipe.cleanByChildOnly,
+                allowsAutomaticPermanentDeletion: recipe.allowsAutomaticPermanentDeletion
             ))
         }
         return items
+    }
+
+    /// Recipe resolution only needs the home path. Supplying an explicit base
+    /// avoids repeatedly querying the app-group container during scans.
+    private static func recipeStoragePaths(homeDirectory: String) -> StoragePaths {
+        StoragePaths(
+            baseURL: URL(fileURLWithPath: homeDirectory, isDirectory: true)
+                .appendingPathComponent("Library/Application Support/PoolProblem", isDirectory: true),
+            homeDirectory: homeDirectory
+        )
     }
 
     private func measureDirectory(
@@ -336,6 +345,7 @@ public struct Scanner: Sendable {
         var count = 0
         var newest: Date?
         var files: [FileRecord] = []
+        var entriesSinceCheckpoint = 0
         // FileManager 枚举按深度优先展开；进入被排除的目录后，用相对深度
         // 跳过其整个子树（skipDescendants 在部分 macOS 版本上不生效）。
         var excludedDepth: Int?
@@ -344,6 +354,11 @@ public struct Scanner: Sendable {
             excludedPaths.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
         )
         while let element = enumerator?.nextObject() as? URL {
+            entriesSinceCheckpoint += 1
+            if entriesSinceCheckpoint >= 128 {
+                ScanWorkloadGate.shared.checkpoint()
+                entriesSinceCheckpoint = 0
+            }
             let relativeDepth = element.pathComponents.count - url.pathComponents.count
             if let depth = excludedDepth {
                 if relativeDepth > depth { continue }

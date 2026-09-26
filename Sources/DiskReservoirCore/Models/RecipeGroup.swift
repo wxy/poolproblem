@@ -17,8 +17,14 @@ public enum RecipeGroup: String, Codable, CaseIterable, Sendable {
     /// （如 Xcode 运行中，Xcode 及其模拟器整组暂停）。
     public var guardProcessNames: [String] {
         switch self {
-        case .xcode: return ["Xcode", "Simulator"]
-        default: return []
+        case .xcode:
+            return ["Xcode", "Simulator", "xcodebuild", "swiftc", "SourceKitService", "XCBBuildService"]
+        case .nodejs:
+            return ["node", "npm", "pnpm", "yarn", "bun"]
+        case .packageManager:
+            return ["npm", "pnpm", "yarn", "bun", "brew", "pod", "swift", "uv", "python", "python3"]
+        case .system:
+            return []
         }
     }
 

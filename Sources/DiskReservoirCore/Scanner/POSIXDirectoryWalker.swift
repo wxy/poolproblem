@@ -30,6 +30,42 @@ public enum POSIXDirectoryWalker {
         return count
     }
 
+    /// 枚举目录的直接子项名称，不经过 `FileManager` 的旧 FileID/Carbon
+    /// 路径解析。目录不可访问时返回 `nil`。
+    public static func childNames(path: String) -> [String]? {
+        guard let dir = opendir(path) else { return nil }
+        defer { closedir(dir) }
+        var names: [String] = []
+        while let entry = readdir(dir) {
+            let name = entryName(entry)
+            if name != "." && name != ".." {
+                names.append(name)
+            }
+        }
+        return names
+    }
+
+    /// 使用 `lstat` 判断路径是否存在；不会跟随符号链接。
+    public static func itemExists(path: String) -> Bool {
+        var info = stat()
+        return lstat(path, &info) == 0
+    }
+
+    /// 判断路径本身是否为目录；符号链接不会被当作目录继续遍历。
+    public static func isDirectory(path: String) -> Bool {
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return false }
+        return info.st_mode & S_IFMT == S_IFDIR
+    }
+
+    /// Reads the path's own modification time without resolving aliases or
+    /// invoking Foundation's legacy FileID path machinery.
+    public static func modificationDate(path: String) -> Date? {
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec))
+    }
+
     /// 递归统计目录（大小、占用块、文件数、最新修改时间、文件记录）。
     /// 根目录无法打开时返回 `nil`；深层子目录打开失败时跳过该子树。
     /// `includeRecords` 为 false 时跳过逐文件记录，只做汇总——
@@ -45,12 +81,14 @@ public enum POSIXDirectoryWalker {
         guard let dir = opendir(url.path) else { return nil }
         defer { closedir(dir) }
         var result = WalkResult()
+        var entriesSinceCheckpoint = 0
         walkLevel(
             dir: dir,
             baseURL: url,
             itemID: itemID,
             includeRecords: includeRecords,
             skipSubtrees: skipSubtrees,
+            entriesSinceCheckpoint: &entriesSinceCheckpoint,
             result: &result
         )
         return result
@@ -62,9 +100,15 @@ public enum POSIXDirectoryWalker {
         itemID: String,
         includeRecords: Bool,
         skipSubtrees: Set<String>,
+        entriesSinceCheckpoint: inout Int,
         result: inout WalkResult
     ) {
         while let entry = readdir(dir) {
+            entriesSinceCheckpoint += 1
+            if entriesSinceCheckpoint >= 128 {
+                ScanWorkloadGate.shared.checkpoint()
+                entriesSinceCheckpoint = 0
+            }
             let name = entryName(entry)
             if name == "." || name == ".." { continue }
             let childURL = baseURL.appendingPathComponent(name)
@@ -83,6 +127,7 @@ public enum POSIXDirectoryWalker {
                         itemID: itemID,
                         includeRecords: includeRecords,
                         skipSubtrees: skipSubtrees,
+                        entriesSinceCheckpoint: &entriesSinceCheckpoint,
                         result: &result
                     )
                     closedir(sub)

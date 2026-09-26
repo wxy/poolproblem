@@ -47,6 +47,20 @@ import Foundation
     #expect(updated.first?.reclaimableBytes == 5_000)
 }
 
+@Test func applyPreservesDeletionSafetyMetadata() {
+    let item = ScanItem(
+        id: "safe", recipeID: "library-caches", name: "Caches", path: "/tmp/caches",
+        category: .common, safety: .userConfirm, disposition: .trash,
+        sizeBytes: 10, allocatedBytes: 10, reclaimableBytes: 10,
+        fileCount: 1, lastModified: nil,
+        cleanability: .trashOnly, cleanByChildOnly: true
+    )
+    let updated = ReclaimableEstimator().apply(to: [item], records: [])
+    #expect(updated.first?.cleanability == .trashOnly)
+    #expect(updated.first?.cleanByChildOnly == true)
+    #expect(updated.first?.safety == .userConfirm)
+}
+
 @Test func hardLinksShareInodeAndDedup() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-clone-\(UUID().uuidString)", isDirectory: true)

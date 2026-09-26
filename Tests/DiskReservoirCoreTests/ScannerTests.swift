@@ -325,7 +325,7 @@ import Foundation
     #expect(item.paths == [projA.path, projB.path])
     #expect(item.sizeBytes == Int64(4096 + 8192))
     #expect(item.fileCount == 2)
-    #expect(item.safety == .safeWhileRunning)
+    #expect(item.safety == .userConfirm)
 
     // 增量重扫：任一项目路径变脏 → 仍返回唯一聚合条目
     let fresh = Scanner().rescan(path: projB.path, recipe: recipe, homeDirectory: root.path)
@@ -363,7 +363,7 @@ import Foundation
     let item = result.items[0]
     #expect(item.paths == [oldProj.path])
     #expect(item.sizeBytes == 4096)
-    #expect(item.safety == .safeWhileRunning)
+    #expect(item.safety == .userConfirm)
 }
 
 @Test func scanItemDecodesLegacySnapshotWithoutPaths() throws {

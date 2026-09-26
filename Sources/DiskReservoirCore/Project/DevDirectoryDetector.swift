@@ -17,20 +17,23 @@ public enum DevDirectoryDetector {
     public static let directoryMarkers = [".git", "node_modules"]
 
     public static func detect(path: String) -> DevProjectKind? {
-        let url = URL(fileURLWithPath: path, isDirectory: true)
-        let fm = FileManager.default
-        for marker in fileMarkers where fm.fileExists(atPath: url.appendingPathComponent(marker).path) {
+        guard POSIXDirectoryWalker.isDirectory(path: path) else { return nil }
+        for marker in fileMarkers where POSIXDirectoryWalker.itemExists(path: join(path, marker)) {
             return .project
         }
-        for marker in directoryMarkers where fm.fileExists(atPath: url.appendingPathComponent(marker).path) {
+        for marker in directoryMarkers where POSIXDirectoryWalker.itemExists(path: join(path, marker)) {
             return .project
         }
         // 允许开发目录本身直接含可再生产物（散落项目）
-        let children = (try? fm.contentsOfDirectory(atPath: path)) ?? []
+        let children = POSIXDirectoryWalker.childNames(path: path) ?? []
         for child in children where child == "dist" || child == "build"
             || child == ".build" || child == ".dist" {
             return .project
         }
         return nil
+    }
+
+    private static func join(_ parent: String, _ child: String) -> String {
+        parent.hasSuffix("/") ? parent + child : parent + "/" + child
     }
 }

@@ -30,7 +30,8 @@ struct MenuBarView: View {
                 estimatedRecipeIDs: estimatedRecipeIDs,
                 inflowLabels: state.topInflows,
                 excludedItemIDs: state.cleanedItemIDs,
-                gaugeImage: state.poolGaugeImage
+                gaugeImage: state.poolGaugeImage,
+                animate: state.isPopoverVisible
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -186,11 +187,15 @@ struct MenuBarView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    legend
+                    pressureBanner
 
                     Divider()
 
                     summary
+
+                    Divider()
+
+                    legend
 
                     Divider()
 
@@ -206,73 +211,10 @@ struct MenuBarView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    // 增长洞察入口常驻：任何数据（增长/候选配方/开发目录建议）都点亮卡片
-                    Divider()
-                    insightsCard
                 }
                 .padding(14)
             }
         }
-    }
-
-    private var insightsCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                withAnimation(overlaySpring) { state.showGrowthInsights = true }
-            } label: {
-                HStack {
-                    Text(Localized.string("insights.title"))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(Color.primary)
-                    if pendingCandidateCount > 0 {
-                        Text(verbatim: "\(pendingCandidateCount)")
-                            .font(.caption2)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.accentColor))
-                    }
-                    Spacer()
-                    Text(Localized.string("insights.view"))
-                        .font(.caption2)
-                        .foregroundStyle(Color.accentColor)
-                }
-            }
-            .buttonStyle(.plain)
-            .cursorPointingHand()
-
-            ForEach(state.growthInsights.prefix(2)) { entry in
-                HStack(spacing: 5) {
-                    Text(entry.pattern)
-                        .font(.caption2)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if entry.kind == .surface {
-                        Text(Localized.string("insights.new_badge"))
-                            .font(.caption2)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 4)
-                            .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
-                    }
-                    Spacer()
-                    Text(Format.bytes(entry.deltaBytes))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
-            if state.growthInsights.isEmpty
-                && state.candidateRecipes.filter({ $0.status == .pending }).isEmpty {
-                Text(Localized.string("insights.empty"))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
-
-    private var pendingCandidateCount: Int {
-        state.candidateRecipes.filter { $0.status == .pending }.count
     }
 
     private var autoCleanPlanList: some View {
@@ -319,9 +261,7 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: "The Pool Problem")
                     .font(.headline)
-                Text(state.isScanning
-                     ? Localized.string("refresh.scanning")
-                     : (state.lastScanAt.map { Localized.string("header.updated_at", $0.formatted(date: .omitted, time: .shortened)) } ?? Localized.string("header.not_scanned")))
+                Text(headerStatusText)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -330,49 +270,88 @@ struct MenuBarView: View {
         }
     }
 
+    private var headerStatusText: String {
+        if state.isScanning {
+            return Localized.string("refresh.scanning")
+        }
+        switch state.consistencyStatus {
+        case .reconciling:
+            return Localized.string("consistency.reconciling")
+        case .partial:
+            return Localized.string("consistency.partial")
+        case .current:
+            return state.lastScanAt.map {
+                Localized.string("header.updated_at", $0.formatted(date: .omitted, time: .shortened))
+            } ?? Localized.string("header.not_scanned")
+        }
+    }
+
     private var summary: some View {
         VStack(alignment: .leading, spacing: 8) {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
                 statItem(
                     Localized.string("stat.available"),
                     Format.bytes(state.availableBytes),
-                    color: state.availableBytes < state.waterlineBytes ? .red : .green
+                    color: pressureColor
                 )
-                statItem(Localized.string("stat.used"), Format.bytes(state.totalBytes - state.availableBytes))
-                statItem(Localized.string("stat.total"), Format.bytes(state.totalBytes))
                 statItem(Localized.string("stat.waterline"), Format.bytes(state.waterlineBytes))
-                statItem(Localized.string("stat.prediction"), state.predictionDays.map { predictionText($0) } ?? "—")
                 statItem(
-                    Localized.string("stat.weekly_net_change"),
-                    Format.bytes(state.weeklyNetChangeBytes),
-                    color: state.weeklyNetChangeBytes >= 0 ? .orange : .green
+                    Localized.string("stat.safe_auto_ceiling"),
+                    Format.bytes(state.automaticDeletionCeilingBytes),
+                    color: .green
                 )
-            }
-            if !state.availableHistory.isEmpty {
-                let history = zip(state.historyTimestamps, state.availableHistory).map { ($0, $1) }
-                SpaceChartView(
-                    history: history,
-                    waterline: state.waterlineBytes,
-                    events: state.cleaningEvents
+                statItem(
+                    Localized.string("stat.recovery_deficit"),
+                    Format.bytes(state.recoveryDeficitBytes),
+                    color: state.recoveryDeficitBytes > 0 ? .orange : .green
                 )
-                .frame(height: 60)
-                HStack(spacing: 12) {
-                    chartDot(.orange, Localized.string("chart.manual"))
-                    chartDot(.green, Localized.string("chart.auto"))
-                    Spacer()
-                }
             }
         }
     }
 
-    private func chartDot(_ color: Color, _ text: String) -> some View {
-        HStack(spacing: 4) {
-            RoundedRectangle(cornerRadius: 1)
-                .fill(color)
+    private var pressureBanner: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(pressureColor)
                 .frame(width: 8, height: 8)
-            Text(text)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .padding(.top, 4)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(pressureTitle)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text(pressureDetail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var pressureTitle: String {
+        switch state.pressureState {
+        case .healthy: Localized.string("pressure.healthy")
+        case .warning: Localized.string("pressure.warning")
+        case .critical: Localized.string("pressure.critical")
+        }
+    }
+
+    private var pressureDetail: String {
+        if state.isScanning {
+            return Localized.string("pressure.scanning_detail")
+        }
+        return switch state.pressureState {
+        case .healthy: Localized.string("pressure.healthy_detail")
+        case .warning: Localized.string("pressure.warning_detail")
+        case .critical: Localized.string("pressure.critical_detail")
+        }
+    }
+
+    private var pressureColor: Color {
+        switch state.pressureState {
+        case .healthy: .green
+        case .warning: .orange
+        case .critical: .red
         }
     }
 
@@ -637,6 +616,15 @@ struct MenuBarView: View {
             .cursorPointingHand()
             .help(Localized.string("history.tooltip"))
             Button {
+                withAnimation(overlaySpring) { state.showGrowthInsights = true }
+            } label: {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+            }
+            .buttonStyle(PressableButtonStyle())
+            .focusEffectDisabled()
+            .cursorPointingHand()
+            .help(Localized.string("insights.title"))
+            Button {
                 NSApplication.shared.terminate(nil)
             } label: {
                 Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -810,8 +798,11 @@ struct MenuBarView: View {
                            : Localized.string("detail.clean_confirm")) {
                         withAnimation(overlaySpring) { state.detailItem = nil }
                         Task {
-                            if await service.cleanItem(item) == nil {
-                                cleanFailureNotice = Localized.string("detail.clean_failed")
+                            switch await service.cleanItem(item) {
+                            case .cleaned:
+                                break
+                            case let .failed(reason):
+                                cleanFailureNotice = cleanFailureMessage(reason)
                             }
                         }
                     }
@@ -896,6 +887,23 @@ struct MenuBarView: View {
                     quitProcessRunning = running
                 }
             }
+        }
+    }
+
+    private func cleanFailureMessage(_ failure: ManualCleanFailure) -> String {
+        switch failure {
+        case .unavailable:
+            return Localized.string("detail.clean_failed")
+        case let .processRunning(name):
+            return Localized.string("detail.clean_blocked_process", name)
+        case .recentlyModified:
+            return Localized.string("detail.clean_recently_modified")
+        case .permissionDenied:
+            return Localized.string("detail.clean_permission_denied")
+        case .fileInUse:
+            return Localized.string("detail.clean_file_in_use")
+        case let .fileSystem(message):
+            return Localized.string("detail.clean_file_system_error", message)
         }
     }
 

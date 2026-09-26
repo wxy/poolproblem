@@ -58,7 +58,6 @@ public enum DevDirectoryDiscovery {
         homeDirectory: String,
         minimumRegenerableBytes: Int64 = 200 << 20
     ) -> [DevProjectCandidate] {
-        let home = URL(fileURLWithPath: homeDirectory, isDirectory: true)
         var seen = Set<String>()
         var candidates: [DevProjectCandidate] = []
 
@@ -76,24 +75,29 @@ public enum DevDirectoryDiscovery {
         }
 
         // 一级：家目录直接子目录；二级：非系统目录下再下一层（覆盖 ~/develop/*、~/Documents/* 等）
-        if let homeChildren = try? FileManager.default.contentsOfDirectory(atPath: homeDirectory) {
+        if let homeChildren = POSIXDirectoryWalker.childNames(path: homeDirectory) {
             for child in homeChildren where !child.hasPrefix(".") {
-                let childPath = home.appendingPathComponent(child).path
+                let childPath = join(homeDirectory, child)
+                guard POSIXDirectoryWalker.isDirectory(path: childPath) else { continue }
                 examine(childPath)
                 if !systemRootExclusions.contains(child),
-                   let grandchildren = try? FileManager.default.contentsOfDirectory(atPath: childPath) {
+                   let grandchildren = POSIXDirectoryWalker.childNames(path: childPath) {
                     for grandchild in grandchildren {
-                        examine(home.appendingPathComponent(child).appendingPathComponent(grandchild).path)
+                        let grandchildPath = join(childPath, grandchild)
+                        guard POSIXDirectoryWalker.isDirectory(path: grandchildPath) else { continue }
+                        examine(grandchildPath)
                     }
                 }
             }
         }
         // 惯例开发根的首级子目录（可能与上面重复，seen 去重）
         for root in conventionRoots {
-            let rootPath = home.appendingPathComponent(root).path
-            guard let children = try? FileManager.default.contentsOfDirectory(atPath: root) else { continue }
+            let rootPath = join(homeDirectory, root)
+            guard let children = POSIXDirectoryWalker.childNames(path: rootPath) else { continue }
             for child in children {
-                examine(rootPath + "/" + child)
+                let childPath = join(rootPath, child)
+                guard POSIXDirectoryWalker.isDirectory(path: childPath) else { continue }
+                examine(childPath)
             }
         }
         return candidates.sorted { $0.regenerableBytes > $1.regenerableBytes }
@@ -103,6 +107,10 @@ public enum DevDirectoryDiscovery {
         var total: Int64 = 0
         for name in regenerableDirNames {
             let dir = URL(fileURLWithPath: project).appendingPathComponent(name).path
+            // Do not follow a regenerable-directory symlink onto another or a
+            // previously detached volume. Discovery is advisory and should
+            // never escape the candidate project's physical directory tree.
+            guard POSIXDirectoryWalker.isDirectory(path: dir) else { continue }
             guard let walk = POSIXDirectoryWalker.walk(
                 url: URL(fileURLWithPath: dir),
                 itemID: dir,
@@ -111,5 +119,9 @@ public enum DevDirectoryDiscovery {
             total += walk.sizeBytes
         }
         return total
+    }
+
+    private static func join(_ parent: String, _ child: String) -> String {
+        parent.hasSuffix("/") ? parent + child : parent + "/" + child
     }
 }

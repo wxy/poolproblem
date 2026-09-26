@@ -37,7 +37,28 @@ public enum PackageManagerRecipes {
             minimumSizeMB: 10,
             processName: nil,
             aggregatesPaths: true,
+            allowsAutomaticPermanentDeletion: true,
             resolvePaths: { _ in paths }
+        )
+    }
+
+    /// User-added paths remain manual-only even when they look like package
+    /// manager caches. Classification confidence must not silently expand the
+    /// unattended deletion boundary.
+    public static func makeCustom(extraRoots: [String]) -> Recipe {
+        Recipe(
+            id: "package-manager-custom",
+            name: "用户添加的包管理器缓存",
+            category: .packageManager,
+            group: .packageManager,
+            safety: .userConfirm,
+            disposition: .trash,
+            cleanability: .regenerable,
+            defaultAgeDays: 30,
+            minimumSizeMB: 10,
+            processName: nil,
+            aggregatesPaths: true,
+            resolvePaths: { _ in Array(Set(extraRoots)).sorted() }
         )
     }
 }

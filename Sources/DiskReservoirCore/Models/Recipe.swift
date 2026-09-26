@@ -24,6 +24,10 @@ public struct Recipe: Sendable {
     /// 仅按一级子目录清理：整项绝不作为整体删除（如水线/一键清理），
     /// 只允许逐子目录渐进清理。用于 `~/Library/Caches` 这类“一个目录塞几十个缓存”的场景。
     public let cleanByChildOnly: Bool
+    /// Positive authorization for unattended permanent deletion. This is
+    /// deliberately independent from `regenerable`: rebuildable artifacts may
+    /// still be expensive or historically valuable and therefore manual-only.
+    public let allowsAutomaticPermanentDeletion: Bool
     public let resolvePaths: @Sendable (StoragePaths) -> [String]
 
     public init(
@@ -43,6 +47,7 @@ public struct Recipe: Sendable {
         aggregatesPaths: Bool = false,
         minimumIdleHours: Double = 24,
         cleanByChildOnly: Bool = false,
+        allowsAutomaticPermanentDeletion: Bool = false,
         resolvePaths: @escaping @Sendable (StoragePaths) -> [String]
     ) {
         self.id = id
@@ -61,6 +66,7 @@ public struct Recipe: Sendable {
         self.aggregatesPaths = aggregatesPaths
         self.minimumIdleHours = minimumIdleHours
         self.cleanByChildOnly = cleanByChildOnly
+        self.allowsAutomaticPermanentDeletion = allowsAutomaticPermanentDeletion
         self.resolvePaths = resolvePaths
     }
 }

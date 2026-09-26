@@ -152,9 +152,7 @@ struct TrashDetailView: View {
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.opacity(0.15))
-        .onAppear {
-            Task { await reload() }
-        }
+        .task(id: state.cleanLogEntries.count) { await reload() }
     }
 
     private func reload() async {

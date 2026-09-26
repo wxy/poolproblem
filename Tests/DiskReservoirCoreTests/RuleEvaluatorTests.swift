@@ -194,6 +194,32 @@ private func item(
     }
 }
 
+@Test func whitelistProtectsAggregateParentsAndDescendants() {
+    var config = Config.default
+    config.whitelistPaths = ["/tmp/project/keep"]
+    let aggregate = ScanItem(
+        id: "aggregate", recipeID: "r", name: "N", path: "/tmp/project",
+        paths: ["/tmp/project"], category: .common,
+        safety: .safeWhileRunning, disposition: .deletePermanently,
+        sizeBytes: 10, allocatedBytes: 10, reclaimableBytes: 10,
+        fileCount: 1, lastModified: .distantPast
+    )
+    let child = ScanItem(
+        id: "child", recipeID: "r", name: "N", path: "/tmp/project/keep/cache",
+        category: .common, safety: .safeWhileRunning, disposition: .deletePermanently,
+        sizeBytes: 10, allocatedBytes: 10, reclaimableBytes: 10,
+        fileCount: 1, lastModified: .distantPast
+    )
+    let evaluator = RuleEvaluator(config: config)
+    for candidate in [aggregate, child] {
+        let result = evaluator.evaluate(item: candidate, isProcessRunning: { _ in false })
+        guard case .skip(reason: "whitelisted") = result.action else {
+            Issue.record("expected whitelist overlap to skip")
+            continue
+        }
+    }
+}
+
 @Test func forceCleansSafeWhileRunningToTrash() {
     let evaluator = RuleEvaluator(config: .default, now: { Date(timeIntervalSince1970: 1_000_000) })
     let result = evaluator.evaluate(

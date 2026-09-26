@@ -25,22 +25,10 @@ public struct ReclaimableEstimator: Sendable {
     public func apply(to items: [ScanItem], records: [FileRecord]) -> [ScanItem] {
         let estimates = estimate(records: records)
         return items.map { item in
-            ScanItem(
-                id: item.id,
-                recipeID: item.recipeID,
-                name: item.name,
-                path: item.path,
-                paths: item.paths,
-                category: item.category,
-                safety: item.safety,
-                disposition: item.disposition,
-                sizeBytes: item.sizeBytes,
-                allocatedBytes: item.allocatedBytes,
+            item.replacing(
                 // 没有逐文件记录的项（如轻量测量的废纸篓）保留扫描到的原始可回收量，
                 // 而不是被当成 0——否则废纸篓这类目录会显示为 0KB
-                reclaimableBytes: estimates[item.id] ?? item.reclaimableBytes,
-                fileCount: item.fileCount,
-                lastModified: item.lastModified
+                reclaimableBytes: estimates[item.id] ?? item.reclaimableBytes
             )
         }
     }

@@ -22,5 +22,10 @@ struct PoolProblemApp: App {
         Settings {
             SettingsView(state: state, service: service)
         }
+        .commands {
+            // This menu-bar utility has no sidebar. Removing the unused system
+            // command also avoids SwiftUI's repeated "Toggle Sidebar" lookup.
+            CommandGroup(replacing: .sidebar) { }
+        }
     }
 }

@@ -113,19 +113,25 @@ struct PoolTankView: View {
     let inflowLabels: [(name: String, bytes: Int64)]
     let excludedItemIDs: Set<String>
     let gaugeImage: Image?
+    let animate: Bool
 
     var body: some View {
-        Group {
-            if reduceMotion {
-                // 减少动态效果：静止渲染一帧，不做波浪/水流动画
-                Canvas { context, size in
-                    render(context: &context, size: size, phase: 0, animate: false)
-                }
-            } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-                    let phase = timeline.date.timeIntervalSinceReferenceDate
+        GeometryReader { proxy in
+            // Layout/layer classification sorts and evaluates every item. Keep it
+            // outside TimelineView so animation frames only redraw pixels.
+            let made = makeLayout(height: proxy.size.height)
+            Group {
+                if reduceMotion || !animate {
+                    // 减少动态效果：静止渲染一帧，不做波浪/水流动画
                     Canvas { context, size in
-                        render(context: &context, size: size, phase: phase, animate: true)
+                        render(context: &context, size: size, phase: 0, animate: false, made: made)
+                    }
+                } else {
+                    TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
+                        let phase = timeline.date.timeIntervalSinceReferenceDate
+                        Canvas { context, size in
+                            render(context: &context, size: size, phase: phase, animate: true, made: made)
+                        }
                     }
                 }
             }
@@ -133,20 +139,29 @@ struct PoolTankView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func render(context: inout GraphicsContext, size: CGSize, phase: Double, animate: Bool) {
-        let dark = colorScheme == .dark
-        let tankRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
-        let tankPath = Path(tankRect)
-        // 双锚点布局：水面在中线、水线在 1/4 处，窗口可伸出 total/0（允许显示不全）
-        let made = PoolWindowLayout.make(
+    private func makeLayout(height: CGFloat) -> (layout: PoolWindowLayout, model: PoolLayerModel) {
+        PoolWindowLayout.make(
             totalBytes: totalBytes,
             availableBytes: availableBytes,
             waterlineBytes: waterlineBytes,
             items: cleanableItems,
             estimatedRecipeIDs: estimatedRecipeIDs,
             excludedItemIDs: excludedItemIDs,
-            height: size.height
+            height: height
         )
+    }
+
+    private func render(
+        context: inout GraphicsContext,
+        size: CGSize,
+        phase: Double,
+        animate: Bool,
+        made: (layout: PoolWindowLayout, model: PoolLayerModel)
+    ) {
+        let dark = colorScheme == .dark
+        let tankRect = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+        let tankPath = Path(tankRect)
+        // 双锚点布局：水面在中线、水线在 1/4 处，窗口可伸出 total/0（允许显示不全）
         let layout = made.layout
         let layers = made.model.layers
         let nonCleanable = made.model.nonCleanableBytes

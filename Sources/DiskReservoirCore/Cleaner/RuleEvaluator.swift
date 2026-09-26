@@ -57,7 +57,7 @@ public struct RuleEvaluator: Sendable {
         let groupRule = group.flatMap { g in
             config.rules.first { $0.recipeID == g.ruleID }
         }
-        if config.whitelistPaths.contains(item.path) {
+        if Self.isPathProtected(item: item, whitelistPaths: config.whitelistPaths) {
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "whitelisted"))
         }
         if config.keptItemIDs.contains(item.id) {
@@ -139,6 +139,26 @@ public struct RuleEvaluator: Sendable {
         case .none:
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "disposition none"))
         }
+    }
+
+    /// A whitelist entry protects both its descendants and any aggregate
+    /// parent whose deletion would contain it. Resolve symlinks before the
+    /// comparison so aliases cannot bypass the guard.
+    public static func isPathProtected(item: ScanItem, whitelistPaths: [String]) -> Bool {
+        guard !whitelistPaths.isEmpty else { return false }
+        let targets = (item.paths.isEmpty ? [item.path] : item.paths).map(normalizedPath)
+        let protected = whitelistPaths.map(normalizedPath)
+        return targets.contains { target in
+            protected.contains { whitelist in
+                target == whitelist
+                    || target.hasPrefix(whitelist + "/")
+                    || whitelist.hasPrefix(target + "/")
+            }
+        }
+    }
+
+    private static func normalizedPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
     }
 
     private func itemProcessName(for item: ScanItem) -> String? {

@@ -6,8 +6,15 @@ public enum RecipeCoverage {
     public static func coveredPatterns(recipes: [Recipe], homeDirectory: String) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
+        // Recipe resolution only needs the home path. Supplying a concrete base URL
+        // avoids an app-group container lookup on every recipe.
+        let storagePaths = StoragePaths(
+            baseURL: URL(fileURLWithPath: homeDirectory, isDirectory: true)
+                .appendingPathComponent("Library/Application Support/PoolProblem", isDirectory: true),
+            homeDirectory: homeDirectory
+        )
         for recipe in recipes {
-            for path in recipe.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: homeDirectory)) {
+            for path in recipe.resolvePaths(storagePaths) {
                 let pattern = PathPatternizer.patternize(path, homeDirectory: homeDirectory)
                 if seen.insert(pattern).inserted {
                     result.append(pattern)

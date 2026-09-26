@@ -52,6 +52,32 @@ import Foundation
     #expect(found.map(\.path).contains(proj.path))
 }
 
+@Test func discoveryDoesNotFollowProjectSymlinks() throws {
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-disc-link-\(UUID().uuidString)", isDirectory: true)
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    let outside = base.appendingPathComponent("outside", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    try FileManager.default.createDirectory(
+        at: outside.appendingPathComponent("node_modules"),
+        withIntermediateDirectories: true
+    )
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    try Data().write(to: outside.appendingPathComponent("package.json"))
+    try Data(repeating: 0x44, count: 300_000).write(
+        to: outside.appendingPathComponent("node_modules/big.bin")
+    )
+    let linked = home.appendingPathComponent("LinkedProject")
+    try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: outside)
+
+    let found = DevDirectoryDiscovery.discover(
+        homeDirectory: home.path,
+        minimumRegenerableBytes: 100_000
+    )
+
+    #expect(!found.map(\.path).contains(linked.path))
+}
+
 @Test func excludedPathPolicySkipsTrashLibraryAndHiddenDirs() {
     let home = "/Users/alice"
     #expect(DevDirectoryDiscovery.isExcludedPath("\(home)/.Trash/proj", homeDirectory: home))

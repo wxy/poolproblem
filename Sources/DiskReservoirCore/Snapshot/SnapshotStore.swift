@@ -9,10 +9,24 @@ public struct SnapshotStore: Sendable {
         self.store = store
     }
 
-    public func append(_ snapshot: Snapshot) throws {
+    public func append(
+        _ snapshot: Snapshot,
+        maximumCount: Int = 1_000,
+        minimumIncrementalInterval: TimeInterval = 15 * 60
+    ) throws {
         var all = try snapshots()
-        all.append(snapshot)
+        if snapshot.source == .incremental,
+           let last = all.last,
+           last.source == .incremental,
+           snapshot.volume.timestamp.timeIntervalSince(last.volume.timestamp) < minimumIncrementalInterval {
+            all[all.count - 1] = snapshot
+        } else {
+            all.append(snapshot)
+        }
         all.sort { $0.volume.timestamp < $1.volume.timestamp }
+        if maximumCount > 0, all.count > maximumCount {
+            all = Array(all.suffix(maximumCount))
+        }
         try store.save(all, to: paths.snapshotsURL)
     }
 

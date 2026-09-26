@@ -11,6 +11,7 @@ import Foundation
     #expect(!ids.contains("npm-cache"))
     #expect(!ids.contains("uv-cache"))
     #expect(ids.contains("library-caches"))
+    #expect(ids.contains(TemporaryBuildArtifacts.recipeID))
     #expect(recipes.allSatisfy { !$0.id.isEmpty && !$0.name.isEmpty })
 }
 
@@ -72,9 +73,22 @@ import Foundation
     #expect(recipes["trash"]?.cleanability == .displayOnly)
     #expect(recipes["core-simulator-devices"]?.cleanability == .trashOnly)
     #expect(recipes["deriveddata"]?.disposition == .trash)
-    #expect(recipes["library-caches"]?.protectedChildren == [
+    #expect(recipes["xcode-archives"]?.cleanability == .displayOnly)
+    #expect(recipes["xcode-archives"]?.allowsAutomaticPermanentDeletion == false)
+    #expect(recipes["library-caches"]?.allowsAutomaticPermanentDeletion == false)
+    #expect(recipes[TemporaryBuildArtifacts.recipeID]?.allowsAutomaticPermanentDeletion == false)
+    #expect(recipes[TemporaryBuildArtifacts.recipeID]?.aggregatesPaths == true)
+    #expect(recipes[TemporaryBuildArtifacts.recipeID]?.minimumIdleHours == 24)
+    #expect(recipes[TemporaryBuildArtifacts.recipeID]?.safety == .userConfirm)
+    #expect(recipes[TemporaryBuildArtifacts.recipeID]?.disposition == .trash)
+    #expect(recipes["xctestdevices"]?.allowsAutomaticPermanentDeletion == true)
+    #expect(recipes["xcode-docscache"]?.allowsAutomaticPermanentDeletion == true)
+    #expect(recipes["xcode-preview-cache"]?.allowsAutomaticPermanentDeletion == true)
+    let protected = Set(recipes["library-caches"]?.protectedChildren ?? [])
+    #expect(protected.isSuperset(of: [
         "org.swift.swiftpm", "node-gyp", "Homebrew", "CocoaPods",
-    ])
+        "xingyu.wang.poolproblem", "xingyu.wang.poolproblem.dev", "group.xingyu.wang.poolproblem",
+    ]))
     #expect(recipes["library-caches"]?.cleanByChildOnly == true)
     #expect(recipes["simulator-runtimes"]?.usageProbe == .simulatorRuntimeLastBooted)
     #expect(recipes["simulator-dyld-cache"]?.usageProbe == .simulatorRuntimeLastBooted)
@@ -118,6 +132,20 @@ import Foundation
     #expect(resolved.contains("/Users/tester/Library/Caches/Homebrew"))
     #expect(resolved.contains("/Users/tester/.cache/yarn"))
     #expect(Set(resolved).count == resolved.count)
+}
+
+@Test func userAddedPackageManagerRootsRemainManualOnly() {
+    let recipe = PackageManagerRecipes.makeCustom(
+        extraRoots: ["/Users/tester/.cache/yarn"]
+    )
+    #expect(recipe.safety == .userConfirm)
+    #expect(recipe.disposition == .trash)
+    #expect(recipe.cleanability == .regenerable)
+    #expect(recipe.allowsAutomaticPermanentDeletion == false)
+    #expect(recipe.resolvePaths(StoragePaths(
+        baseURL: nil,
+        homeDirectory: "/Users/tester"
+    )) == ["/Users/tester/.cache/yarn"])
 }
 
 @Test func previewCacheRecipeResolvesToUserData() {

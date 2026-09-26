@@ -18,6 +18,9 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
     public let cleanability: Cleanability
     /// 仅按一级子目录清理（见 Recipe.cleanByChildOnly），整项不允许整体删除。
     public let cleanByChildOnly: Bool
+    /// Explicit recipe provenance proving that this item may be permanently
+    /// deleted without user interaction. Missing legacy data decodes as false.
+    public let allowsAutomaticPermanentDeletion: Bool
 
     public init(
         id: String,
@@ -34,7 +37,8 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         fileCount: Int,
         lastModified: Date?,
         cleanability: Cleanability = .regenerable,
-        cleanByChildOnly: Bool = false
+        cleanByChildOnly: Bool = false,
+        allowsAutomaticPermanentDeletion: Bool = false
     ) {
         self.id = id
         self.recipeID = recipeID
@@ -51,12 +55,13 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         self.lastModified = lastModified
         self.cleanability = cleanability
         self.cleanByChildOnly = cleanByChildOnly
+        self.allowsAutomaticPermanentDeletion = allowsAutomaticPermanentDeletion
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, recipeID, name, path, paths, category, safety, disposition,
              sizeBytes, allocatedBytes, reclaimableBytes, fileCount,
-             lastModified, cleanability, cleanByChildOnly
+             lastModified, cleanability, cleanByChildOnly, allowsAutomaticPermanentDeletion
     }
 
     public init(from decoder: Decoder) throws {
@@ -76,6 +81,10 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         lastModified = try c.decodeIfPresent(Date.self, forKey: .lastModified)
         cleanability = try c.decodeIfPresent(Cleanability.self, forKey: .cleanability) ?? .regenerable
         cleanByChildOnly = try c.decodeIfPresent(Bool.self, forKey: .cleanByChildOnly) ?? false
+        allowsAutomaticPermanentDeletion = try c.decodeIfPresent(
+            Bool.self,
+            forKey: .allowsAutomaticPermanentDeletion
+        ) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -95,5 +104,36 @@ public struct ScanItem: Codable, Equatable, Identifiable, Sendable {
         try c.encodeIfPresent(lastModified, forKey: .lastModified)
         try c.encode(cleanability, forKey: .cleanability)
         try c.encode(cleanByChildOnly, forKey: .cleanByChildOnly)
+        try c.encode(allowsAutomaticPermanentDeletion, forKey: .allowsAutomaticPermanentDeletion)
+    }
+
+    /// Return a copy while preserving every safety field by default.  Scanner
+    /// post-processing must use this instead of reconstructing `ScanItem`, as
+    /// a missing argument silently falls back to a more permissive default.
+    public func replacing(
+        sizeBytes: Int64? = nil,
+        allocatedBytes: Int64? = nil,
+        reclaimableBytes: Int64? = nil,
+        fileCount: Int? = nil,
+        lastModified: Date?? = nil
+    ) -> ScanItem {
+        ScanItem(
+            id: id,
+            recipeID: recipeID,
+            name: name,
+            path: path,
+            paths: paths,
+            category: category,
+            safety: safety,
+            disposition: disposition,
+            sizeBytes: sizeBytes ?? self.sizeBytes,
+            allocatedBytes: allocatedBytes ?? self.allocatedBytes,
+            reclaimableBytes: reclaimableBytes ?? self.reclaimableBytes,
+            fileCount: fileCount ?? self.fileCount,
+            lastModified: lastModified ?? self.lastModified,
+            cleanability: cleanability,
+            cleanByChildOnly: cleanByChildOnly,
+            allowsAutomaticPermanentDeletion: allowsAutomaticPermanentDeletion
+        )
     }
 }

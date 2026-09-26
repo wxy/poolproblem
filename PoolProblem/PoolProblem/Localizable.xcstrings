@@ -1,9 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "" : {
-
-    },
     "0KB" : {
       "localizations" : {
         "en" : {
@@ -469,6 +466,7 @@
       }
     },
     "chart.auto" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -485,6 +483,7 @@
       }
     },
     "chart.manual" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -564,6 +563,22 @@
         }
       }
     },
+    "clean.summary_trash_pending" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved %lld items (about %@) to Trash. Empty Pool Problem's Trash batches to release disk space."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已将 %lld 项（约 %@）移入废纸篓；清空 Pool Problem 的废纸篓批次后才会真正释放磁盘空间。"
+          }
+        }
+      }
+    },
     "common.add" : {
       "localizations" : {
         "en" : {
@@ -624,6 +639,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "关闭"
+          }
+        }
+      }
+    },
+    "consistency.partial" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some disk information could not be verified"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分磁盘信息暂时无法核对"
+          }
+        }
+      }
+    },
+    "consistency.reconciling" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking disk consistency…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在核对磁盘状态…"
           }
         }
       }
@@ -712,6 +759,7 @@
       }
     },
     "countdown.plan_fast_growth" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -744,6 +792,7 @@
       }
     },
     "countdown.plan_inventory_waiting" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -760,6 +809,7 @@
       }
     },
     "countdown.plan_large_reclaimable" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -776,6 +826,7 @@
       }
     },
     "countdown.plan_many_children" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -824,6 +875,7 @@
       }
     },
     "countdown.plan_trash" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -840,6 +892,7 @@
       }
     },
     "countdown.plan_waterline_prediction" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -937,6 +990,22 @@
         }
       }
     },
+    "detail.clean_blocked_process" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is still producing files. Cleanup was postponed to protect active work."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 仍在生成文件。为保护正在进行的工作，本次清理已推迟。"
+          }
+        }
+      }
+    },
     "detail.clean_failed_title" : {
       "localizations" : {
         "en" : {
@@ -953,6 +1022,38 @@
         }
       }
     },
+    "detail.clean_file_in_use" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file system reports that this item is still in use. Close the related tool and try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件系统报告此项目仍在使用中。请退出相关工具后重试。"
+          }
+        }
+      }
+    },
+    "detail.clean_file_system_error" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The file system could not complete cleanup: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件系统未能完成清理：%@"
+          }
+        }
+      }
+    },
     "detail.clean_now" : {
       "localizations" : {
         "en" : {
@@ -965,6 +1066,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "马上清理"
+          }
+        }
+      }
+    },
+    "detail.clean_permission_denied" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pool Problem cannot write to the Trash. Grant Full Disk Access in System Settings, restart the app, and try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pool Problem 无法写入废纸篓。请在系统设置中授予完全磁盘访问权限，重新启动应用后再试。"
+          }
+        }
+      }
+    },
+    "detail.clean_recently_modified" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This output changed after the scan or is still within its 24-hour protection window. Scan again later."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该产物在扫描后发生了变化，或仍处于 24 小时保护期内。请稍后重新扫描。"
           }
         }
       }
@@ -1927,6 +2060,7 @@
       }
     },
     "insights.view" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2797,6 +2931,22 @@
         }
       }
     },
+    "recipe.temporary-build-artifacts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temporary Build and Test Artifacts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "临时构建与测试产物"
+          }
+        }
+      }
+    },
     "recipe.trash" : {
       "localizations" : {
         "en" : {
@@ -3587,6 +3737,22 @@
         }
       }
     },
+    "settings.recipe_clean_stats" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleaned %lld times · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已清理 %lld 次 · %@"
+          }
+        }
+      }
+    },
     "settings.recipes_count" : {
       "localizations" : {
         "en" : {
@@ -3631,22 +3797,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "配方设置在专家模式下可用"
-          }
-        }
-      }
-    },
-    "settings.recipe_clean_stats" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cleaned %lld times · %@"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已清理 %lld 次 · %@"
           }
         }
       }
@@ -3796,6 +3946,118 @@
         }
       }
     },
+    "pressure.critical" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Critical space"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空间紧急"
+          }
+        }
+      }
+    },
+    "pressure.critical_detail" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Below the waterline; only authorized caches are considered."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已低于水线，只考虑明确授权的缓存。"
+          }
+        }
+      }
+    },
+    "pressure.healthy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space is healthy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空间充足"
+          }
+        }
+      }
+    },
+    "pressure.healthy_detail" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitoring capacity only; recursive analysis is paused."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅监测可用容量，递归分析保持暂停。"
+          }
+        }
+      }
+    },
+    "pressure.scanning_detail" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyzing known caches in the background."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在后台分析已知缓存。"
+          }
+        }
+      }
+    },
+    "pressure.warning" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approaching waterline"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接近水线"
+          }
+        }
+      }
+    },
+    "pressure.warning_detail" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Known caches are analyzed on demand; nothing is auto-deleted."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按需分析已知缓存，不执行自动删除。"
+          }
+        }
+      }
+    },
     "stat.available" : {
       "localizations" : {
         "en" : {
@@ -3813,6 +4075,7 @@
       }
     },
     "stat.prediction" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3828,7 +4091,40 @@
         }
       }
     },
+    "stat.recovery_deficit" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recovery gap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复缺口"
+          }
+        }
+      }
+    },
+    "stat.safe_auto_ceiling" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-clean limit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动清理上限"
+          }
+        }
+      }
+    },
     "stat.total" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3845,6 +4141,7 @@
       }
     },
     "stat.used" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3877,6 +4174,7 @@
       }
     },
     "stat.weekly_net_change" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

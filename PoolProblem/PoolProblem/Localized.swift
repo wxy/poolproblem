@@ -21,6 +21,7 @@ enum Localized {
         case "core-simulator-devices": return string("recipe.core-simulator-devices")
         case "package-manager-caches": return string("recipe.package-manager-caches")
         case "library-caches": return string("recipe.library-caches")
+        case "temporary-build-artifacts": return string("recipe.temporary-build-artifacts")
         case "xcode-preview-cache": return string("recipe.xcode-preview-cache")
         case "xcode-devicesupport": return string("recipe.xcode-devicesupport")
         case "simulator-runtimes": return string("recipe.simulator-runtimes")
