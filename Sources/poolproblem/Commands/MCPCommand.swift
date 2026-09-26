@@ -218,7 +218,9 @@ private final class MCPServer {
                 evaluator: evaluator,
                 deleter: FileManagerFileDeleter(),
                 inspector: PGrepProcessInspector(),
-                logStore: CleanLogStore(paths: paths)
+                logStore: CleanLogStore(paths: paths),
+                ownerCommandRunner: EnvOwnerCommandRunner(),
+                ownerCommandByRecipeID: OwnerCommand.mapByRecipeID(RecipeRegistry.builtIn())
             ).run(
                 scan: result,
                 config: config,

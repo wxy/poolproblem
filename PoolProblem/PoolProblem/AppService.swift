@@ -1164,7 +1164,9 @@ final class AppService {
                 ),
                 deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
-                logStore: logStore
+                logStore: logStore,
+                ownerCommandRunner: EnvOwnerCommandRunner(),
+                ownerCommandByRecipeID: OwnerCommand.mapByRecipeID(recipes)
             )
             return try? cleaner.run(
                 scan: scan,

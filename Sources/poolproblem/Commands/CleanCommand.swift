@@ -18,15 +18,18 @@ struct CleanCommand: ParsableCommand {
         let paths = StoragePaths()
         let config = try JSONStore().load(Config.self, from: paths.configURL) ?? .default
         let waterlineBytes = Int64(config.waterlineGB * 1_000_000_000)
+        let recipes = RecipeRegistry.builtIn()
         let scanner = DiskReservoirCore.Scanner(cloneRatios: config.cloneRatios)
-        let result = try scanner.scan(recipes: RecipeRegistry.builtIn(), homeDirectory: paths.homeDirectory)
+        let result = try scanner.scan(recipes: recipes, homeDirectory: paths.homeDirectory)
         let evaluator = RuleEvaluator(config: config)
         let logStore = CleanLogStore(paths: paths)
         let cleaner = Cleaner(
             evaluator: evaluator,
             deleter: FileManagerFileDeleter(),
             inspector: PGrepProcessInspector(),
-            logStore: logStore
+            logStore: logStore,
+            ownerCommandRunner: EnvOwnerCommandRunner(),
+            ownerCommandByRecipeID: OwnerCommand.mapByRecipeID(recipes)
         )
         let outcome: CleanOutcome
         if dryRun {

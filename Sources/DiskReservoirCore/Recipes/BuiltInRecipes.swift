@@ -247,6 +247,8 @@ enum BuiltInRecipes {
         ),
         // Gradle 缓存：daemon 常驻风险 → userConfirm + 回收站（见 PackageManagerRecipes 注释）
         PackageManagerRecipes.makeGradle(),
+        // Go 模块缓存：owner 命令 `go clean -modcache` 优先（M-B3 ownerCommand）
+        PackageManagerRecipes.makeGoModule(),
         Recipe(
             id: "own-trash-batches",
             name: "本应用回收站批次",

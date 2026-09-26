@@ -52,6 +52,29 @@ public enum PackageManagerRecipes {
         )
     }
 
+    /// Go 模块缓存：文件只读、owner 文档化重置（`go clean -modcache`）。
+    /// owner 命令失败（go 不可用）时降级为逐路径删除——只读目录使 unlink
+    /// 自然失败，等于天然失败安全；两种路径都不会破坏 envs 的硬链接。
+    public static let goModuleCacheID = "go-module-caches"
+
+    public static func makeGoModule() -> Recipe {
+        Recipe(
+            id: goModuleCacheID,
+            name: "Go 模块缓存",
+            category: .packageManager,
+            group: .packageManager,
+            safety: .safeWhileRunning,
+            disposition: .deletePermanently,
+            cleanability: .regenerable,
+            defaultAgeDays: 30,
+            minimumSizeMB: 100,
+            processName: nil,
+            allowsAutomaticPermanentDeletion: true,
+            ownerCommand: OwnerCommand(executable: "go", arguments: ["clean", "-modcache"]),
+            resolvePaths: { paths in [paths.homeDirectory + "/go/pkg/mod"] }
+        )
+    }
+
     public static func make(
         extraRoots: [String],
         homeDirectory: String

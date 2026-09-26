@@ -28,6 +28,9 @@ public struct Recipe: Sendable {
     /// deliberately independent from `regenerable`: rebuildable artifacts may
     /// still be expensive or historically valuable and therefore manual-only.
     public let allowsAutomaticPermanentDeletion: Bool
+    /// 工具自清理命令：声明后清理引擎优先执行它，工具不可用或失败才降级
+    /// 为按处置删除路径（见 Cleaner 的三条降级语义）。
+    public let ownerCommand: OwnerCommand?
     public let resolvePaths: @Sendable (StoragePaths) -> [String]
 
     public init(
@@ -48,6 +51,7 @@ public struct Recipe: Sendable {
         minimumIdleHours: Double = 24,
         cleanByChildOnly: Bool = false,
         allowsAutomaticPermanentDeletion: Bool = false,
+        ownerCommand: OwnerCommand? = nil,
         resolvePaths: @escaping @Sendable (StoragePaths) -> [String]
     ) {
         self.id = id
@@ -67,6 +71,7 @@ public struct Recipe: Sendable {
         self.minimumIdleHours = minimumIdleHours
         self.cleanByChildOnly = cleanByChildOnly
         self.allowsAutomaticPermanentDeletion = allowsAutomaticPermanentDeletion
+        self.ownerCommand = ownerCommand
         self.resolvePaths = resolvePaths
     }
 }
