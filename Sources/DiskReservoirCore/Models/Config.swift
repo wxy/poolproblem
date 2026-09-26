@@ -10,6 +10,8 @@ public struct Config: Codable, Equatable, Sendable {
     public var devRoots: [String]
     /// 用户确认的额外包管理器缓存目录（增长洞察中确认加入“包管理器缓存”配方族）。
     public var packageManagerCacheRoots: [String]
+    /// 用户确认的监视目录（增长洞察中确认纳入监视清单；watchOnly，永不清理）。
+    public var watchRoots: [String]
     /// 用户忽略的开发目录（避免重复提示）。
     public var declinedDevRoots: [String]
     /// 渐进清理全局保护名单：这些一级子目录即使又大又旧也永远不会被自动删除。
@@ -32,6 +34,7 @@ public struct Config: Codable, Equatable, Sendable {
         keptItemIDs: [],
         devRoots: [],
         packageManagerCacheRoots: [],
+        watchRoots: [],
         declinedDevRoots: [],
         protectedCacheChildren: Config.defaultProtectedCacheChildren,
         minimumCleanItemMB: 500,
@@ -46,6 +49,7 @@ public struct Config: Codable, Equatable, Sendable {
         keptItemIDs: Set<String> = [],
         devRoots: [String] = [],
         packageManagerCacheRoots: [String] = [],
+        watchRoots: [String] = [],
         declinedDevRoots: [String] = [],
         protectedCacheChildren: [String] = Config.defaultProtectedCacheChildren,
         minimumCleanItemMB: Double = 500,
@@ -58,6 +62,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.keptItemIDs = keptItemIDs
         self.devRoots = devRoots
         self.packageManagerCacheRoots = packageManagerCacheRoots
+        self.watchRoots = watchRoots
         self.declinedDevRoots = declinedDevRoots
         self.protectedCacheChildren = protectedCacheChildren
         self.minimumCleanItemMB = minimumCleanItemMB
@@ -66,7 +71,7 @@ public struct Config: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case waterlineGB, rules, whitelistPaths, cloneRatios,
-             keptItemIDs, devRoots, packageManagerCacheRoots, declinedDevRoots, protectedCacheChildren,
+             keptItemIDs, devRoots, packageManagerCacheRoots, watchRoots, declinedDevRoots, protectedCacheChildren,
              minimumCleanItemMB, autoEmptyOwnTrashBatches
     }
 
@@ -79,6 +84,7 @@ public struct Config: Codable, Equatable, Sendable {
         keptItemIDs = try c.decodeIfPresent(Set<String>.self, forKey: .keptItemIDs) ?? []
         devRoots = try c.decodeIfPresent([String].self, forKey: .devRoots) ?? []
         packageManagerCacheRoots = try c.decodeIfPresent([String].self, forKey: .packageManagerCacheRoots) ?? []
+        watchRoots = try c.decodeIfPresent([String].self, forKey: .watchRoots) ?? []
         declinedDevRoots = try c.decodeIfPresent([String].self, forKey: .declinedDevRoots) ?? []
         protectedCacheChildren = try c.decodeIfPresent([String].self, forKey: .protectedCacheChildren)
             ?? Config.defaultProtectedCacheChildren
@@ -95,6 +101,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(keptItemIDs, forKey: .keptItemIDs)
         try c.encode(devRoots, forKey: .devRoots)
         try c.encode(packageManagerCacheRoots, forKey: .packageManagerCacheRoots)
+        try c.encode(watchRoots, forKey: .watchRoots)
         try c.encode(declinedDevRoots, forKey: .declinedDevRoots)
         try c.encode(protectedCacheChildren, forKey: .protectedCacheChildren)
         try c.encode(minimumCleanItemMB, forKey: .minimumCleanItemMB)

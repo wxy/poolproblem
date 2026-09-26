@@ -17,6 +17,9 @@ public struct RecipeSuggester: Sendable {
     /// 包管理器缓存配方族（全局可再生缓存，可安全永久删除）。
     public static let packageManagerFamilyID = PackageManagerRecipes.familyID
     public static let packageManagerFamilyName = "Package manager caches"
+    /// 监视配方族（增长洞察建议「纳入监视」；采纳后 watchOnly，永不清理）。
+    public static let watchFamilyID = "watch-assets"
+    public static let watchFamilyName = "Watched assets (growth only)"
 
     public let minTotalBytes: Int64
     public let topK: Int
@@ -45,6 +48,7 @@ public struct RecipeSuggester: Sendable {
         // 未覆盖增长按“所属项目根”聚合：一条增长可能来自项目目录本身或其子目录。
         var byRoot: [String: [GrowthEntry]] = [:]
         var cacheCandidates: [CandidateRecipe] = []
+        var watchCandidates: [CandidateRecipe] = []
         for entry in entries where entry.kind == .surface && entry.deltaBytes > 0 {
             guard !isCovered(entry.pattern) else { continue }
             if let root = projectRoot(for: entry.path, homeDirectory: homeDirectory) {
@@ -54,6 +58,8 @@ public struct RecipeSuggester: Sendable {
                 homeDirectory: homeDirectory
             ) {
                 cacheCandidates.append(cache)
+            } else if let watch = watchCandidate(for: entry, homeDirectory: homeDirectory) {
+                watchCandidates.append(watch)
             }
         }
         let candidates: [CandidateRecipe] = byRoot.compactMap { root, group in
@@ -80,14 +86,48 @@ public struct RecipeSuggester: Sendable {
                 samplePath: root
             )
         }
-        return (candidates + cacheCandidates)
+        return (candidates + cacheCandidates + watchCandidates)
             .sorted { $0.totalGrowthBytes > $1.totalGrowthBytes }
             .prefix(topK)
             .map { $0 }
     }
 
-    /// 未覆盖增长中形如 `~/.cache/<工具>` 的缓存目录 → 归入“包管理器缓存”
-    /// 配方族（采纳后按“可自动清理 / 永久删除”规则管理）。
+    /// 未覆盖增长命中识别表 asset 层且达到增长门槛 → 「纳入监视」候选。
+    /// 采纳后进 watchOnly 自定义配方：只监视增长，永不清理。
+    private func watchCandidate(
+        for entry: GrowthEntry,
+        homeDirectory: String
+    ) -> CandidateRecipe? {
+        guard let catalogEntry = AttributionCatalog.attribution(forPath: entry.path),
+              catalogEntry.layer == .asset
+        else { return nil }
+        guard GrowthEvidence.passes(
+            deltaBytes: entry.deltaBytes,
+            elapsedDays: entry.elapsedDays
+        ) else { return nil }
+        let pattern = PathPatternizer.patternize(entry.path, homeDirectory: homeDirectory)
+        return CandidateRecipe(
+            id: pattern,
+            pattern: pattern,
+            totalGrowthBytes: entry.deltaBytes,
+            peakRateBytesPerDay: entry.rateBytesPerDay,
+            evidenceCount: 1,
+            firstSeenAt: entry.observedAt,
+            lastSeenAt: entry.observedAt,
+            recipeID: Self.watchFamilyID,
+            recipeName: Self.watchFamilyName,
+            suggestedSafety: .userConfirm,
+            suggestedCleanability: .watchOnly,
+            suggestedCategory: .asset,
+            suggestedDisposition: .none,
+            source: .growth,
+            samplePath: entry.path
+        )
+    }
+
+    /// 未覆盖增长中形如 `~/.cache/<工具>` 或命中识别表 cleanCandidate 层的
+    /// 缓存目录 → 归入“包管理器缓存”配方族（采纳后按“可自动清理 / 永久删除”
+    /// 规则管理）。增长证据门槛（§0.1）：缓慢/小幅增长只做归因展示，不产生建议。
     private func packageManagerCandidate(
         for entry: GrowthEntry,
         homeDirectory: String
@@ -97,7 +137,13 @@ public struct RecipeSuggester: Sendable {
         // 只识别家目录下的 ~/.cache/<工具>：这类是全局工具/包管理器缓存；
         // 项目内或更深层的 .cache 不归入该配方族。
         let cacheish = path.hasPrefix(home + ".cache/")
-        guard cacheish else { return nil }
+        let catalogSaysClean = AttributionCatalog.attribution(forPath: path)?
+            .layer == .cleanCandidate
+        guard cacheish || catalogSaysClean else { return nil }
+        guard GrowthEvidence.passes(
+            deltaBytes: entry.deltaBytes,
+            elapsedDays: entry.elapsedDays
+        ) else { return nil }
         let pattern = PathPatternizer.patternize(path, homeDirectory: homeDirectory)
         return CandidateRecipe(
             id: pattern,

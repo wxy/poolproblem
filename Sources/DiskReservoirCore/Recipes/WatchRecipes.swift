@@ -100,4 +100,25 @@ public enum WatchRecipes {
             ]
         }
     )
+
+    /// 用户添加的监视目录（增长建议采纳后纳入）：与内置监视配方同级语义，
+    /// watchOnly 硬排除确保用户添加路径绝不因「采纳建议」而升级为可清理。
+    public static let customWatchID = "watch-assets-custom"
+
+    public static func makeCustom(extraRoots: [String]) -> Recipe {
+        Recipe(
+            id: customWatchID,
+            name: "用户添加的监视目录",
+            category: .asset,
+            group: .assets,
+            safety: .userConfirm,
+            disposition: .none,
+            cleanability: .watchOnly,
+            defaultAgeDays: 30,
+            minimumSizeMB: 200,
+            processName: nil,
+            aggregatesPaths: true,
+            resolvePaths: { _ in Array(Set(extraRoots)).sorted() }
+        )
+    }
 }

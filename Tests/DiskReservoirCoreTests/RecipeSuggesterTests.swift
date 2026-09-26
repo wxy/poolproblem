@@ -285,7 +285,7 @@ private func makeProject(_ base: URL, _ name: String) throws -> URL {
     let yarnCache = home.appendingPathComponent(".cache/yarn", isDirectory: true)
 
     let entries = [
-        entry("~/.cache/yarn", 700 << 20, yarnCache.path),
+        entry("~/.cache/yarn", 3 << 30, yarnCache.path),
     ]
     let candidates = RecipeSuggester(minTotalBytes: 100 << 20)
         .suggest(entries: entries, existingRecipes: [], homeDirectory: home.path)
@@ -295,6 +295,61 @@ private func makeProject(_ base: URL, _ name: String) throws -> URL {
     #expect(candidates[0].suggestedSafety == .safeWhileRunning)
     #expect(candidates[0].suggestedDisposition == .deletePermanently)
     #expect(candidates[0].samplePath == yarnCache.path)
+}
+
+@Test func suggesterGateFiltersBelowEvidenceThreshold() throws {
+    // 增长证据门槛：~/.cache 下 700MB 的增长只做归因展示，不产生建议。
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-gate-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    let yarnCache = home.appendingPathComponent(".cache/yarn", isDirectory: true)
+
+    let entries = [
+        entry("~/.cache/yarn", 700 << 20, yarnCache.path),
+    ]
+    let candidates = RecipeSuggester(minTotalBytes: 100 << 20)
+        .suggest(entries: entries, existingRecipes: [], homeDirectory: home.path)
+    #expect(candidates.isEmpty)
+}
+
+@Test func suggesterProposesWatchForAssetLayerGrowth() throws {
+    // 识别表 asset 层 + 跳变型增长 → 「纳入监视」候选（watchOnly，永不清理）。
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-watch-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    let backup = home.appendingPathComponent("Library/Application Support/MobileSync/Backup", isDirectory: true)
+    try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+
+    let entries = [
+        entry("~/Library/Application Support/MobileSync/Backup", 5 << 30, backup.path),
+    ]
+    let candidates = RecipeSuggester(minTotalBytes: 100 << 20)
+        .suggest(entries: entries, existingRecipes: [], homeDirectory: home.path)
+    #expect(candidates.count == 1)
+    #expect(candidates[0].recipeID == RecipeSuggester.watchFamilyID)
+    #expect(candidates[0].suggestedCleanability == .watchOnly)
+    #expect(candidates[0].suggestedCategory == .asset)
+    #expect(candidates[0].suggestedDisposition == .none)
+}
+
+@Test func suggesterInfoLayerNeverProposesCandidates() throws {
+    // 识别表 info 层（已知不关注）：任何增长幅度都不产生建议。
+    let base = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-sug-info-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let home = base.appendingPathComponent("home", isDirectory: true)
+    let wechat = home.appendingPathComponent("Library/Application Support/com.tencent.xinWeChat", isDirectory: true)
+    try FileManager.default.createDirectory(at: wechat, withIntermediateDirectories: true)
+
+    let entries = [
+        entry("~/Library/Application Support/com.tencent.xinWeChat", 5 << 30, wechat.path),
+    ]
+    let candidates = RecipeSuggester(minTotalBytes: 100 << 20)
+        .suggest(entries: entries, existingRecipes: [], homeDirectory: home.path)
+    #expect(candidates.isEmpty)
 }
 
 @Test func normalizeKeepsPackageManagerCandidatesAsSingles() throws {

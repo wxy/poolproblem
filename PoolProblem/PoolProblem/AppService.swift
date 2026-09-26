@@ -1467,6 +1467,9 @@ final class AppService {
             + (config.packageManagerCacheRoots.isEmpty
                 ? []
                 : [PackageManagerRecipes.makeCustom(extraRoots: config.packageManagerCacheRoots)])
+            + (config.watchRoots.isEmpty
+                ? []
+                : [WatchRecipes.makeCustom(extraRoots: config.watchRoots)])
             + ProjectRecipes.make(devRoots: config.devRoots, homeDirectory: NSHomeDirectory())
     }
 
@@ -1531,6 +1534,7 @@ final class AppService {
     private func dedupeCandidatesAgainstDevRoots(_ candidates: [CandidateRecipe]) -> [CandidateRecipe] {
         let config = loadConfig()
         let known = config.devRoots + config.declinedDevRoots + config.packageManagerCacheRoots
+            + config.watchRoots
         return candidates.filter { candidate in
             // 候选位于某个已确认/忽略的根之内（或其自身）→ 不再建议；
             // 已知根只是候选的子目录时仍保留候选（父目录建议可覆盖其余部分）。
@@ -1553,6 +1557,11 @@ final class AppService {
             // 包管理器缓存配方族：加入缓存根，按“可自动清理 / 永久删除”规则管理
             if !config.packageManagerCacheRoots.contains(candidate.samplePath) {
                 config.packageManagerCacheRoots.append(candidate.samplePath)
+            }
+        case RecipeSuggester.watchFamilyID:
+            // 监视配方族：加入监视根，watchOnly——只观察增长，永不清理。
+            if !config.watchRoots.contains(candidate.samplePath) {
+                config.watchRoots.append(candidate.samplePath)
             }
         default:
             return
