@@ -67,10 +67,29 @@ struct GrowthInsightsView: View {
 
     private var growthLogSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(Localized.string("insights.entries"))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text(Localized.string("insights.entries"))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(state.isGrowthDiscovering
+                    ? Localized.string("insights.drilling")
+                    : Localized.string("insights.drill")
+                ) {
+                    Task { await service.discoverGrowthSources() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(state.isGrowthDiscovering)
+                .cursorPointingHand()
+                .help(Localized.string("insights.discovery_scope"))
+            }
+            if let message = state.growthDiscoveryMessage {
+                Text(message)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             if state.growthInsights.isEmpty {
                 Text(Localized.string("insights.empty"))
                     .font(.caption)
@@ -95,7 +114,7 @@ struct GrowthInsightsView: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 if entry.kind == .surface {
-                    Text(Localized.string("insights.new_badge"))
+                    Text(Localized.string("insights.surface_badge"))
                         .font(.caption2)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 4)

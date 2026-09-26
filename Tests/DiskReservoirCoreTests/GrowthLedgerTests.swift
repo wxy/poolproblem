@@ -63,11 +63,19 @@ private func item(_ id: String, recipe: String, size: Int64) -> ScanItem {
     let prevDirs = [SurfaceDirectory(path: "/tmp/cache/A", sizeBytes: 100, fileCount: 1, lastModified: nil)]
     let latestDirs = [SurfaceDirectory(path: "/tmp/cache/A", sizeBytes: 500, fileCount: 1, lastModified: nil)]
     let entries = GrowthLedgerBuilder(surfaceMinimumDeltaBytes: 200)
-        .surfaceEntries(previous: prevDirs, latest: latestDirs, homeDirectory: "/tmp")
+        .surfaceEntries(
+            previous: prevDirs,
+            latest: latestDirs,
+            previousScannedAt: Date(timeIntervalSince1970: 1_000_000),
+            observedAt: Date(timeIntervalSince1970: 1_000_000 + 2 * 86_400),
+            homeDirectory: "/tmp"
+        )
     #expect(entries.count == 1)
     #expect(entries[0].kind == .surface)
     #expect(entries[0].pattern == "~/cache/A")
     #expect(entries[0].deltaBytes == 400)
+    #expect(entries[0].elapsedDays == 2)
+    #expect(entries[0].rateBytesPerDay == 200)
 }
 
 @Test func ledgerStoreAppendsPrunesAndKeepsSurface() throws {

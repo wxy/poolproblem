@@ -1343,6 +1343,37 @@ final class AppService {
         state.growthInsights = growthInsights(from: allEntries)
     }
 
+    /// Deliberate secondary action: compare the existing surface-scan roots
+    /// without changing recipes, cleanup permissions, or the automatic loop.
+    func discoverGrowthSources() async {
+        guard !state.isGrowthDiscovering else { return }
+        state.isGrowthDiscovering = true
+        state.growthDiscoveryMessage = nil
+        defer { state.isGrowthDiscovering = false }
+
+        let store = growthLedgerStore
+        let home = paths.homeDirectory
+        let result = await Task.detached(priority: .utility) {
+            try? SurfaceGrowthDiscovery(
+                store: store,
+                roots: SurfaceScanner.defaultRoots(homeDirectory: home),
+                homeDirectory: home
+            ).run()
+        }.value
+        guard let result else {
+            state.growthDiscoveryMessage = Localized.string("insights.discovery_failed")
+            return
+        }
+        state.growthInsights = growthInsights(from: (try? growthLedgerStore.entries()) ?? [])
+        if result.establishedBaseline {
+            state.growthDiscoveryMessage = Localized.string("insights.discovery_baseline")
+        } else if result.entries.isEmpty {
+            state.growthDiscoveryMessage = Localized.string("insights.discovery_no_growth")
+        } else {
+            state.growthDiscoveryMessage = Localized.string("insights.discovery_complete")
+        }
+    }
+
     /// 启动时从磁盘恢复增长洞察与候选配方状态。
     private func refreshGrowthState() {
         let allEntries = (try? growthLedgerStore.entries()) ?? []
@@ -1383,7 +1414,10 @@ final class AppService {
             }
             #endif
         }
-        let allEntries = (try? growthLedgerStore.entries()) ?? []
+        // A surface measurement is evidence for the read-only report, not
+        // evidence that an unfamiliar path is safe to add to a cleanup recipe.
+        let allEntries = ((try? growthLedgerStore.entries()) ?? [])
+            .filter { $0.kind != .surface }
         raw += RecipeSuggester().suggest(
             entries: allEntries,
             existingRecipes: activeRecipes(),
@@ -1492,8 +1526,14 @@ final class AppService {
     /// 增长洞察展示：过滤配方覆盖项后，把多条"未覆盖空间"聚合成
     /// 只保留可归因的目录级增长（最新 30 条，新→旧）。
     private func growthInsights(from allEntries: [GrowthEntry]) -> [GrowthEntry] {
-        Array(
-            GrowthInsightMerger.merge(uncoveredInsights(allEntries))
+        let known = GrowthInsightMerger.merge(
+            uncoveredInsights(allEntries.filter { $0.kind != .surface })
+        )
+        let latestSurface = uncoveredInsights(
+            (try? growthLedgerStore.surfaceSnapshot())?.latestEntries ?? []
+        )
+        return Array(
+            (known + latestSurface)
                 .sorted { $0.observedAt > $1.observedAt }
                 .prefix(30)
         )

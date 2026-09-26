@@ -1759,19 +1759,98 @@
         }
       }
     },
-    "insights.drill" : {
-      "extractionState" : "stale",
+    "insights.discovery_baseline" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Locate which directories grew"
+            "value" : "Directory baseline saved. Scan again later to compare growth."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "定位是哪些目录在增长"
+            "value" : "已保存目录基线；稍后再次扫描即可比较增长。"
+          }
+        }
+      }
+    },
+    "insights.discovery_complete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan complete. The list shows only growth outside existing recipes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描完成；下方仅显示未被现有配方覆盖的增长来源。"
+          }
+        }
+      }
+    },
+    "insights.discovery_failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not complete the scan. Check disk access and try again; the previous baseline was kept."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法完成扫描。请检查磁盘访问权限后重试；原有基线未被替换。"
+          }
+        }
+      }
+    },
+    "insights.discovery_no_growth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No scanned directory grew by at least 200 MiB in this interval."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次观测间隔内，没有已扫描目录增长达到 200 MiB。"
+          }
+        }
+      }
+    },
+    "insights.discovery_scope" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On demand, scan first-level folders under Caches, Logs, Developer, Application Support, Containers, develop, Downloads and .cache in your home folder. Files directly under these roots are excluded. This may take minutes and will not suggest cleanup."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按需扫描主目录下 Caches、Logs、Developer、Application Support、Containers、develop、Downloads 和 .cache 的一级子目录；不包括这些根目录中的文件。可能耗时数分钟，不会生成清理建议。"
+          }
+        }
+      }
+    },
+    "insights.drill" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan growth sources"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描增长来源"
           }
         }
       }
@@ -1862,7 +1941,6 @@
       }
     },
     "insights.drilling" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2005,6 +2083,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以此处为新基线，不再报告此前累积的增长；以后只报告新增长。"
+          }
+        }
+      }
+    },
+    "insights.surface_badge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描"
           }
         }
       }
