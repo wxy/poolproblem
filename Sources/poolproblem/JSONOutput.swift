@@ -73,7 +73,8 @@ enum JSONOutput {
     static func status(
         snapshots: [Snapshot],
         log: [CleanLogEntry],
-        prediction: Double?
+        prediction: Double?,
+        localSnapshots: [String]? = nil
     ) throws -> Data {
         let payload: [String: Any] = [
             "version": PoolProblemCore.schemaVersion,
@@ -86,6 +87,11 @@ enum JSONOutput {
                 ]
             } ?? [String: Any](),
             "predictionDaysUntilFull": prediction as Any,
+            // TM 本地快照（只读探测）：null = 未知（探测失败）；[] = 无快照。
+            // 快照驻留期间删除文件不会立即释放空间，是「删后不回升」的解释项。
+            "localSnapshots": localSnapshots.map { names -> Any in
+                ["count": names.count, "names": names]
+            } ?? NSNull(),
             "recentCleans": log.suffix(10).map { entry in
                 [
                     "id": entry.id.uuidString,

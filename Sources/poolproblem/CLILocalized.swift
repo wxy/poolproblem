@@ -68,6 +68,10 @@ enum CLILocalized {
             en: "At the current rate, the waterline will be reached in about %d days.",
             zh: "按当前流速，约 %d 天后到水线。"
         ),
+        "status.snapshots": Entry(
+            en: "Time Machine local snapshots: %ld (freed files may not release space while snapshots persist)",
+            zh: "Time Machine 本地快照：%ld 份（快照驻留期间，已删文件的空间不会立即释放）"
+        ),
         "status.clean_log": Entry(en: "Clean %@: %lld bytes (%@)", zh: "清理 %@：%lld 字节 (%@)"),
 
         "mcp.abstract": Entry(

@@ -20,8 +20,15 @@ struct StatusCommand: ParsableCommand {
             snapshots: snapshots,
             waterlineBytes: Int64(config.waterlineGB * 1_000_000_000)
         )
+        // TM 本地快照只读探测：解释「删后不回升」。未知（nil）时两处输出都不展示。
+        let localSnapshots = TMUtilSnapshotsProbe().listLocalSnapshots(volumePath: "/")
         if json {
-            let data = try JSONOutput.status(snapshots: snapshots, log: log, prediction: prediction)
+            let data = try JSONOutput.status(
+                snapshots: snapshots,
+                log: log,
+                prediction: prediction,
+                localSnapshots: localSnapshots
+            )
             FileHandle.standardOutput.write(data)
             FileHandle.standardOutput.write(Data("\n".utf8))
         } else {
@@ -32,6 +39,9 @@ struct StatusCommand: ParsableCommand {
             }
             if let prediction {
                 print(CLILocalized.string("status.prediction", Int(prediction.rounded())))
+            }
+            if let localSnapshots, !localSnapshots.isEmpty {
+                print(CLILocalized.string("status.snapshots", localSnapshots.count))
             }
             for entry in log.suffix(10) {
                 print(CLILocalized.string("status.clean_log", entry.timestamp.description, entry.freedBytes, entry.disposition.rawValue))
