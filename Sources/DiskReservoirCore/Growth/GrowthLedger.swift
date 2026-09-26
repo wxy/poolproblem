@@ -62,7 +62,9 @@ public struct GrowthLedgerBuilder: Sendable {
             result.append(GrowthEntry(
                 observedAt: Date(),
                 elapsedDays: 1,
-                name: URL(fileURLWithPath: dir.path).lastPathComponent,
+                // 归因命名：命中识别表用可读名，否则回落路径末段。
+                name: AttributionCatalog.displayName(forPath: dir.path)
+                    ?? URL(fileURLWithPath: dir.path).lastPathComponent,
                 path: dir.path,
                 pattern: PathPatternizer.patternize(dir.path, homeDirectory: homeDirectory),
                 kind: .surface,
