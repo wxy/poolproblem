@@ -65,6 +65,7 @@ final class AppService {
     private let paths: StoragePaths
     private let snapshotStore: SnapshotStore
     private let logStore: CleanLogStore
+    private let ownerCommandRecordStore: OwnerCommandRecordStore
     private let growthLedgerStore: GrowthLedgerStore
     private let recipeSuggestionStore: RecipeSuggestionStore
     private let cleanupCoordinator: CleanupCoordinator
@@ -97,6 +98,7 @@ final class AppService {
         self.paths = paths
         self.snapshotStore = SnapshotStore(paths: paths)
         self.logStore = CleanLogStore(paths: paths)
+        self.ownerCommandRecordStore = OwnerCommandRecordStore(paths: paths)
         self.growthLedgerStore = GrowthLedgerStore(paths: paths)
         self.recipeSuggestionStore = RecipeSuggestionStore(paths: paths)
         self.automationEnabled = automationEnabled
@@ -218,6 +220,7 @@ final class AppService {
         }
         guard let (volume, items, snapshots) = await work.value else { return }
         state.availableBytes = volume.availableBytes
+        state.lastOwnerCommandRecord = try? ownerCommandRecordStore.entries().last
         state.totalBytes = volume.totalBytes
         state.items = items
         state.lastScanAt = snapshots.last?.volume.timestamp
@@ -664,6 +667,7 @@ final class AppService {
         state.cleanedItemIDs = []
         state.deletingItemID = item.id
         let logStore = self.logStore
+        let scanHome = paths.homeDirectory
         let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
         let work = Task.detached(priority: .userInitiated) { () -> ManualCleanExecution in
             let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
@@ -671,6 +675,10 @@ final class AppService {
             var entries: [CleanLogEntry] = []
             var firstFailure: ManualCleanFailure?
             for target in targetPaths {
+                guard !PackageManagerRecipes.isLegacyPnpmPath(target, homeDirectory: scanHome) else {
+                    firstFailure = firstFailure ?? .unavailable
+                    continue
+                }
                 if item.recipeID == TemporaryBuildArtifacts.recipeID,
                    !TemporaryBuildArtifacts.isEligibleForCleanup(path: target) {
                     firstFailure = firstFailure ?? .recentlyModified
@@ -1482,6 +1490,51 @@ final class AppService {
             && recipe.cleanability.allowsManualCleanup
             && !item.cleanByChildOnly
             && !recipe.cleanByChildOnly
+    }
+
+    func probePnpmStore() async -> Result<OwnerCommandTarget, OwnerCommandFailure> {
+        await Task.detached(priority: .userInitiated) {
+            OwnerCommandRunner(recipe: .pnpmStorePrune).probe()
+        }.value
+    }
+
+    func prunePnpmStore(
+        confirmed target: OwnerCommandTarget,
+        onJournalResult: @escaping @MainActor (OwnerCommandJournalResult) -> Void
+    ) async -> OwnerCommandJournalResult {
+        await cleanupCoordinator.run { [self] in
+            let recordStore = self.ownerCommandRecordStore
+            let result = await Task.detached(priority: .userInitiated) {
+                OwnerCommandJournal(store: recordStore).execute(
+                    recipeID: OwnerCommandRecipe.pnpmStorePrune.id, targetPath: target.path
+                ) {
+                    OwnerCommandRunner(recipe: .pnpmStorePrune).perform(confirmed: target)
+                }
+            }.value
+            let execution: Result<OwnerCommandOutcome, OwnerCommandFailure>
+            switch result {
+            case .startNotSaved:
+                onJournalResult(result)
+                return result
+            case .completed(let commandResult, let record):
+                self.state.lastOwnerCommandRecord = record
+                execution = commandResult
+            case .completionNotSaved(let commandResult, let attempt):
+                self.state.lastOwnerCommandRecord = attempt
+                execution = commandResult
+            }
+            // Report persistence failure before capacity refresh or a potentially long scan.
+            onJournalResult(result)
+            if case .success = execution {
+                self.scanRevision &+= 1
+                await self.refreshVolumeCapacity()
+                await self.scanNow(autoClean: false, clearCleanSummary: false)
+                self.refreshCleanLogEntries()
+            } else {
+                await self.refreshVolumeCapacity()
+            }
+            return result
+        }
     }
 
     /// 当前生效的配方：系统内置 + 用户确认的项目目录配方。

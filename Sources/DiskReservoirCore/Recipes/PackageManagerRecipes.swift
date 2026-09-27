@@ -1,6 +1,7 @@
 import Foundation
 
-/// 包管理器缓存配方族：npm / pnpm / uv / CocoaPods / Homebrew 等
+/// 包管理器缓存配方族：npm / uv / CocoaPods / Homebrew 等。
+/// pnpm store 由独立的手动官方命令配方管理，绝不按路径删除。
 /// “可再生的全局缓存”归为一个配方，多路径聚合为一个清理条目。
 /// 与项目内 node_modules（进回收站、需用户确认、活跃窗口保护）性质不同：
 /// 全局包管理器缓存可安全永久删除。
@@ -8,10 +9,19 @@ import Foundation
 public enum PackageManagerRecipes {
     public static let familyID = "package-manager-caches"
 
+    /// Reject old snapshot targets too; removing the path from current scan
+    /// recipes alone does not invalidate persisted aggregate scan items.
+    public static func isLegacyPnpmPath(_ path: String, homeDirectory: String) -> Bool {
+        let root = URL(fileURLWithPath: homeDirectory + "/Library/pnpm")
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        let candidate = URL(fileURLWithPath: path)
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        return candidate == root || candidate.hasPrefix(root + "/")
+    }
+
     public static func defaultPaths(homeDirectory: String) -> [String] {
         [
             homeDirectory + "/.npm",
-            homeDirectory + "/Library/pnpm",
             homeDirectory + "/.cache/uv",
             homeDirectory + "/Library/Caches/CocoaPods",
             homeDirectory + "/Library/Caches/Homebrew",

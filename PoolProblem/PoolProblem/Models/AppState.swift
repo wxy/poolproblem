@@ -47,6 +47,7 @@ final class AppState: ObservableObject {
     /// 正在删除的条目剩余比例：1 → 0，用于列表里大小逐渐缩小到消失的动画。
     @Published var deletingProgress: Double = 1
     @Published var lastCleanSummary: String?
+    @Published var lastOwnerCommandRecord: OwnerCommandRecord?
     @Published var detailItem: ScanItem?
     @Published var keptItemIDs: Set<String> = []
     @Published var availableHistory: [Int64] = []

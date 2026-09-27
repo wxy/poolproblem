@@ -1,0 +1,8 @@
+pnpm executable: /Users/xingyuwang/.nvm/versions/node/v26.7.0/bin/pnpm
+isolated store: /var/folders/1z/j4_f6yy56bs74cwpnfm_wnhc0000gn/T/poolproblem-real-pnpm.JIR9UC/pnpm/store/v11
+store size before prune: 0 KiB
+Removed all cached metadata files
+Removed 0 files (0 B)
+Removed 0 packages
+store size after prune: 8 KiB
+PASS real pnpm prune completed on the isolated temporary store

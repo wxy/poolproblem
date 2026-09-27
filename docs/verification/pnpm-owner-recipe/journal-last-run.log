@@ -1,0 +1,10 @@
+PASS failed attempt journal blocks command
+PASS failed journal leaves package untouched
+PASS completion write failure reports known command success separately
+PASS command can succeed despite history failure
+PASS persisted attempt remains explicitly incomplete
+PASS failed command plus completion write failure remains distinguishable
+PASS failed command leaves incomplete durable attempt
+PASS command completion recorded
+PASS completion durable before caller's refresh boundary
+EVIDENCE simulated refresh begins after both records persisted

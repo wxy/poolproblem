@@ -167,6 +167,9 @@ public struct Cleaner: Sendable {
             let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
             var itemFreed: Int64 = 0
             for target in targetPaths {
+                guard !PackageManagerRecipes.isLegacyPnpmPath(target, homeDirectory: scan.volumeURL.path) else {
+                    continue
+                }
                 // 单项失败（如 TCC 权限）不影响后续项：尽力而为，继续清理其他目标
                 guard let deletion = try? deleter.deleteReturningResult(
                     url: URL(fileURLWithPath: target),

@@ -16,6 +16,10 @@ struct MenuBarView: View {
     @State private var showCleanHistory = false
     @State private var cleanFailureNotice: String?
     @State private var quitProcessRunning = false
+    @State private var pnpmTarget: OwnerCommandTarget?
+    @State private var pnpmBusy = false
+    @State private var pnpmNotice: String?
+    @State private var showPnpmConfirm = false
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -176,6 +180,39 @@ struct MenuBarView: View {
         } message: { outcome in
             Text(Localized.string("clean.confirm_message", outcome.entries.count, Format.bytes(outcome.freedBytes)))
         }
+        .alert(Localized.string("pnpm.confirm_title"), isPresented: $showPnpmConfirm) {
+            Button(Localized.string("common.cancel"), role: .cancel) { pnpmTarget = nil }
+            Button(Localized.string("pnpm.run"), role: .destructive) {
+                guard let target = pnpmTarget else { return }
+                pnpmBusy = true
+                Task {
+                    _ = await service.prunePnpmStore(confirmed: target) { result in
+                        pnpmNotice = pnpmJournalText(result)
+                    }
+                    pnpmBusy = false
+                    pnpmTarget = nil
+                }
+            }
+        } message: {
+            Text(Localized.string("pnpm.confirm_message", pnpmTarget?.path ?? ""))
+        }
+    }
+
+    private func pnpmJournalText(_ result: OwnerCommandJournalResult) -> String {
+        switch result {
+        case .startNotSaved:
+            return Localized.string("pnpm.error_journal_start")
+        case .completed(let execution, _):
+            return pnpmExecutionText(execution)
+        case .completionNotSaved(let execution, _):
+            let warning: String
+            if case .success = execution {
+                warning = Localized.string("pnpm.error_journal_completion_success")
+            } else {
+                warning = Localized.string("pnpm.error_journal_completion_failure")
+            }
+            return pnpmExecutionText(execution) + " " + warning
+        }
     }
 
     private var rightPanel: some View {
@@ -199,6 +236,8 @@ struct MenuBarView: View {
 
                     legend
 
+                    pnpmCommandRow
+
                     Divider()
 
                     if let summary = state.lastCleanSummary {
@@ -216,6 +255,67 @@ struct MenuBarView: View {
                 }
                 .padding(14)
             }
+        }
+    }
+
+    private var pnpmCommandRow: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Button {
+                pnpmBusy = true
+                pnpmNotice = nil
+                Task {
+                    let result = await service.probePnpmStore()
+                    switch result {
+                    case .success(let target):
+                        pnpmTarget = target
+                        showPnpmConfirm = true
+                    case .failure(let failure):
+                        pnpmNotice = pnpmFailureText(failure)
+                    }
+                    pnpmBusy = false
+                }
+            } label: {
+                Label(Localized.string("pnpm.title"), systemImage: "shippingbox")
+                    .font(.caption)
+            }
+            .disabled(pnpmBusy || state.isCleaning)
+            Text(Localized.string("pnpm.description"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            if let pnpmNotice {
+                Text(pnpmNotice)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else if let record = state.lastOwnerCommandRecord {
+                Text((record.outcome == "started"
+                      ? Localized.string("pnpm.record_incomplete")
+                      : Localized.string("pnpm.last_record", record.outcome))
+                    + " · " + record.targetPath + (record.capacityDeltaBytes.map { " · " + Format.signedBytes($0) } ?? ""))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func pnpmExecutionText(_ result: Result<OwnerCommandOutcome, OwnerCommandFailure>) -> String {
+        switch result {
+        case .success(let outcome):
+            return outcome.capacityDeltaBytes.map {
+                Localized.string("pnpm.result", Format.signedBytes($0))
+            } ?? Localized.string("pnpm.result_unknown")
+        case .failure(let failure): return pnpmFailureText(failure)
+        }
+    }
+
+    private func pnpmFailureText(_ failure: OwnerCommandFailure) -> String {
+        switch failure {
+        case .unavailable: return Localized.string("pnpm.error_unavailable")
+        case .invalidTarget: return Localized.string("pnpm.error_invalid")
+        case .targetChanged: return Localized.string("pnpm.error_changed")
+        case .probeFailed(let code): return Localized.string("pnpm.error_probe", Int(code))
+        case .actionFailed(let code): return Localized.string("pnpm.error_action", Int(code))
+        case .timedOut: return Localized.string("pnpm.error_timeout")
+        case .launchFailed: return Localized.string("pnpm.error_launch")
         }
     }
 
