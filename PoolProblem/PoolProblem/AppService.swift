@@ -1347,7 +1347,7 @@ final class AppService {
         try? growthLedgerStore.append(entries)
         try? growthLedgerStore.prune(retainingDays: 30)
         let allEntries = (try? growthLedgerStore.entries()) ?? []
-        state.growthInsights = growthInsights(from: allEntries)
+        state.growthReport = growthReport(from: allEntries)
     }
 
     /// Deliberate secondary action: compare the existing surface-scan roots
@@ -1371,7 +1371,7 @@ final class AppService {
             state.growthDiscoveryMessage = Localized.string("insights.discovery_failed")
             return
         }
-        state.growthInsights = growthInsights(from: (try? growthLedgerStore.entries()) ?? [])
+        state.growthReport = growthReport(from: (try? growthLedgerStore.entries()) ?? [])
         if result.establishedBaseline {
             state.growthDiscoveryMessage = Localized.string("insights.discovery_baseline")
         } else if result.entries.isEmpty {
@@ -1383,8 +1383,14 @@ final class AppService {
 
     /// 启动时从磁盘恢复增长洞察与候选配方状态。
     private func refreshGrowthState() {
+        recheckGrowthInsights()
+    }
+
+    /// Re-read historical evidence and stat visible paths without a recursive
+    /// scan. Opening Growth Insights may call this; disk use remains unverified.
+    func recheckGrowthInsights() {
         let allEntries = (try? growthLedgerStore.entries()) ?? []
-        state.growthInsights = growthInsights(from: allEntries)
+        state.growthReport = growthReport(from: allEntries)
         state.candidateRecipes = dedupeCandidatesAgainstDevRoots(
             (try? recipeSuggestionStore.load()) ?? []
         )
@@ -1530,20 +1536,14 @@ final class AppService {
         writeConfig(config)
     }
 
-    /// 增长洞察展示：过滤配方覆盖项后，把多条"未覆盖空间"聚合成
-    /// 只保留可归因的目录级增长（最新 30 条，新→旧）。
-    private func growthInsights(from allEntries: [GrowthEntry]) -> [GrowthEntry] {
-        let known = GrowthInsightMerger.merge(
-            uncoveredInsights(allEntries.filter { $0.kind != .surface })
-        )
+    /// Keep the latest historical event per path and check whether its path
+    /// still exists. No current size is implied by this cheap stat pass.
+    private func growthReport(from allEntries: [GrowthEntry]) -> GrowthInsightReport {
+        let known = uncoveredInsights(allEntries.filter { $0.kind != .surface })
         let latestSurface = uncoveredInsights(
             (try? growthLedgerStore.surfaceSnapshot())?.latestEntries ?? []
         )
-        return Array(
-            (known + latestSurface)
-                .sorted { $0.observedAt > $1.observedAt }
-                .prefix(30)
-        )
+        return GrowthInsightReconciler().reconcile(entries: known + latestSurface)
     }
 
     /// 已列入任一配方作用域（devRoots / 包管理器缓存）或忽略列表的目录
@@ -1552,31 +1552,23 @@ final class AppService {
         let config = loadConfig()
         let known = config.devRoots + config.declinedDevRoots + config.packageManagerCacheRoots
         return candidates.filter { candidate in
+            guard GrowthCandidateAdmission.canDisplay(candidate) else { return false }
             // 候选位于某个已确认/忽略的根之内（或其自身）→ 不再建议；
             // 已知根只是候选的子目录时仍保留候选（父目录建议可覆盖其余部分）。
-            !known.contains { $0 == candidate.samplePath || candidate.samplePath.hasPrefix($0 + "/") }
+            return !known.contains { $0 == candidate.samplePath || candidate.samplePath.hasPrefix($0 + "/") }
         }
     }
 
     func acceptCandidate(id: String) {
         guard let candidate = state.candidateRecipes.first(where: { $0.id == id }),
-              candidate.status != .accepted else { return }
+              GrowthCandidateAdmission.canAccept(candidate) else { return }
         var config = loadConfig()
-        switch candidate.recipeID {
-        case RecipeSuggester.projectFamilyID:
-            // 项目目录配方族：加入 devRoots，node_modules / 构建产物按既有规则覆盖
-            if !config.devRoots.contains(candidate.samplePath) {
-                config.devRoots.append(candidate.samplePath)
-            }
-            config.declinedDevRoots.removeAll { $0 == candidate.samplePath }
-        case RecipeSuggester.packageManagerFamilyID:
-            // 包管理器缓存配方族：加入缓存根，按“可自动清理 / 永久删除”规则管理
-            if !config.packageManagerCacheRoots.contains(candidate.samplePath) {
-                config.packageManagerCacheRoots.append(candidate.samplePath)
-            }
-        default:
-            return
+        // Project roots expose only nested node_modules/build products to the
+        // existing manual Trash recipes. This action never deletes files.
+        if !config.devRoots.contains(candidate.samplePath) {
+            config.devRoots.append(candidate.samplePath)
         }
+        config.declinedDevRoots.removeAll { $0 == candidate.samplePath }
         writeConfig(config)
         setCandidateStatus(id: id, status: .accepted)
         // 立即重扫，让项目配方（聚合条目）出现在清理列表中
