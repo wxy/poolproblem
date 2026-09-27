@@ -76,7 +76,8 @@ public enum POSIXDirectoryWalker {
         url: URL,
         itemID: String,
         includeRecords: Bool = true,
-        skipSubtrees: Set<String> = []
+        skipSubtrees: Set<String> = [],
+        includeDirectoryDates: Bool = false
     ) -> WalkResult? {
         guard let dir = opendir(url.path) else { return nil }
         defer { closedir(dir) }
@@ -88,6 +89,7 @@ public enum POSIXDirectoryWalker {
             itemID: itemID,
             includeRecords: includeRecords,
             skipSubtrees: skipSubtrees,
+            includeDirectoryDates: includeDirectoryDates,
             entriesSinceCheckpoint: &entriesSinceCheckpoint,
             result: &result
         )
@@ -100,6 +102,7 @@ public enum POSIXDirectoryWalker {
         itemID: String,
         includeRecords: Bool,
         skipSubtrees: Set<String>,
+        includeDirectoryDates: Bool,
         entriesSinceCheckpoint: inout Int,
         result: inout WalkResult
     ) {
@@ -120,6 +123,12 @@ public enum POSIXDirectoryWalker {
                 continue
             case S_IFDIR:
                 if skipSubtrees.contains(childURL.path) { continue }
+                if includeDirectoryDates {
+                    let modified = Date(timeIntervalSince1970: TimeInterval(st.st_mtimespec.tv_sec))
+                    if modified > (result.newest ?? .distantPast) {
+                        result.newest = modified
+                    }
+                }
                 if let sub = opendir(childURL.path) {
                     walkLevel(
                         dir: sub,
@@ -127,6 +136,7 @@ public enum POSIXDirectoryWalker {
                         itemID: itemID,
                         includeRecords: includeRecords,
                         skipSubtrees: skipSubtrees,
+                        includeDirectoryDates: includeDirectoryDates,
                         entriesSinceCheckpoint: &entriesSinceCheckpoint,
                         result: &result
                     )

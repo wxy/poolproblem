@@ -198,13 +198,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cleaned per subdirectory by automatic maintenance; the largest or fastest-growing ones are listed below."
+            "value" : "Subdirectories currently using at least 10 MB. Open a name in Finder; cleaning moves only the selected directory to Trash."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "由自动维护按子目录渐进清理；以下列出最大/增长最快的子目录。"
+            "value" : "显示当前占用至少 10 MB 的一级目录。点击名称可在 Finder 中查看；清理只会将选中的目录移入废纸篓。"
           }
         }
       }
@@ -225,34 +225,50 @@
         }
       }
     },
+    "cache.clean_failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not move the selected directory to Trash. Its state may have changed; the list has been refreshed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未能将选中的目录移入废纸篓。目录状态可能已变化，列表已刷新。"
+          }
+        }
+      }
+    },
     "cache.cleaned" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cleaned %@"
+            "value" : "Moved %@ to Trash"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已清理 %@"
+            "value" : "已将 %@ 移入废纸篓"
           }
         }
       }
     },
-    "cache.growth_rate" : {
+    "cache.observed_growth" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "+%@/day"
+            "value" : "Observed +%@ over %@, ending %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "+%@/天"
+            "value" : "观测增长 +%@ · 历时 %@ · 截至 %@"
           }
         }
       }
@@ -262,13 +278,61 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No subdirectories found."
+            "value" : "No subdirectories currently use at least 10 MB."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "没有找到子目录。"
+            "value" : "当前没有占用达到 10 MB 的一级目录。"
+          }
+        }
+      }
+    },
+    "cache.open_in_finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Finder 中显示"
+          }
+        }
+      }
+    },
+    "cache.quit_xcode_help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit Xcode before cleaning DerivedData."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理 DerivedData 前请先退出 Xcode。"
+          }
+        }
+      }
+    },
+    "cache.recent_help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modified within 24 hours; cleanup is unavailable."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过去 24 小时内有修改，暂不能清理。"
           }
         }
       }
@@ -294,13 +358,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Build-critical cache; never auto-deleted."
+            "value" : "Protected shared directory; cleanup is unavailable."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "构建必需缓存，永不自动删除。"
+            "value" : "受保护的共享目录，不能在此清理。"
           }
         }
       }
@@ -1155,13 +1219,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This cache is cleaned per subdirectory by automatic maintenance, never as a whole directory."
+            "value" : "Choose individual subdirectories in the detail view; the entire directory cannot be cleaned here."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此缓存由自动维护按子目录渐进清理，不会整目录删除。"
+            "value" : "请在详情中逐个选择子目录；这里不会清理整个目录。"
           }
         }
       }
@@ -1450,6 +1514,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "从未使用"
+          }
+        }
+      }
+    },
+    "detail.current_size" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current size"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前占用"
           }
         }
       }

@@ -18,16 +18,6 @@ struct TrashEntry: Identifiable, Equatable {
     var id: String { name }
 }
 
-/// 应用缓存详情页里的一级子目录条目。
-struct CacheChildEntry: Identifiable, Equatable {
-    let name: String
-    let path: String
-    let bytes: Int64
-    let ratePerDay: Double
-    let isProtected: Bool
-    var id: String { path }
-}
-
 enum DashboardConsistencyStatus: Equatable {
     case current
     case reconciling

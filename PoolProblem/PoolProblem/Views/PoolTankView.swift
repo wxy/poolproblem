@@ -51,7 +51,7 @@ enum PoolLayers {
         let cleanable = items
             .filter {
                 $0.reclaimableBytes > 0
-                    && $0.cleanability != .watchOnly
+                    && $0.cleanability.allowsManualCleanup
                     && !excludedItemIDs.contains($0.id)
                     && $0.recipeID != "trash"
                     && $0.recipeID != "own-trash-batches"
@@ -80,7 +80,7 @@ enum PoolLayers {
         let manualBytes = items
             .filter {
                 $0.reclaimableBytes > 0
-                    && $0.cleanability != .watchOnly
+                    && $0.cleanability.allowsManualCleanup
                     && $0.recipeID != "trash"
                     && !excludedItemIDs.contains($0.id)
                     && CleanupRationale.make(for: $0).isManual
