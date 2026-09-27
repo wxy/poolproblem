@@ -27,6 +27,7 @@ public struct Cleaner: Sendable {
     private let deleter: FileDeleting
     private let inspector: ProcessInspecting
     private let logStore: CleanLogStore
+    private let homeDirectory: String
     private let availableBytesReader: @Sendable (URL) -> Int64
     private let now: @Sendable () -> Date
 
@@ -35,6 +36,7 @@ public struct Cleaner: Sendable {
         deleter: FileDeleting,
         inspector: ProcessInspecting,
         logStore: CleanLogStore,
+        homeDirectory: String = NSHomeDirectory(),
         availableBytesReader: @escaping @Sendable (URL) -> Int64 = {
             VolumeReader.read(fileURL: $0).availableBytes
         },
@@ -44,6 +46,7 @@ public struct Cleaner: Sendable {
         self.deleter = deleter
         self.inspector = inspector
         self.logStore = logStore
+        self.homeDirectory = homeDirectory
         self.availableBytesReader = availableBytesReader
         self.now = now
     }
@@ -167,7 +170,11 @@ public struct Cleaner: Sendable {
             let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
             var itemFreed: Int64 = 0
             for target in targetPaths {
-                guard !PackageManagerRecipes.isLegacyPnpmPath(target, homeDirectory: scan.volumeURL.path) else {
+                if item.recipeID == PackageManagerRecipes.familyID,
+                   !PackageManagerRecipes.isApprovedDefaultCachePath(target, homeDirectory: homeDirectory) {
+                    continue
+                }
+                guard !PackageManagerRecipes.isLegacyPnpmPath(target, homeDirectory: homeDirectory) else {
                     continue
                 }
                 // 单项失败（如 TCC 权限）不影响后续项：尽力而为，继续清理其他目标

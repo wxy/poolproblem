@@ -12,9 +12,19 @@ public enum PackageManagerRecipes {
     /// Reject old snapshot targets too; removing the path from current scan
     /// recipes alone does not invalidate persisted aggregate scan items.
     public static func isLegacyPnpmPath(_ path: String, homeDirectory: String) -> Bool {
-        let root = URL(fileURLWithPath: homeDirectory + "/Library/pnpm")
-            .resolvingSymlinksInPath().standardizedFileURL.path
+        let input = URL(fileURLWithPath: path).standardizedFileURL.path
         let candidate = URL(fileURLWithPath: path)
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        // A saved aggregate may refer to an earlier HOME. Check path segments
+        // as well as the current home's canonical root; the latter also catches
+        // aliases into a symlinked pnpm directory.
+        if [input, candidate].contains(where: { path in
+            let lower = path.lowercased()
+            return lower.hasSuffix("/library/pnpm") || lower.contains("/library/pnpm/")
+        }) {
+            return true
+        }
+        let root = URL(fileURLWithPath: homeDirectory + "/Library/pnpm")
             .resolvingSymlinksInPath().standardizedFileURL.path
         return candidate == root || candidate.hasPrefix(root + "/")
     }
@@ -26,6 +36,16 @@ public enum PackageManagerRecipes {
             homeDirectory + "/Library/Caches/CocoaPods",
             homeDirectory + "/Library/Caches/Homebrew",
         ]
+    }
+
+    /// Persisted aggregate paths are untrusted. The built-in family can only
+    /// delete exact current default roots, even if an old scan included a
+    /// parent directory or a formerly configured extra root.
+    public static func isApprovedDefaultCachePath(_ path: String, homeDirectory: String) -> Bool {
+        let target = URL(fileURLWithPath: path).standardizedFileURL.path
+        return defaultPaths(homeDirectory: homeDirectory).contains {
+            URL(fileURLWithPath: $0).standardizedFileURL.path == target
+        }
     }
 
     public static func make(

@@ -268,7 +268,7 @@ final class AppService {
                 ageDaysByRecipe: ageRules
             ).scan(
                 recipes: recipes,
-                homeDirectory: NSHomeDirectory()
+                homeDirectory: paths.homeDirectory
             ) else { return nil }
             let snapshot = Snapshot(volume: result.volume, items: result.items)
             let store = SnapshotStore(paths: paths)
@@ -525,13 +525,14 @@ final class AppService {
         let ageRules = ageDaysByRecipe()
         let groupsByRecipe = recipeGroups(recipes)
         let defaultAgesByRecipe = recipeDefaultAges(recipes)
+        let homeDirectory = paths.homeDirectory
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? DiskReservoirCore.Scanner(
                 cloneRatios: cloneRatios,
                 ageDaysByRecipe: ageRules
             ).scan(
                 recipes: recipes,
-                homeDirectory: NSHomeDirectory()
+                homeDirectory: homeDirectory
             ) else { return nil }
             if dryRun {
                 let evaluator = RuleEvaluator(
@@ -577,7 +578,8 @@ final class AppService {
                 ),
                 deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
-                logStore: logStore
+                logStore: logStore,
+                homeDirectory: homeDirectory
             ).run(
                 scan: result,
                 config: config,
@@ -675,6 +677,11 @@ final class AppService {
             var entries: [CleanLogEntry] = []
             var firstFailure: ManualCleanFailure?
             for target in targetPaths {
+                if item.recipeID == PackageManagerRecipes.familyID,
+                   !PackageManagerRecipes.isApprovedDefaultCachePath(target, homeDirectory: scanHome) {
+                    firstFailure = firstFailure ?? .unavailable
+                    continue
+                }
                 guard !PackageManagerRecipes.isLegacyPnpmPath(target, homeDirectory: scanHome) else {
                     firstFailure = firstFailure ?? .unavailable
                     continue
@@ -1166,6 +1173,7 @@ final class AppService {
         let idleHours = idleHoursByRecipe(recipes: recipes)
         let groupsByRecipe = recipeGroups(recipes)
         let defaultAgesByRecipe = recipeDefaultAges(recipes)
+        let homeDirectory = paths.homeDirectory
         let work = Task.detached(priority: .utility) { () -> CleanOutcome? in
             let cleaner = Cleaner(
                 evaluator: RuleEvaluator(
@@ -1177,7 +1185,8 @@ final class AppService {
                 ),
                 deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
-                logStore: logStore
+                logStore: logStore,
+                homeDirectory: homeDirectory
             )
             return try? cleaner.run(
                 scan: scan,
@@ -1543,12 +1552,12 @@ final class AppService {
         return RecipeRegistry.builtIn()
             + [PackageManagerRecipes.make(
                 extraRoots: [],
-                homeDirectory: NSHomeDirectory()
+                homeDirectory: paths.homeDirectory
             )]
             + (config.packageManagerCacheRoots.isEmpty
                 ? []
                 : [PackageManagerRecipes.makeCustom(extraRoots: config.packageManagerCacheRoots)])
-            + ProjectRecipes.make(devRoots: config.devRoots, homeDirectory: NSHomeDirectory())
+            + ProjectRecipes.make(devRoots: config.devRoots, homeDirectory: paths.homeDirectory)
     }
 
     /// 各配方用户配置的年龄阈值（天），未配置的配方回落 recipe.defaultAgeDays。
