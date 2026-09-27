@@ -1,0 +1,32 @@
+command=swift test --disable-sandbox --filter customAndOldSnapshotRootsCannotDeleteDynamicPnpmStore
+environment=macOS arm64, Xcode Swift 6, module cache under TMPDIR
+input=fake NVM pnpm; custom parent, symlink alias, safe sibling; recording deleter
+result=exit 1 (expected failure before fix)
+✘ Test customAndOldSnapshotRootsCannotDeleteDynamicPnpmStore() recorded an issue at PnpmStoreRecipeEndToEndTests.swift:71:5: Expectation failed: !recorder.paths.contains(parent.path)
+✘ Test customAndOldSnapshotRootsCannotDeleteDynamicPnpmStore() recorded an issue at PnpmStoreRecipeEndToEndTests.swift:72:5: Expectation failed: !recorder.paths.contains(alias.path)
+✘ Test run with 1 test in 0 suites failed after 0.016 seconds with 2 issues.
+command=swift test --disable-sandbox --filter aggregateScanExcludesNestedPnpmStoreWithoutHidingSiblingCache
+environment=macOS arm64, Xcode Swift 6
+input=fake .npm containing 11MB pnpm store and 2MB npm sibling
+result=exit 1 (expected failure before fix)
+✘ Test aggregateScanExcludesNestedPnpmStoreWithoutHidingSiblingCache() recorded an issue at PnpmStoreRecipeEndToEndTests.swift:95:5: Expectation failed: npm.allocatedBytes < pnpm.allocatedBytes
+✘ Test run with 1 test in 0 suites failed after 0.027 seconds with 1 issue.
+command=swift test --disable-sandbox --filter aggregateScanExcludesNestedPnpmStoreWithoutHidingSiblingCache
+environment=macOS arm64, Xcode Swift 6
+input=.npm parent contains 11MB pnpm store plus 2MB sibling
+result=exit 1 (expected failure on reclaimable before fix)
+✘ Test aggregateScanExcludesNestedPnpmStoreWithoutHidingSiblingCache() recorded an issue at PnpmStoreRecipeEndToEndTests.swift:103:5: Expectation failed: npm.reclaimableBytes == 0
+✘ Test run with 1 test in 0 suites failed after 0.030 seconds with 1 issue.
+command=swift test --disable-sandbox --filter exactCustomRootDoesNotDoubleCountOwnerStore
+environment=macOS arm64, Xcode Swift 6
+input=custom recipe and owner recipe resolve exact same fake store
+result=exit 1 (expected failure before precedence fix)
+✘ Test exactCustomRootDoesNotDoubleCountOwnerStore() recorded an issue at PnpmStoreRecipeEndToEndTests.swift:161:5: Expectation failed: scan.items.count == 1
+✘ Test exactCustomRootDoesNotDoubleCountOwnerStore() recorded an issue at PnpmStoreRecipeEndToEndTests.swift:162:5: Expectation failed: scan.items.first?.recipeID == OwnerCommandRecipe.pnpmStorePrune.id
+✘ Test run with 1 test in 0 suites failed after 0.037 seconds with 2 issues.
+command=swift test --disable-sandbox --filter approvedDefaultCacheFailsClosedWhenPnpmProbeFails
+environment=macOS arm64, Xcode Swift 6
+input=approved .npm root containing fake pnpm store, probe exit 11, recording deleter
+result=exit 1 (expected failure before fix)
+✘ Test approvedDefaultCacheFailsClosedWhenPnpmProbeFails() recorded an issue at PnpmStoreRecipeEndToEndTests.swift:132:5: Expectation failed: recorder.paths.isEmpty
+✘ Test run with 1 test in 0 suites failed after 0.013 seconds with 1 issue.

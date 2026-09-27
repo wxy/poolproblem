@@ -1,0 +1,6 @@
+command=CLANG_MODULE_CACHE_PATH="$TMPDIR/poolproblem-pnpm-child-failfirst/cache" SWIFT_MODULE_CACHE_PATH="$TMPDIR/poolproblem-pnpm-child-failfirst/cache" xcodebuild build-for-testing -project PoolProblem/PoolProblem.xcodeproj -scheme PoolProblem -destination 'platform=macOS' -derivedDataPath "$TMPDIR/poolproblem-pnpm-child-failfirst/DerivedData" -clonedSourcePackagesDirPath /Users/xingyuwang/develop/poolproblem/.build -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO
+environment=macOS arm64, Xcode Swift 6, local SwiftPM checkout; sandbox escalation for Xcode cache access; separate task-specific TMPDIR cache and DerivedData
+input=current AppService durable history and AppServiceTests source, including A→B migration and overflow guard
+result=2026-09-27 20:11:44 +08:00, exit 0; app and test targets compiled, tests not executed by build-for-testing
+
+** TEST BUILD SUCCEEDED **

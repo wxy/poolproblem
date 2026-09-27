@@ -1,0 +1,17 @@
+command=swift test --disable-sandbox --filter historicalStoreAStillProtectsScanAndAutoCleanAfterPnpmMovesToB
+environment=macOS arm64, Xcode Swift 6, cache under TMPDIR
+input=legacy A snapshot; current B; .npm parent plus uv sibling; fake current probe
+result=exit 1 (expected fail-first missing store/scanner API)
+11:/Users/xingyuwang/develop/poolproblem/Tests/DiskReservoirCoreTests/PnpmStoreRecipeEndToEndTests.swift:194:22: error: cannot find 'OwnerCommandKnownTargetsStore' in scope
+15:    |                      `- error: cannot find 'OwnerCommandKnownTargetsStore' in scope
+19:/Users/xingyuwang/develop/poolproblem/Tests/DiskReservoirCoreTests/PnpmStoreRecipeEndToEndTests.swift:197:24: error: cannot find 'OwnerCommandKnownTargetsStore' in scope
+23:    |                        `- error: cannot find 'OwnerCommandKnownTargetsStore' in scope
+27:/Users/xingyuwang/develop/poolproblem/Tests/DiskReservoirCoreTests/PnpmStoreRecipeEndToEndTests.swift:206:66: error: extra argument 'protectedOwnerPaths' in call
+31:    |                                                                  `- error: extra argument 'protectedOwnerPaths' in call
+54:error: Build failed
+command=swift test --disable-sandbox --filter knownStoreHistoryOverflowFailsClosedForEveryRawDeletion
+environment=macOS arm64, Xcode Swift 6
+input=1025 historical targets, overflow persisted, unrelated raw candidate
+result=exit 1 (expected failure before global overflow guard)
+✘ Test knownStoreHistoryOverflowFailsClosedForEveryRawDeletion() recorded an issue at PnpmStoreRecipeEndToEndTests.swift:252:5: Expectation failed: !OwnerManagedPathGuard.mayDelete(path: f.home.appendingPathComponent("unrelated-build-cache").path, recipeID: "unrelated-recipe", probe: unavailable, homeDirectory: f.home.path, knownStorePaths: reloaded.paths, historyOverflowed: reloaded.overflowed)
+✘ Test run with 1 test in 0 suites failed after 0.261 seconds with 1 issue.

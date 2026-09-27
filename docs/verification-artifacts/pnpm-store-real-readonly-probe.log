@@ -1,0 +1,6 @@
+probe=success
+executable=~/.nvm/versions/node/v26.7.0/bin/pnpm
+store=~/Library/pnpm/store/v11
+allocated_bytes=426921984
+visible_above_10_mb=true
+prune_executed=false

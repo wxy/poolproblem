@@ -1,0 +1,4 @@
+command=swift test --disable-sandbox
+environment=macOS arm64, Xcode Swift 6
+input=full Swift Package suite
+result=interrupted after 3 minutes of concurrent tests; no full-suite verdict

@@ -30,6 +30,9 @@ public struct Cleaner: Sendable {
     private let homeDirectory: String
     private let availableBytesReader: @Sendable (URL) -> Int64
     private let now: @Sendable () -> Date
+    private let ownerStoreProbe: @Sendable () -> Result<OwnerCommandTarget, OwnerCommandFailure>
+    private let knownOwnerStorePaths: [String]
+    private let ownerHistoryOverflowed: Bool
 
     public init(
         evaluator: RuleEvaluator,
@@ -40,7 +43,10 @@ public struct Cleaner: Sendable {
         availableBytesReader: @escaping @Sendable (URL) -> Int64 = {
             VolumeReader.read(fileURL: $0).availableBytes
         },
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        ownerStoreProbe: (@Sendable () -> Result<OwnerCommandTarget, OwnerCommandFailure>)? = nil,
+        knownOwnerStorePaths: [String] = [],
+        ownerHistoryOverflowed: Bool = false
     ) {
         self.evaluator = evaluator
         self.deleter = deleter
@@ -49,6 +55,11 @@ public struct Cleaner: Sendable {
         self.homeDirectory = homeDirectory
         self.availableBytesReader = availableBytesReader
         self.now = now
+        self.ownerStoreProbe = ownerStoreProbe ?? {
+            OwnerCommandRunner(recipe: .pnpmStorePrune, home: homeDirectory).probe()
+        }
+        self.knownOwnerStorePaths = knownOwnerStorePaths
+        self.ownerHistoryOverflowed = ownerHistoryOverflowed
     }
 
     /// 清理底线兜底：任何删除决定都必须经过可清理性校验。
@@ -85,6 +96,7 @@ public struct Cleaner: Sendable {
         }
         let availableBefore = availableBytesReader(scan.volumeURL)
         let candidates = scan.items
+            .filter { $0.recipeID != OwnerCommandRecipe.pnpmStorePrune.id }
             .filter { !RuleEvaluator.isPathProtected(item: $0, whitelistPaths: config.whitelistPaths) }
             // 应用无法删除的手动项（Xcode/Finder）不进入自动/强制清理候选
             .filter { !CleanupRationale.make(for: $0).isManual }
@@ -129,6 +141,21 @@ public struct Cleaner: Sendable {
                 }
                 return left.id < right.id
             }
+        let knownStorePaths = knownOwnerStorePaths + scan.items
+            .filter { $0.recipeID == OwnerCommandRecipe.pnpmStorePrune.id }
+            .map(\.path)
+        let needsOwnerProbe = candidates.contains { item in
+            item.category == .packageManager
+                || (item.paths.isEmpty ? [item.path] : item.paths).contains { path in
+                    OwnerManagedPathGuard.isRecognizablePnpmLocation(
+                        path, homeDirectory: homeDirectory
+                    ) || knownStorePaths.contains {
+                        OwnerManagedPathGuard.overlaps(path, storePath: $0)
+                    }
+                }
+        }
+        let ownerStore: Result<OwnerCommandTarget, OwnerCommandFailure> = needsOwnerProbe
+            ? ownerStoreProbe() : .failure(.unavailable)
         var entries: [CleanLogEntry] = []
         var freedTotal: Int64 = 0
         var below = true
@@ -170,6 +197,11 @@ public struct Cleaner: Sendable {
             let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
             var itemFreed: Int64 = 0
             for target in targetPaths {
+                guard OwnerManagedPathGuard.mayDelete(
+                    path: target, recipeID: item.recipeID, probe: ownerStore,
+                    homeDirectory: homeDirectory, knownStorePaths: knownStorePaths,
+                    historyOverflowed: ownerHistoryOverflowed
+                ) else { continue }
                 if item.recipeID == PackageManagerRecipes.familyID,
                    !PackageManagerRecipes.isApprovedDefaultCachePath(target, homeDirectory: homeDirectory) {
                     continue

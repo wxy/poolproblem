@@ -66,6 +66,12 @@ final class AppService {
     private let snapshotStore: SnapshotStore
     private let logStore: CleanLogStore
     private let ownerCommandRecordStore: OwnerCommandRecordStore
+    private let knownPnpmTargetsStore: OwnerCommandKnownTargetsStore
+    private let pnpmRunner: OwnerCommandRunner
+    private(set) var currentPnpmStoreTarget: OwnerCommandTarget?
+    private(set) var lastPnpmProbeFailure: OwnerCommandFailure?
+    private var knownPnpmStorePaths: [String]
+    private var pnpmHistoryOverflowed: Bool
     private let growthLedgerStore: GrowthLedgerStore
     private let recipeSuggestionStore: RecipeSuggestionStore
     private let cleanupCoordinator: CleanupCoordinator
@@ -93,12 +99,40 @@ final class AppService {
         Int64(config.minimumCleanItemMB * 1_000_000)
     }
 
-    init(state: AppState, paths: StoragePaths = StoragePaths(), automationEnabled: Bool = true) {
+    init(
+        state: AppState, paths: StoragePaths = StoragePaths(),
+        automationEnabled: Bool = true, pnpmRunner: OwnerCommandRunner? = nil
+    ) {
         self.state = state
         self.paths = paths
         self.snapshotStore = SnapshotStore(paths: paths)
         self.logStore = CleanLogStore(paths: paths)
         self.ownerCommandRecordStore = OwnerCommandRecordStore(paths: paths)
+        let knownStore = OwnerCommandKnownTargetsStore(paths: paths)
+        self.knownPnpmTargetsStore = knownStore
+        let retainedSnapshots: [Snapshot]
+        var historyLoadFailed = false
+        do { retainedSnapshots = try SnapshotStore(paths: paths).snapshots() }
+        catch { retainedSnapshots = []; historyLoadFailed = true }
+        let knownState: OwnerCommandKnownTargetsStore.State
+        do { knownState = try knownStore.migrate(snapshots: retainedSnapshots) }
+        catch {
+            let saved = (try? knownStore.state()) ?? .init()
+            let migrated = retainedSnapshots.flatMap { snapshot in
+                snapshot.items.filter {
+                    $0.recipeID == OwnerCommandRecipe.pnpmStorePrune.id
+                }.map(\.path)
+            }
+            knownState = .init(
+                paths: Array((saved.paths + migrated).suffix(OwnerCommandKnownTargetsStore.maximumPaths)),
+                overflowed: true
+            )
+        }
+        self.knownPnpmStorePaths = knownState.paths
+        self.pnpmHistoryOverflowed = knownState.overflowed || historyLoadFailed
+        self.pnpmRunner = pnpmRunner ?? OwnerCommandRunner(
+            recipe: .pnpmStorePrune, home: paths.homeDirectory
+        )
         self.growthLedgerStore = GrowthLedgerStore(paths: paths)
         self.recipeSuggestionStore = RecipeSuggestionStore(paths: paths)
         self.automationEnabled = automationEnabled
@@ -261,11 +295,38 @@ final class AppService {
         let paths = self.paths
         let cloneRatios = loadConfig().cloneRatios
         let ageRules = ageDaysByRecipe()
-        let recipes = activeRecipes()
+        let pnpmRunner = self.pnpmRunner
+        let pnpmProbe = await Task.detached(priority: .utility) {
+            pnpmRunner.probe()
+        }.value
+        let pnpmTarget = try? pnpmProbe.get()
+        if let pnpmTarget {
+            if let history = try? knownPnpmTargetsStore.record([pnpmTarget.path]) {
+                knownPnpmStorePaths = history.paths
+                // A startup read/migration failure may have lost an older
+                // target even if this later write succeeds. Keep the guard
+                // closed for this session.
+                pnpmHistoryOverflowed = pnpmHistoryOverflowed || history.overflowed
+            } else {
+                if !knownPnpmStorePaths.contains(pnpmTarget.path) {
+                    knownPnpmStorePaths.append(pnpmTarget.path)
+                }
+                pnpmHistoryOverflowed = true
+            }
+        }
+        let pnpmFailure: OwnerCommandFailure?
+        if case .failure(let failure) = pnpmProbe, failure != .unavailable {
+            pnpmFailure = failure
+        } else {
+            pnpmFailure = nil
+        }
+        let recipes = recipes(pnpmTarget: pnpmTarget)
+        let protectedPnpmPaths = knownPnpmStorePaths
         let work = Task.detached(priority: .background) { () -> (ScanResult, Snapshot?, [Snapshot])? in
             guard let result = try? DiskReservoirCore.Scanner(
                 cloneRatios: cloneRatios,
-                ageDaysByRecipe: ageRules
+                ageDaysByRecipe: ageRules,
+                protectedOwnerPaths: protectedPnpmPaths
             ).scan(
                 recipes: recipes,
                 homeDirectory: paths.homeDirectory
@@ -277,11 +338,17 @@ final class AppService {
             let all = (try? store.snapshots()) ?? []
             return (result, previous, all)
         }
-        guard let (result, previous, all) = await work.value else { return }
+        guard let (result, previous, all) = await work.value else {
+            currentPnpmStoreTarget = nil
+            lastPnpmProbeFailure = pnpmFailure
+            return
+        }
         guard startedAtRevision == scanRevision else {
             pendingScanRequested = true
             return
         }
+        currentPnpmStoreTarget = pnpmTarget
+        lastPnpmProbeFailure = pnpmFailure
         state.availableBytes = result.volume.availableBytes
         state.totalBytes = result.volume.totalBytes
         state.items = result.items
@@ -526,10 +593,13 @@ final class AppService {
         let groupsByRecipe = recipeGroups(recipes)
         let defaultAgesByRecipe = recipeDefaultAges(recipes)
         let homeDirectory = paths.homeDirectory
+        let knownPnpmStorePaths = self.knownPnpmStorePaths
+        let pnpmHistoryOverflowed = self.pnpmHistoryOverflowed
         let work = Task.detached(priority: .userInitiated) { () -> (ScanResult, CleanOutcome?)? in
             guard let result = try? DiskReservoirCore.Scanner(
                 cloneRatios: cloneRatios,
-                ageDaysByRecipe: ageRules
+                ageDaysByRecipe: ageRules,
+                protectedOwnerPaths: knownPnpmStorePaths
             ).scan(
                 recipes: recipes,
                 homeDirectory: homeDirectory
@@ -579,7 +649,9 @@ final class AppService {
                 deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore,
-                homeDirectory: homeDirectory
+                homeDirectory: homeDirectory,
+                knownOwnerStorePaths: knownPnpmStorePaths,
+                ownerHistoryOverflowed: pnpmHistoryOverflowed
             ).run(
                 scan: result,
                 config: config,
@@ -641,6 +713,7 @@ final class AppService {
         // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
         // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
         guard let currentRecipe = activeRecipes().first(where: { $0.id == item.recipeID }),
+              item.recipeID != OwnerCommandRecipe.pnpmStorePrune.id,
               item.cleanability.allowsManualCleanup,
               currentRecipe.cleanability.allowsManualCleanup,
               // 废纸篓是特殊过渡区：只通过废纸篓详情页管理，不走通用清理
@@ -649,6 +722,19 @@ final class AppService {
               // 仅按子目录清理的项（如应用缓存）不整项删除
               !item.cleanByChildOnly,
               !currentRecipe.cleanByChildOnly else {
+            return .failed(.unavailable)
+        }
+        let currentPaths = item.paths.isEmpty ? [item.path] : item.paths
+        let scanProbe: Result<OwnerCommandTarget, OwnerCommandFailure> = currentPnpmStoreTarget
+            .map(Result.success) ?? .failure(lastPnpmProbeFailure ?? .unavailable)
+        let knownPaths = knownPnpmStorePaths
+        if currentPaths.contains(where: {
+            !OwnerManagedPathGuard.mayDelete(
+                path: $0, recipeID: item.recipeID, probe: scanProbe,
+                homeDirectory: paths.homeDirectory, knownStorePaths: knownPaths,
+                historyOverflowed: pnpmHistoryOverflowed
+            )
+        }) {
             return .failed(.unavailable)
         }
         if item.recipeID == TemporaryBuildArtifacts.recipeID {
@@ -670,13 +756,33 @@ final class AppService {
         state.deletingItemID = item.id
         let logStore = self.logStore
         let scanHome = paths.homeDirectory
+        let pnpmRunner = self.pnpmRunner
+        let knownStorePaths = knownPnpmStorePaths
+        let pnpmHistoryOverflowed = self.pnpmHistoryOverflowed
         let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
         let work = Task.detached(priority: .userInitiated) { () -> ManualCleanExecution in
             let targetPaths = item.paths.isEmpty ? [item.path] : item.paths
+            let needsOwnerProbe = item.category == .packageManager || targetPaths.contains { path in
+                OwnerManagedPathGuard.isRecognizablePnpmLocation(
+                    path, homeDirectory: scanHome
+                ) || knownStorePaths.contains {
+                    OwnerManagedPathGuard.overlaps(path, storePath: $0)
+                }
+            }
+            let ownerStore: Result<OwnerCommandTarget, OwnerCommandFailure> = needsOwnerProbe
+                ? pnpmRunner.probe() : .failure(.unavailable)
             let batchID = UUID()
             var entries: [CleanLogEntry] = []
             var firstFailure: ManualCleanFailure?
             for target in targetPaths {
+                guard OwnerManagedPathGuard.mayDelete(
+                    path: target, recipeID: item.recipeID, probe: ownerStore,
+                    homeDirectory: scanHome, knownStorePaths: knownStorePaths,
+                    historyOverflowed: pnpmHistoryOverflowed
+                ) else {
+                    firstFailure = firstFailure ?? .unavailable
+                    continue
+                }
                 if item.recipeID == PackageManagerRecipes.familyID,
                    !PackageManagerRecipes.isApprovedDefaultCachePath(target, homeDirectory: scanHome) {
                     firstFailure = firstFailure ?? .unavailable
@@ -861,13 +967,24 @@ final class AppService {
             recipe: recipe, config: loadConfig()
         )
         let growth = (try? growthLedgerStore.entries()) ?? []
-        return await Task.detached(priority: .utility) {
+        let knownPaths = knownPnpmStorePaths
+        let scanProbe: Result<OwnerCommandTarget, OwnerCommandFailure> = currentPnpmStoreTarget
+            .map(Result.success) ?? .failure(lastPnpmProbeFailure ?? .unavailable)
+        let homeDirectory = paths.homeDirectory
+        let children = await Task.detached(priority: .utility) {
             ChildDirectoryExplorer().list(
                 parentPath: item.path,
                 growthEntries: growth,
                 protectedChildNames: protected
             )
         }.value
+        return children.filter {
+            OwnerManagedPathGuard.mayDelete(
+                path: $0.path, recipeID: item.recipeID, probe: scanProbe,
+                homeDirectory: homeDirectory, knownStorePaths: knownPaths,
+                historyOverflowed: pnpmHistoryOverflowed
+            )
+        }
     }
 
     /// 逐子目录清理：执行前用当前配方与文件树重新校验，不信任详情页中的旧路径。
@@ -889,6 +1006,16 @@ final class AppService {
                 expectedIdentity: child.identity,
                 minimumIdleSeconds: recipe.id == "deriveddata"
                     ? DerivedDataChildPolicy.minimumIdleSeconds : 0
+            ) else { return false }
+            let pnpmRunner = self.pnpmRunner
+            let ownerStore = await Task.detached(priority: .userInitiated) {
+                pnpmRunner.probe()
+            }.value
+            let knownPaths = self.knownPnpmStorePaths
+            guard OwnerManagedPathGuard.mayDelete(
+                path: child.path, recipeID: item.recipeID, probe: ownerStore,
+                homeDirectory: self.paths.homeDirectory, knownStorePaths: knownPaths,
+                historyOverflowed: self.pnpmHistoryOverflowed
             ) else { return false }
             let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
             guard let deletion = try? deleter.deleteReturningResult(
@@ -1174,6 +1301,8 @@ final class AppService {
         let groupsByRecipe = recipeGroups(recipes)
         let defaultAgesByRecipe = recipeDefaultAges(recipes)
         let homeDirectory = paths.homeDirectory
+        let knownPnpmStorePaths = self.knownPnpmStorePaths
+        let pnpmHistoryOverflowed = self.pnpmHistoryOverflowed
         let work = Task.detached(priority: .utility) { () -> CleanOutcome? in
             let cleaner = Cleaner(
                 evaluator: RuleEvaluator(
@@ -1186,7 +1315,9 @@ final class AppService {
                 deleter: TrashBatchDeleter(batchName: Self.cleanupBatchName()),
                 inspector: PGrepProcessInspector(),
                 logStore: logStore,
-                homeDirectory: homeDirectory
+                homeDirectory: homeDirectory,
+                knownOwnerStorePaths: knownPnpmStorePaths,
+                ownerHistoryOverflowed: pnpmHistoryOverflowed
             )
             return try? cleaner.run(
                 scan: scan,
@@ -1495,6 +1626,19 @@ final class AppService {
         guard let recipe = activeRecipes().first(where: { $0.id == item.recipeID }) else {
             return false
         }
+        let itemPaths = item.paths.isEmpty ? [item.path] : item.paths
+        let scanProbe: Result<OwnerCommandTarget, OwnerCommandFailure> = currentPnpmStoreTarget
+            .map(Result.success) ?? .failure(lastPnpmProbeFailure ?? .unavailable)
+        let knownPaths = knownPnpmStorePaths
+        if itemPaths.contains(where: {
+            !OwnerManagedPathGuard.mayDelete(
+                path: $0, recipeID: item.recipeID, probe: scanProbe,
+                homeDirectory: paths.homeDirectory, knownStorePaths: knownPaths,
+                historyOverflowed: pnpmHistoryOverflowed
+            )
+        }) {
+            return false
+        }
         return item.cleanability.allowsManualCleanup
             && recipe.cleanability.allowsManualCleanup
             && !item.cleanByChildOnly
@@ -1502,8 +1646,9 @@ final class AppService {
     }
 
     func probePnpmStore() async -> Result<OwnerCommandTarget, OwnerCommandFailure> {
-        await Task.detached(priority: .userInitiated) {
-            OwnerCommandRunner(recipe: .pnpmStorePrune).probe()
+        let pnpmRunner = self.pnpmRunner
+        return await Task.detached(priority: .userInitiated) {
+            pnpmRunner.probe()
         }.value
     }
 
@@ -1513,11 +1658,12 @@ final class AppService {
     ) async -> OwnerCommandJournalResult {
         await cleanupCoordinator.run { [self] in
             let recordStore = self.ownerCommandRecordStore
+            let pnpmRunner = self.pnpmRunner
             let result = await Task.detached(priority: .userInitiated) {
                 OwnerCommandJournal(store: recordStore).execute(
                     recipeID: OwnerCommandRecipe.pnpmStorePrune.id, targetPath: target.path
                 ) {
-                    OwnerCommandRunner(recipe: .pnpmStorePrune).perform(confirmed: target)
+                    pnpmRunner.perform(confirmed: target)
                 }
             }.value
             let execution: Result<OwnerCommandOutcome, OwnerCommandFailure>
@@ -1548,8 +1694,13 @@ final class AppService {
 
     /// 当前生效的配方：系统内置 + 用户确认的项目目录配方。
     func activeRecipes() -> [Recipe] {
+        recipes(pnpmTarget: currentPnpmStoreTarget)
+    }
+
+    private func recipes(pnpmTarget: OwnerCommandTarget?) -> [Recipe] {
         let config = loadConfig()
         return RecipeRegistry.builtIn()
+            + (pnpmTarget.map { [OwnerCommandRecipe.pnpmStorePrune.scanRecipe(target: $0)] } ?? [])
             + [PackageManagerRecipes.make(
                 extraRoots: [],
                 homeDirectory: paths.homeDirectory

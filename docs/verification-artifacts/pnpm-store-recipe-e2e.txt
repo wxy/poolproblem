@@ -1,0 +1,4 @@
+command=CLANG_MODULE_CACHE_PATH=$TMPDIR/poolproblem-pnpm-history-failfirst/cache SWIFT_MODULE_CACHE_PATH=$TMPDIR/poolproblem-pnpm-history-failfirst/cache swift test --disable-sandbox --filter PnpmStoreRecipeEndToEndTests
+environment=macOS arm64, Xcode Swift 6, current workspace
+input=generated fake pnpm/store fixtures; durable A-to-B migration, snapshot prune and global bounded-overflow guard; prune command never invoked
+result=exit 0

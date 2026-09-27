@@ -1,0 +1,39 @@
+warning: /Users/xingyuwang/Library/org.swift.swiftpm/configuration is not accessible or not writable, disabling user-level cache features.
+warning: /Users/xingyuwang/Library/org.swift.swiftpm/security is not accessible or not writable, disabling user-level cache features.
+warning: /Users/xingyuwang/Library/Caches/org.swift.swiftpm is not accessible or not writable, disabling user-level cache features.
+warning: 'poolproblem': failed storing manifest for 'poolproblem' in cache: attempt to write a readonly database
+warning: 'swift-argument-parser': failed storing manifest for 'swift-argument-parser' in cache: attempt to write a readonly database
+Building for debugging...
+[Computing dependencies]
+[1 / 5]
+[2 / 6] DiskReservoirCore
+[3 / 7] DiskReservoirCore
+[7 / 10] DiskReservoirCore
+[10 / 11] DiskReservoirCoreTests-product
+[13 / 16] poolproblem-product
+[16 / 17] PoolProblemCLITests-product
+Build complete! (2.44秒)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Test pnpmProbeRejectsAmbiguousStoresAndDisablesCorepackNetwork() started.
+◇ Test aggregateScanExcludesNestedPnpmStoreWithoutHidingSiblingCache() started.
+◇ Test approvedDefaultCacheFailsClosedWhenPnpmProbeFails() started.
+◇ Test exactCustomRootDoesNotDoubleCountOwnerStore() started.
+◇ Test pnpmProbeSkipsBrokenShimAndScansExactStoreWithoutDeletion() started.
+◇ Test knownStoreHistoryOverflowFailsClosedForEveryRawDeletion() started.
+◇ Test customAndOldSnapshotRootsCannotDeleteDynamicPnpmStore() started.
+◇ Test unavailablePnpmKeepsOtherCachesUsableAndProtectsKnownLocations() started.
+◇ Test historicalStoreAStillProtectsScanAndAutoCleanAfterPnpmMovesToB() started.
+◇ Test pnpmProbeRejectsMalformedPathsAndNeverRunsPrune() started.
+✔ Test unavailablePnpmKeepsOtherCachesUsableAndProtectsKnownLocations() passed after 0.150 seconds.
+✔ Test approvedDefaultCacheFailsClosedWhenPnpmProbeFails() passed after 0.150 seconds.
+✔ Test knownStoreHistoryOverflowFailsClosedForEveryRawDeletion() passed after 0.150 seconds.
+✔ Test exactCustomRootDoesNotDoubleCountOwnerStore() passed after 0.154 seconds.
+✔ Test aggregateScanExcludesNestedPnpmStoreWithoutHidingSiblingCache() passed after 0.154 seconds.
+✔ Test historicalStoreAStillProtectsScanAndAutoCleanAfterPnpmMovesToB() passed after 0.162 seconds.
+✔ Test pnpmProbeRejectsMalformedPathsAndNeverRunsPrune() passed after 0.832 seconds.
+✔ Test customAndOldSnapshotRootsCannotDeleteDynamicPnpmStore() passed after 1.434 seconds.
+✔ Test pnpmProbeRejectsAmbiguousStoresAndDisablesCorepackNetwork() passed after 1.833 seconds.
+✔ Test pnpmProbeSkipsBrokenShimAndScansExactStoreWithoutDeletion() passed after 2.326 seconds.
+✔ Test run with 10 tests in 0 suites passed after 2.327 seconds.

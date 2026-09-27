@@ -8,6 +8,7 @@ import Foundation
 /// 用户可在增长洞察中把新发现的缓存目录加入该配方作用域（extraRoots）。
 public enum PackageManagerRecipes {
     public static let familyID = "package-manager-caches"
+    public static let customID = "package-manager-custom"
 
     /// Reject old snapshot targets too; removing the path from current scan
     /// recipes alone does not invalidate persisted aggregate scan items.
@@ -77,7 +78,7 @@ public enum PackageManagerRecipes {
     /// unattended deletion boundary.
     public static func makeCustom(extraRoots: [String]) -> Recipe {
         Recipe(
-            id: "package-manager-custom",
+            id: customID,
             name: "用户添加的包管理器缓存",
             category: .packageManager,
             group: .packageManager,

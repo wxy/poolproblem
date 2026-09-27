@@ -1,7 +1,7 @@
 import Foundation
 import Darwin
 
-/// A manual owner-command recipe. It is deliberately outside Scanner/Cleaner/CLI.
+/// An owner-command recipe. Its scan entry is observational; only `perform` may mutate it.
 public struct OwnerCommandRecipe: Sendable {
     public let id: String
     public let executableName: String
@@ -12,6 +12,16 @@ public struct OwnerCommandRecipe: Sendable {
         id: "pnpm-store-prune", executableName: "pnpm",
         probeArguments: ["store", "path"], actionArguments: ["store", "prune"]
     )
+
+    public func scanRecipe(target: OwnerCommandTarget) -> Recipe {
+        Recipe(
+            id: id, name: "pnpm store", category: .packageManager,
+            group: .packageManager, safety: .userConfirm,
+            disposition: .none, cleanability: .watchOnly,
+            defaultAgeDays: 0, minimumSizeMB: 10, processName: nil,
+            resolvePaths: { _ in [target.path] }
+        )
+    }
 }
 
 public struct OwnerCommandTarget: Sendable, Equatable {
@@ -22,6 +32,7 @@ public struct OwnerCommandTarget: Sendable, Equatable {
 public enum OwnerCommandFailure: Error, Sendable, Equatable {
     case unavailable
     case invalidTarget
+    case ambiguousTarget
     case targetChanged
     case probeFailed(Int32)
     case actionFailed(Int32)
@@ -57,10 +68,31 @@ public struct OwnerCommandRunner: Sendable {
     }
 
     public func probe() -> Result<OwnerCommandTarget, OwnerCommandFailure> {
-        guard let executable = locateExecutable() else { return .failure(.unavailable) }
-        switch run(executable: executable, arguments: recipe.probeArguments) {
-        case .failure(.timedOut): return .failure(.timedOut)
-        case .failure: return .failure(.launchFailed)
+        let candidates = locateExecutables()
+        guard !candidates.isEmpty else { return .failure(.unavailable) }
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        var selected: OwnerCommandTarget?
+        var firstFailure: OwnerCommandFailure?
+        for executable in candidates {
+            let remaining = deadline - ProcessInfo.processInfo.systemUptime
+            guard remaining > 0 else { return .failure(.timedOut) }
+            switch probe(executable: executable, timeLimit: min(8, remaining)) {
+            case .success(let target):
+                if let selected, selected.path != target.path { return .failure(.ambiguousTarget) }
+                if selected == nil { selected = target }
+            case .failure(let failure):
+                // A timed-out candidate may point to a different store; do not
+                // treat a separate successful candidate as unambiguous.
+                if failure == .timedOut { return .failure(.timedOut) }
+                if firstFailure == nil { firstFailure = failure }
+            }
+        }
+        return selected.map(Result.success) ?? .failure(firstFailure ?? .unavailable)
+    }
+
+    private func probe(executable: String, timeLimit: TimeInterval) -> Result<OwnerCommandTarget, OwnerCommandFailure> {
+        switch run(executable: executable, arguments: recipe.probeArguments, isProbe: true, timeLimit: timeLimit) {
+        case .failure(let failure): return .failure(failure)
         case .success(let result):
             guard result.status == 0 else { return .failure(.probeFailed(result.status)) }
             let lines = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -76,7 +108,7 @@ public struct OwnerCommandRunner: Sendable {
         guard FileManager.default.isExecutableFile(atPath: confirmed.executable) else {
             return .failure(.unavailable)
         }
-        switch run(executable: confirmed.executable, arguments: recipe.probeArguments) {
+        switch run(executable: confirmed.executable, arguments: recipe.probeArguments, isProbe: true) {
         case .failure(.timedOut): return .failure(.timedOut)
         case .failure: return .failure(.launchFailed)
         case .success(let check):
@@ -114,7 +146,7 @@ public struct OwnerCommandRunner: Sendable {
         return canonical
     }
 
-    private func locateExecutable() -> String? {
+    private func locateExecutables() -> [String] {
         var directories = (environment["PATH"] ?? "").split(separator: ":").map(String.init)
         directories += ["/opt/homebrew/bin", "/usr/local/bin", home + "/.local/share/pnpm", home + "/Library/pnpm"]
         let nvm = home + "/.nvm/versions/node"
@@ -123,14 +155,19 @@ public struct OwnerCommandRunner: Sendable {
         }
         let candidates = explicitExecutable.map { [$0] }
             ?? directories.map { $0 + "/" + recipe.executableName }
-        return candidates.first { $0.hasPrefix("/") && FileManager.default.isExecutableFile(atPath: $0) }
+        var seen = Set<String>()
+        return candidates.filter {
+            $0.hasPrefix("/") && seen.insert($0).inserted
+                && FileManager.default.isExecutableFile(atPath: $0)
+        }
     }
 
-    private func run(executable: String, arguments: [String]) -> Result<(status: Int32, output: String), OwnerCommandFailure> {
+    private func run(executable: String, arguments: [String], isProbe: Bool = false, timeLimit: TimeInterval? = nil) -> Result<(status: Int32, output: String), OwnerCommandFailure> {
         guard executable.hasPrefix("/"), !executable.contains("\0"),
               !arguments.contains(where: { $0.contains("\0") }) else { return .failure(.launchFailed) }
         var env = environment
         env["HOME"] = home
+        if isProbe { env["COREPACK_ENABLE_NETWORK"] = "0" }
         env["PATH"] = URL(fileURLWithPath: executable).deletingLastPathComponent().path + ":" + (env["PATH"] ?? "/usr/bin:/bin")
         guard !env.contains(where: { $0.key.contains("=") || $0.key.contains("\0") || $0.value.contains("\0") }) else {
             return .failure(.launchFailed)
@@ -155,7 +192,7 @@ public struct OwnerCommandRunner: Sendable {
               posix_spawn_file_actions_addchdir_np(&actions, home) == 0,
               posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0) == 0,
               posix_spawn_file_actions_adddup2(&actions, writeFD, STDOUT_FILENO) == 0,
-              posix_spawn_file_actions_adddup2(&actions, writeFD, STDERR_FILENO) == 0,
+              posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0) == 0,
               posix_spawn_file_actions_addclose(&actions, readFD) == 0,
               posix_spawn_file_actions_addclose(&actions, writeFD) == 0 else { return .failure(.launchFailed) }
         let argv = ([executable] + arguments).map { strdup($0) }
@@ -196,7 +233,7 @@ public struct OwnerCommandRunner: Sendable {
                 break
             }
             if info.si_pid == pid { break }
-            if ProcessInfo.processInfo.systemUptime - started >= timeout {
+            if ProcessInfo.processInfo.systemUptime - started >= (timeLimit ?? timeout) {
                 expired = true
                 break
             }

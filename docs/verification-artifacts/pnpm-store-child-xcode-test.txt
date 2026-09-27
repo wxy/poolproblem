@@ -1,0 +1,20 @@
+command=xcodebuild test -project PoolProblem/PoolProblem.xcodeproj -scheme PoolProblem -destination platform=macOS -only-testing:PoolProblemTests/pnpmStoreCacheChildIsNeitherListedForCleaningNorMoved CODE_SIGNING_ALLOWED=NO
+environment=macOS arm64, Xcode, local package checkout, escalated filesystem for Xcode services
+input=fixture home with 11MB ~/Library/Caches/pnpm and fake pnpm
+result=exit 65
+
+PruneExplicitPrecompiledModules /var/folders/1z/j4_f6yy56bs74cwpnfm_wnhc0000gn/T/poolproblem-pnpm-child-failfirst/DerivedData/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules
+
+2026-09-27 19:48:44.574 xcodebuild[78486:16766021] [MT] IDETestOperationsObserverDebug: 24.006 elapsed -- Testing started completed.
+2026-09-27 19:48:44.574 xcodebuild[78486:16766021] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-27 19:48:44.574 xcodebuild[78486:16766021] [MT] IDETestOperationsObserverDebug: 24.006 sec, +24.006 sec -- end
+
+Test session results, code coverage, and logs:
+	/var/folders/1z/j4_f6yy56bs74cwpnfm_wnhc0000gn/T/poolproblem-pnpm-child-failfirst/DerivedData/Logs/Test/Test-PoolProblem-2026.09.27_19-47-52-+0800.xcresult
+
+Testing failed:
+	PoolProblem (78872) encountered an error (Early unexpected exit, operation never finished bootstrapping - no restart will be attempted. (Underlying Error: The test runner exited with code 0 before establishing connection.))
+
+** TEST FAILED **
+
+Testing started
