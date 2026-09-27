@@ -14,6 +14,9 @@ public enum POSIXDirectoryWalker {
         public var fileCount: Int = 0
         public var newest: Date?
         public var files: [FileRecord] = []
+        /// False when any entry or nested directory could not be inspected.
+        /// Size summaries may still use partial results; cleanup guards must not.
+        public var isComplete = true
 
         public init() {}
     }
@@ -67,7 +70,7 @@ public enum POSIXDirectoryWalker {
     }
 
     /// 递归统计目录（大小、占用块、文件数、最新修改时间、文件记录）。
-    /// 根目录无法打开时返回 `nil`；深层子目录打开失败时跳过该子树。
+    /// 根目录无法打开时返回 `nil`；深层读取失败时保留已读统计并标记为不完整。
     /// `includeRecords` 为 false 时跳过逐文件记录，只做汇总——
     /// 用于废纸篓这类“只展示大小、不参与清理”的目录，速度提升明显。
     /// `skipSubtrees`：命中（目录路径完全匹配）的子树不统计，
@@ -106,7 +109,12 @@ public enum POSIXDirectoryWalker {
         entriesSinceCheckpoint: inout Int,
         result: inout WalkResult
     ) {
-        while let entry = readdir(dir) {
+        while true {
+            errno = 0
+            guard let entry = readdir(dir) else {
+                if errno != 0 { result.isComplete = false }
+                break
+            }
             entriesSinceCheckpoint += 1
             if entriesSinceCheckpoint >= 128 {
                 ScanWorkloadGate.shared.checkpoint()
@@ -116,7 +124,10 @@ public enum POSIXDirectoryWalker {
             if name == "." || name == ".." { continue }
             let childURL = baseURL.appendingPathComponent(name)
             var st = stat()
-            guard lstat(childURL.path, &st) == 0 else { continue }
+            guard lstat(childURL.path, &st) == 0 else {
+                result.isComplete = false
+                continue
+            }
             switch st.st_mode & S_IFMT {
             case S_IFLNK:
                 // 与 FileManager 版本一致：符号链接不计入
@@ -141,6 +152,8 @@ public enum POSIXDirectoryWalker {
                         result: &result
                     )
                     closedir(sub)
+                } else {
+                    result.isComplete = false
                 }
             case S_IFREG:
                 let allocated = Int64(st.st_blocks) * 512

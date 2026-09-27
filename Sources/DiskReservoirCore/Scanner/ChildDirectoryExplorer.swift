@@ -133,7 +133,8 @@ public enum ChildDirectoryAccess {
         guard let walk = POSIXDirectoryWalker.walk(
             url: child, itemID: "child-idle-check", includeRecords: false,
             includeDirectoryDates: true
-        ), let rootModified = POSIXDirectoryWalker.modificationDate(path: child.path) else {
+        ), walk.isComplete,
+           let rootModified = POSIXDirectoryWalker.modificationDate(path: child.path) else {
             return false
         }
         let newest = max(walk.newest ?? .distantPast, rootModified)

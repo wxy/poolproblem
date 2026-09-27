@@ -51,8 +51,8 @@ public struct CleanupRationale: Equatable, Sendable {
         self.lastUsed = lastUsed
     }
 
-    public static func make(for item: ScanItem) -> CleanupRationale {
-        switch item.cleanability {
+    public static func make(for item: ScanItem, cleanability: Cleanability? = nil) -> CleanupRationale {
+        switch cleanability ?? item.cleanability {
         case .displayOnly, .watchOnly:
             return CleanupRationale(
                 suggestion: .userDataOnly,

@@ -96,6 +96,9 @@ struct CacheChildrenView: View {
         }
         .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { date in
             currentDate = date
+            if item.recipeID == "deriveddata" {
+                xcodeRunning = PGrepProcessInspector().isRunning("Xcode")
+            }
         }
         .alert(item: $pendingChild) { child in
             Alert(
@@ -164,6 +167,9 @@ struct CacheChildrenView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                 Button {
+                    if derived {
+                        xcodeRunning = PGrepProcessInspector().isRunning("Xcode")
+                    }
                     pendingChild = child
                 } label: {
                     Image(systemName: "trash")

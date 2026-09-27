@@ -28,6 +28,7 @@ struct MenuBarView: View {
                 availableBytes: state.availableBytes,
                 waterlineBytes: state.waterlineBytes,
                 cleanableItems: state.items,
+                activeRecipes: service.activeRecipes(),
                 estimatedRecipeIDs: estimatedRecipeIDs,
                 inflowLabels: state.topInflows,
                 excludedItemIDs: state.cleanedItemIDs,
@@ -371,10 +372,12 @@ struct MenuBarView: View {
     }
 
     private var legend: some View {
+        let recipes = service.activeRecipes()
         let displayedItems = service.visibleItems(state.items)
         let displayedIDs = Set(displayedItems.map(\.id))
         let poolLayers = PoolLayers.make(
             items: state.items,
+            recipes: recipes,
             totalBytes: state.totalBytes,
             availableBytes: state.availableBytes,
             estimatedRecipeIDs: estimatedRecipeIDs,
@@ -385,14 +388,17 @@ struct MenuBarView: View {
         let manualItems = displayedItems
             .filter {
                 $0.reclaimableBytes > 0
-                    && $0.cleanability.allowsManualCleanup
+                    && ScanDisplayPolicy.effectiveCleanability($0, recipes: recipes).allowsManualCleanup
                     && $0.recipeID != "trash"
-                    && CleanupRationale.make(for: $0).isManual
+                    && CleanupRationale.make(
+                        for: $0,
+                        cleanability: ScanDisplayPolicy.effectiveCleanability($0, recipes: recipes)
+                    ).isManual
             }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         let observedItems = displayedItems
             .filter {
-                ($0.cleanability == .displayOnly || $0.cleanability == .watchOnly)
+                !ScanDisplayPolicy.effectiveCleanability($0, recipes: recipes).allowsManualCleanup
                     && $0.recipeID != "trash"
             }
             .sorted { $0.allocatedBytes > $1.allocatedBytes }
@@ -740,6 +746,8 @@ struct MenuBarView: View {
     /// 配方详情说明浮层；只观察项也通过它展示路径和当前占用。
     private func detailOverlay(_ item: ScanItem) -> some View {
         let isKept = state.keptItemIDs.contains(item.id)
+        let cleanability = ScanDisplayPolicy.effectiveCleanability(item, recipes: service.activeRecipes())
+        let rationale = CleanupRationale.make(for: item, cleanability: cleanability)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(Localized.recipeName(item.recipeID, fallback: item.name))
@@ -756,10 +764,9 @@ struct MenuBarView: View {
                 .cursorPointingHand()
             }
 
-            let rationale = CleanupRationale.make(for: item)
             let appCleanable = !rationale.isManual && service.canCleanWholeItem(item)
             VStack(alignment: .leading, spacing: 4) {
-                Text(item.cleanability.allowsManualCleanup
+                Text(cleanability.allowsManualCleanup
                      ? Localized.string("detail.why_suggested")
                      : Localized.string("insights.tab_watched"))
                     .font(.caption2)
@@ -773,7 +780,7 @@ struct MenuBarView: View {
                     Text(Localized.string("detail.why_cleanable_reason"))
                         .font(.caption)
                 }
-                if item.cleanability.allowsManualCleanup,
+                if cleanability.allowsManualCleanup,
                    item.safety == .requiresQuit,
                    let appName = processName(for: item) {
                     Text(Localized.string("detail.why_quit"))
@@ -836,7 +843,7 @@ struct MenuBarView: View {
             Divider()
 
             HStack(spacing: 16) {
-                if item.cleanability.allowsManualCleanup {
+                if cleanability.allowsManualCleanup {
                     LabeledContent(Localized.string("detail.reclaimable"), value: Format.bytes(item.reclaimableBytes))
                     LabeledContent(Localized.string("detail.safety"), value: safetyText(for: item))
                 } else {
@@ -875,11 +882,11 @@ struct MenuBarView: View {
                     .controlSize(.large)
                     .focusEffectDisabled()
                     .cursorPointingHand()
-                } else if item.cleanByChildOnly {
+                } else if service.isChildOnly(item) && cleanability.allowsManualCleanup {
                     Text(Localized.string("detail.by_child_hint"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                } else if item.cleanability.allowsManualCleanup && item.safety == .requiresQuit {
+                } else if cleanability.allowsManualCleanup && item.safety == .requiresQuit {
                     if let appName = processName(for: item) {
                         Text(Localized.string("detail.clean_requires_quit_app", appName))
                             .font(.caption2)

@@ -336,12 +336,14 @@ final class AppService {
 
     /// 数据变化后预生成 E 字型标尺位图（避免弹窗打开时执行重活）
     private func refreshGaugeImage() {
+        let recipes = activeRecipes()
         let made = PoolWindowLayout.make(
             totalBytes: state.totalBytes,
             availableBytes: state.availableBytes,
             waterlineBytes: state.waterlineBytes,
             items: state.items,
-            estimatedRecipeIDs: Set(activeRecipes().filter(\.cloneProne).map(\.id)),
+            recipes: recipes,
+            estimatedRecipeIDs: Set(recipes.filter(\.cloneProne).map(\.id)),
             excludedItemIDs: state.cleanedItemIDs
         )
         state.poolGaugeImage = GaugeImageRenderer.render(layout: made.layout)
@@ -858,7 +860,9 @@ final class AppService {
         await cleanupCoordinator.run { [weak self] in
             guard let self,
                   let recipe = self.activeRecipes().first(where: { $0.id == item.recipeID }),
-                  recipe.cleanByChildOnly else { return false }
+                  recipe.cleanByChildOnly,
+                  recipe.cleanability.allowsManualCleanup,
+                  item.cleanability.allowsManualCleanup else { return false }
             let protected = ProgressiveCleanupPolicy.mergedProtectedChildNames(
                 recipe: recipe, config: self.loadConfig()
             )
@@ -1481,7 +1485,7 @@ final class AppService {
     }
 
     /// 当前生效的配方：系统内置 + 用户确认的项目目录配方。
-    private func activeRecipes() -> [Recipe] {
+    func activeRecipes() -> [Recipe] {
         let config = loadConfig()
         return RecipeRegistry.builtIn()
             + [PackageManagerRecipes.make(

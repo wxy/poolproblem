@@ -107,6 +107,61 @@ import Testing
     #expect(!allowed(project.path)) // A replacement at the same path is a different target.
 }
 
+@Test func unreadableNestedDirectoryCannotPassDerivedDataIdleCheck() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-child-unreadable-\(UUID().uuidString)", isDirectory: true)
+    let parent = root.appendingPathComponent("DerivedData", isDirectory: true)
+    let project = parent.appendingPathComponent("OldProject", isDirectory: true)
+    let unreadable = project.appendingPathComponent("Build", isDirectory: true)
+    try Fixtures.makeTree(root: project, files: [("Build/recent.bin", 4_096)])
+    defer {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: unreadable.path)
+        try? FileManager.default.removeItem(at: root)
+    }
+    let now = Date()
+    let old = now.addingTimeInterval(-2 * 86_400)
+    for url in [project, unreadable] {
+        try FileManager.default.setAttributes([.modificationDate: old], ofItemAtPath: url.path)
+    }
+    let identity = try #require(ChildDirectoryAccess.identity(path: project.path))
+    try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: unreadable.path)
+
+    let walk = try #require(POSIXDirectoryWalker.walk(
+        url: project, itemID: "child-idle-check", includeRecords: false,
+        includeDirectoryDates: true
+    ))
+    #expect(!walk.isComplete)
+    #expect(!ChildDirectoryAccess.canClean(
+        childPath: project.path, parentPath: parent.path,
+        authorizedParents: [parent.path], protectedNames: [],
+        expectedIdentity: identity, minimumIdleSeconds: 86_400, now: now
+    ))
+}
+
+@Test func restoredSnapshotUsesCurrentRecipeForCleanability() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-stale-recipe-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let store = SnapshotStore(paths: StoragePaths(baseURL: root))
+    let item = ScanItem(
+        id: "old-simulator-devices", recipeID: "core-simulator-devices",
+        name: "Simulator devices", path: root.path, category: .simulator,
+        safety: .userConfirm, disposition: .trash, sizeBytes: 12_000_000,
+        allocatedBytes: 12_000_000, reclaimableBytes: 12_000_000,
+        fileCount: 1, lastModified: nil, cleanability: .trashOnly
+    )
+    try store.append(Snapshot(
+        volume: VolumeInfo(totalBytes: 100_000_000, availableBytes: 40_000_000, timestamp: Date()),
+        items: [item]
+    ))
+    let restored = try #require(store.snapshots().last?.items.first)
+    #expect(restored.cleanability == .trashOnly) // The historical record remains intact.
+    #expect(ScanDisplayPolicy.effectiveCleanability(
+        restored, recipes: RecipeRegistry.builtIn()
+    ) == .displayOnly)
+    #expect(ScanDisplayPolicy.effectiveCleanability(restored, recipes: []) == .displayOnly)
+}
+
 @Test func recipeMinimumIsPresentationOnlyAndTrashRemainsVisible() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-display-min-\(UUID().uuidString)", isDirectory: true)
