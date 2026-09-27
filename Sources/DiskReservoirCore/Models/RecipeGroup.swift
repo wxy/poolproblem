@@ -12,6 +12,8 @@ public enum RecipeGroup: String, Codable, CaseIterable, Sendable {
     case packageManager
     /// 系统 / 通用（应用缓存、本应用回收站批次、废纸篓）。
     case system
+    /// 仅观察占用与增长，不授权清理。
+    case assets
 
     /// 组级进程守卫：任一进程运行中，整组不参与自动清理
     /// （如 Xcode 运行中，Xcode 及其模拟器整组暂停）。
@@ -23,7 +25,7 @@ public enum RecipeGroup: String, Codable, CaseIterable, Sendable {
             return ["node", "npm", "pnpm", "yarn", "bun"]
         case .packageManager:
             return ["npm", "pnpm", "yarn", "bun", "brew", "pod", "swift", "uv", "python", "python3"]
-        case .system:
+        case .system, .assets:
             return []
         }
     }

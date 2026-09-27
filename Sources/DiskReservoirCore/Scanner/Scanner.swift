@@ -86,7 +86,7 @@ public struct Scanner: Sendable {
                     disposition: recipe.disposition,
                     sizeBytes: size,
                     allocatedBytes: allocated,
-                    reclaimableBytes: allocated,
+                    reclaimableBytes: recipe.cleanability == .watchOnly ? 0 : allocated,
                     fileCount: count,
                     lastModified: effectiveLastModified(modified, recipe: recipe, path: path),
                     cleanability: recipe.cleanability,
@@ -100,7 +100,9 @@ public struct Scanner: Sendable {
         var honestItems = ReclaimableEstimator().apply(to: items, records: records)
         // 克隆型配方（如 XCTestDevices）按校准比例估算真实可释放量
         honestItems = honestItems.map { item in
-            guard let recipe = recipes.first(where: { $0.id == item.recipeID }), recipe.cloneProne else {
+            guard let recipe = recipes.first(where: { $0.id == item.recipeID }),
+                  recipe.cloneProne,
+                  recipe.cleanability != .watchOnly else {
                 return item
             }
             let ratio = cloneRatios[item.recipeID] ?? 0.2
@@ -149,14 +151,14 @@ public struct Scanner: Sendable {
             disposition: recipe.disposition,
             sizeBytes: size,
             allocatedBytes: allocated,
-            reclaimableBytes: allocated,
+            reclaimableBytes: recipe.cleanability == .watchOnly ? 0 : allocated,
             fileCount: count,
             lastModified: effectiveLastModified(modified, recipe: recipe, path: path),
             cleanability: recipe.cleanability,
             cleanByChildOnly: recipe.cleanByChildOnly,
             allowsAutomaticPermanentDeletion: recipe.allowsAutomaticPermanentDeletion
         )
-        if recipe.cloneProne {
+        if recipe.cloneProne && recipe.cleanability != .watchOnly {
             item = item.replacing(
                 reclaimableBytes: Int64(Double(item.allocatedBytes) * (self.cloneRatios[recipe.id] ?? 0.2)),
             )
@@ -185,7 +187,9 @@ public struct Scanner: Sendable {
             // 只聚合“足够老”的子路径：未达到年龄阈值或最近 24h 有修改的
             // 项目不进入可清理清单（也不参与清理）。
             let effective = effectiveLastModified(m, recipe: recipe, path: path)
-            guard CleanabilityRules.isOldEnough(
+            // A watched asset should remain visible while it is actively
+            // growing. The age gate applies only to cleanup candidates.
+            guard recipe.cleanability == .watchOnly || CleanabilityRules.isOldEnough(
                 lastModified: effective,
                 ageLimitDays: ageLimitDays,
                 minimumIdleHours: recipe.minimumIdleHours,
@@ -200,15 +204,15 @@ public struct Scanner: Sendable {
             }
         }
         guard !existing.isEmpty else { return nil }
-        var reclaimable = allocated
-        if recipe.cloneProne {
+        var reclaimable = recipe.cleanability == .watchOnly ? 0 : allocated
+        if recipe.cloneProne && recipe.cleanability != .watchOnly {
             reclaimable = Int64(Double(allocated) * (cloneRatios[recipe.id] ?? 0.2))
         }
         return ScanItem(
             id: "\(recipe.id):aggregate",
             recipeID: recipe.id,
             name: recipe.name,
-            path: paths.first ?? "",
+            path: existing.first ?? "",
             paths: existing,
             category: recipe.category,
             // 项目聚合条目即使足够老也仍需用户确认；mtime 不能证明项目已停用。

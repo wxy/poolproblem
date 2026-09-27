@@ -364,11 +364,13 @@ final class AppService {
         guard !snapshots.isEmpty else { return }
         state.growthRates = FlowAnalyzer().growthRates(snapshots: snapshots)
         // 进水管：按配方聚合"增速"（排除废纸篓），显示每周增长
-        let itemRecipe = Dictionary(uniqueKeysWithValues: state.items.map { ($0.id, $0.recipeID) })
+        let itemRecipe = Dictionary(uniqueKeysWithValues: state.items.map { ($0.id, $0) })
         var recipeRates: [String: Double] = [:]
         for (itemID, rate) in state.growthRates {
-            guard let recipeID = itemRecipe[itemID], recipeID != "trash" else { continue }
-            recipeRates[recipeID, default: 0] += rate
+            guard let item = itemRecipe[itemID],
+                  item.recipeID != "trash",
+                  item.cleanability != .watchOnly else { continue }
+            recipeRates[item.recipeID, default: 0] += rate
         }
         // 进水管：优先取增速前 2；不足 2 个时用当前可清理量最大的项补齐（都排除废纸篓）
         var inflows: [(String, Int64)] = recipeRates
@@ -378,7 +380,11 @@ final class AppService {
         if inflows.count < 2 {
             let chosen = Set(recipeRates.keys)
             let fill = state.items
-                .filter { $0.recipeID != "trash" && !chosen.contains($0.recipeID) }
+                .filter {
+                    $0.recipeID != "trash"
+                        && $0.cleanability != .watchOnly
+                        && !chosen.contains($0.recipeID)
+                }
                 .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
                 .prefix(2 - inflows.count)
             for item in fill {
@@ -627,7 +633,7 @@ final class AppService {
         // 详情页点击“立即清理”即用户确认：
         // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
         // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
-        guard item.cleanability != .displayOnly,
+        guard item.cleanability.allowsManualCleanup,
               // 废纸篓是特殊过渡区：只通过废纸篓详情页管理，不走通用清理
               item.recipeID != "own-trash-batches",
               item.recipeID != "trash",
@@ -1255,6 +1261,7 @@ final class AppService {
         return state.items
             .filter {
                 $0.reclaimableBytes > 0
+                    && $0.cleanability != .watchOnly
                     && $0.recipeID != "trash"
                     && $0.safety == .safeWhileRunning
                     && !config.whitelistPaths.contains($0.path)

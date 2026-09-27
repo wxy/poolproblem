@@ -31,6 +31,10 @@ enum Localized {
         case "project-build-output": return string("recipe.project-build-output")
         case "nodejs-projects": return string("recipe.nodejs-projects")
         case "trash": return string("recipe.trash")
+        case "ios-device-backups": return string("recipe.ios-device-backups")
+        case "docker-desktop-data": return string("recipe.docker-desktop-data")
+        case "vm-data": return string("recipe.vm-data")
+        case "local-ai-models": return string("recipe.local-ai-models")
         default: return fallback
         }
     }
@@ -42,6 +46,7 @@ enum Localized {
         case .nodejs: return string("recipe_group.nodejs")
         case .packageManager: return string("recipe_group.packageManager")
         case .system: return string("recipe_group.system")
+        case .assets: return string("recipe_group.assets")
         }
     }
 

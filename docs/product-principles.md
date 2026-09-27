@@ -51,6 +51,19 @@ DerivedData, archives, project outputs, `~/Library/Caches`, simulator user data,
 and every user-added path are manual-only. Where deletion is supported, manual
 cleanup uses Trash and records the resulting location.
 
+Watched assets such as device backups, virtual-machine data, and model weights
+are observations, not cleanup targets. Their allocated size may be shown as an
+estimate, but their reclaimable size is zero. The generic item menu, its
+manual-clean service, and the cleanup engine must reject deletion, even when
+an older snapshot contains a positive reclaimable estimate. Watched assets
+must not appear as cleanable or manually recoverable waterline layers.
+
+An owner-managed cache may use its tool's cleanup command only after the
+command's resolved target has been verified against the measured recipe path.
+Command failure or timeout must skip that target; it must not fall back to raw
+path deletion. Automatic eligibility needs separate end-to-end evidence for
+the exact command, target, and observed capacity change.
+
 ## Performance boundary
 
 - Opening the menu popover never starts a scan.

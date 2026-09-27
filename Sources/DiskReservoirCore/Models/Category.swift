@@ -5,4 +5,5 @@ public enum Category: String, Codable, CaseIterable, Sendable {
     case project
     case common
     case custom
+    case asset
 }

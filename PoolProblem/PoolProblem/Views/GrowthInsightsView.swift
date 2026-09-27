@@ -23,6 +23,7 @@ struct GrowthInsightsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     growthLogSection
+                    watchSection
                     Divider()
                     candidateSection
                 }
@@ -137,6 +138,51 @@ struct GrowthInsightsView: View {
         .focusEffectDisabled()
         .cursorPointingHand()
         .help(entry.path)
+    }
+
+    /// Observed assets stay outside every cleanup entry point. The figure is
+    /// allocated disk space, while reclaimable space remains zero.
+    private var watchSection: some View {
+        let watchItems = state.items
+            .filter { $0.cleanability == .watchOnly }
+            .sorted { $0.allocatedBytes > $1.allocatedBytes }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(Localized.string("insights.watch_section"))
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+            if watchItems.isEmpty {
+                Text(Localized.string("insights.watch_empty"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(watchItems) { item in
+                    HStack(spacing: 6) {
+                        Image(systemName: "eye.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                        Button {
+                            revealInFinder(item.path)
+                        } label: {
+                            Text(Localized.recipeName(item.recipeID, fallback: item.name))
+                                .font(.caption)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .buttonStyle(.plain)
+                        .cursorPointingHand()
+                        .help(item.paths.joined(separator: "\n"))
+                        Spacer()
+                        Text(Format.bytes(item.allocatedBytes))
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .help(Localized.string("insights.watch_size_help"))
+                    }
+                    .frame(height: 22)
+                }
+            }
+        }
     }
 
     /// 速率展示：观测窗口足够长（≥1 天）才外推为"每天"，

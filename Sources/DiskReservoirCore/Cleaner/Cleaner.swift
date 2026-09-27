@@ -49,13 +49,13 @@ public struct Cleaner: Sendable {
     }
 
     /// 清理底线兜底：任何删除决定都必须经过可清理性校验。
-    /// `displayOnly` 永不删除；`trashOnly` 强制降级为回收站；`regenerable` 保持原决定。
+    /// `displayOnly` / `watchOnly` 永不删除；`trashOnly` 强制降级为回收站。
     public static func guardedDisposition(
         for disposition: CleanDisposition,
         cleanability: Cleanability
     ) -> CleanDisposition? {
         switch cleanability {
-        case .displayOnly:
+        case .displayOnly, .watchOnly:
             return nil
         case .trashOnly:
             return .trash

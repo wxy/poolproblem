@@ -2170,6 +2170,54 @@
         }
       }
     },
+    "insights.watch_empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Refresh in the main panel to scan watched assets."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在主面板点右上角刷新按钮后，这里会显示监视资产。"
+          }
+        }
+      }
+    },
+    "insights.watch_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched assets · observation only"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "监视资产 · 只观察不清理"
+          }
+        }
+      }
+    },
+    "insights.watch_size_help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated allocated disk space; shared APFS blocks may be counted more than once."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已分配磁盘空间的估算值；共享的 APFS 数据块可能重复计算。"
+          }
+        }
+      }
+    },
     "notify.growth_body" : {
       "localizations" : {
         "en" : {
@@ -2801,6 +2849,22 @@
         }
       }
     },
+    "recipe_group.assets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched Assets"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "监视资产"
+          }
+        }
+      }
+    },
     "recipe_group.nodejs" : {
       "localizations" : {
         "en" : {
@@ -2861,6 +2925,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xcode（含模拟器）"
+          }
+        }
+      }
+    },
+    "recipe.docker-desktop-data" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop 数据"
+          }
+        }
+      }
+    },
+    "recipe.ios-device-backups" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS Device Backups"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 设备备份"
+          }
+        }
+      }
+    },
+    "recipe.local-ai-models" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local AI Models"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地大模型"
+          }
+        }
+      }
+    },
+    "recipe.vm-data" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Virtual Machine Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虚拟机数据"
           }
         }
       }

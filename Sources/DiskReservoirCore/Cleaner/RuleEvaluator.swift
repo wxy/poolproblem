@@ -86,6 +86,8 @@ public struct RuleEvaluator: Sendable {
         switch item.cleanability {
         case .displayOnly:
             return EvaluatedAction(itemID: item.id, action: .skip(reason: "display only"))
+        case .watchOnly:
+            return EvaluatedAction(itemID: item.id, action: .skip(reason: "watch only"))
         case .trashOnly:
             if force {
                 return EvaluatedAction(itemID: item.id, action: .trash)
