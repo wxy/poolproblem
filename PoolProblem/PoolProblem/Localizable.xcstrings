@@ -2111,6 +2111,38 @@
         }
       }
     },
+    "insights.path_present_short" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Path exists"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径仍在"
+          }
+        }
+      }
+    },
+    "insights.path_unknown_short" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unverified"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法核对"
+          }
+        }
+      }
+    },
     "insights.watch_measured_at" : {
       "localizations" : {
         "en" : {
@@ -2531,6 +2563,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "增长洞察"
+          }
+        }
+      }
+    },
+    "insights.tab_changes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "变化记录"
+          }
+        }
+      }
+    },
+    "insights.tab_watched" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只观察"
+          }
+        }
+      }
+    },
+    "insights.tab_projects" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projects"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目建议"
           }
         }
       }

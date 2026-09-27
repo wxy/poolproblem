@@ -3,8 +3,15 @@ import DiskReservoirCore
 
 /// 增长洞察：历史观测、轻量路径核对与项目范围提议。
 struct GrowthInsightsView: View {
+    private enum Section: Hashable {
+        case changes
+        case watched
+        case projects
+    }
+
     @ObservedObject var state: AppState
     let service: AppService
+    @State private var selectedSection: Section = .changes
     @State private var candidateToConfirm: CandidateRecipe?
 
     private var pendingCandidates: [CandidateRecipe] {
@@ -17,37 +24,28 @@ struct GrowthInsightsView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
 
-            Divider()
+            Picker(Localized.string("insights.title"), selection: $selectedSection) {
+                Text(Localized.string("insights.tab_changes")).tag(Section.changes)
+                Text(Localized.string("insights.tab_watched")).tag(Section.watched)
+                Text(Localized.string("insights.tab_projects")).tag(Section.projects)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    growthLogSection
-                    watchSection
-                    Divider()
-                    candidateSection
-                }
-            }
-            .frame(maxHeight: 380)
-
-            HStack {
-                Spacer()
-                Button(Localized.string("common.close")) {
-                    withAnimation(.easeInOut(duration: 0.18)) { state.showGrowthInsights = false }
-                }
-                .buttonStyle(.bordered)
-                .cursorPointingHand()
+                sectionContent
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(14)
-        .frame(width: 440)
+        .padding(16)
+        .frame(width: 440, height: 470)
         .background(
             Color(nsColor: .windowBackgroundColor).opacity(0.97),
             in: RoundedRectangle(cornerRadius: 12)
         )
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
-        .padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.15))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.15))
         .onAppear { service.recheckGrowthInsights() }
         .alert(item: $candidateToConfirm) { candidate in
             Alert(
@@ -58,6 +56,15 @@ struct GrowthInsightsView: View {
                 },
                 secondaryButton: .cancel(Text(Localized.string("common.cancel")))
             )
+        }
+    }
+
+    @ViewBuilder
+    private var sectionContent: some View {
+        switch selectedSection {
+        case .changes: growthLogSection
+        case .watched: watchSection
+        case .projects: candidateSection
         }
     }
 
@@ -73,18 +80,22 @@ struct GrowthInsightsView: View {
             }
             .buttonStyle(.plain)
             .cursorPointingHand()
+            .accessibilityLabel(Localized.string("common.close"))
         }
     }
 
     private var growthLogSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(Localized.string("insights.recent_events"))
-                    .font(.caption)
+                    .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
                 Spacer()
             }
+            Text(Localized.string("insights.historical_note"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Button(Localized.string("insights.recheck_paths")) {
                     service.recheckGrowthInsights()
@@ -110,10 +121,6 @@ struct GrowthInsightsView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            Text(Localized.string("insights.historical_note"))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             if let report = state.growthReport {
                 Text(Localized.string("insights.checked_at", dateText(report.checkedAt)))
                     .font(.caption2)
@@ -129,8 +136,10 @@ struct GrowthInsightsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(state.growthReport?.visibleEntries.prefix(20) ?? []) { record in
-                    growthRow(record)
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(state.growthReport?.visibleEntries.prefix(20) ?? []) { record in
+                        growthRow(record)
+                    }
                 }
             }
         }
@@ -143,10 +152,11 @@ struct GrowthInsightsView: View {
                 revealInFinder(entry.path)
             }
         } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 8) {
                     Text(entry.pattern)
-                        .font(.caption)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if entry.kind == .surface {
@@ -158,19 +168,39 @@ struct GrowthInsightsView: View {
                             .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
                     }
                     Spacer()
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(entry.kind == .new
                          ? Localized.string("insights.first_size", Format.bytes(entry.deltaBytes))
                          : Localized.string("insights.interval_growth", Format.bytes(entry.deltaBytes)))
                         .font(.caption)
+                        .fontWeight(.semibold)
                         .monospacedDigit()
+                    Spacer()
+                    Label(
+                        record.pathStatus == .present
+                            ? Localized.string("insights.path_present_short")
+                            : Localized.string("insights.path_unknown_short"),
+                        systemImage: record.pathStatus == .present
+                            ? "checkmark.circle" : "questionmark.circle"
+                    )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .help(record.pathStatus == .present
+                          ? Localized.string("insights.path_exists_unmeasured")
+                          : Localized.string("insights.path_unknown"))
                 }
-                Text(observationText(entry) + " · " + (record.pathStatus == .present
-                     ? Localized.string("insights.path_exists_unmeasured")
-                     : Localized.string("insights.path_unknown")))
+                Text(observationText(entry))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .focusEffectDisabled()
@@ -187,11 +217,10 @@ struct GrowthInsightsView: View {
                     && $0.paths.contains { GrowthPathStatus.probe($0) != .missing }
             }
             .sorted { $0.allocatedBytes > $1.allocatedBytes }
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 10) {
             Text(Localized.string("insights.watch_section"))
-                .font(.caption)
+                .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
             if let lastScanAt = state.lastScanAt {
                 Text(Localized.string("insights.watch_measured_at", dateText(lastScanAt)))
                     .font(.caption2)
@@ -229,7 +258,8 @@ struct GrowthInsightsView: View {
                             .foregroundStyle(.secondary)
                             .help(Localized.string("insights.watch_size_help"))
                     }
-                    .frame(height: 22)
+                    .padding(10)
+                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
@@ -248,12 +278,11 @@ struct GrowthInsightsView: View {
     }
 
     private var candidateSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(Localized.string("candidate.project_section"))
-                    .font(.caption)
+                    .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
                 Spacer()
                 Button(Localized.string("candidate.recheck")) {
                     Task { await service.refreshSuggestions(forceDiscovery: true) }
@@ -271,21 +300,24 @@ struct GrowthInsightsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(pendingCandidates) { candidate in
-                    candidateRow(candidate)
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(pendingCandidates) { candidate in
+                        candidateRow(candidate)
+                    }
                 }
             }
         }
     }
 
     private func candidateRow(_ candidate: CandidateRecipe) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 6) {
                 Button {
                     revealInFinder(candidate.samplePath)
                 } label: {
                     Text(candidate.pattern)
-                        .font(.caption)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -311,10 +343,6 @@ struct GrowthInsightsView: View {
                  + " · " + Localized.string("candidate.last_seen", dateText(candidate.lastSeenAt)))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-            Text(Localized.string("candidate.project_effect"))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
             HStack {
                 Spacer()
                 Button(Localized.string("candidate.preview")) {
@@ -331,6 +359,9 @@ struct GrowthInsightsView: View {
                 .cursorPointingHand()
             }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
     }
 
     /// 建议来源说明：为什么该目录会被建议纳入配方。
