@@ -211,9 +211,10 @@ struct GrowthInsightsView: View {
     /// Observed assets stay outside every cleanup entry point. The figure is
     /// allocated disk space, while reclaimable space remains zero.
     private var watchSection: some View {
-        let watchItems = state.items
+        let watchItems = service.visibleItems(state.items)
             .filter {
                 $0.cleanability == .watchOnly
+                    && $0.recipeID != OwnerCommandRecipe.pnpmStorePrune.id
                     && $0.paths.contains { GrowthPathStatus.probe($0) != .missing }
             }
             .sorted { $0.allocatedBytes > $1.allocatedBytes }

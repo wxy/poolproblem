@@ -16,6 +16,10 @@ struct MenuBarView: View {
     @State private var showCleanHistory = false
     @State private var cleanFailureNotice: String?
     @State private var quitProcessRunning = false
+    @State private var pnpmTarget: OwnerCommandTarget?
+    @State private var pnpmBusy = false
+    @State private var pnpmNotice: String?
+    @State private var showPnpmConfirm = false
 
     private var estimatedRecipeIDs: Set<String> {
         Set(RecipeRegistry.builtIn().filter(\.cloneProne).map(\.id))
@@ -117,6 +121,8 @@ struct MenuBarView: View {
                 Group {
                     if item.recipeID == "trash" {
                         TrashDetailView(state: state, service: service)
+                    } else if item.recipeID == OwnerCommandRecipe.pnpmStorePrune.id {
+                        pnpmDetailOverlay(item)
                     } else if service.isChildOnly(item) {
                         CacheChildrenView(state: state, service: service, item: item)
                     } else {
@@ -176,6 +182,39 @@ struct MenuBarView: View {
         } message: { outcome in
             Text(Localized.string("clean.confirm_message", outcome.entries.count, Format.bytes(outcome.freedBytes)))
         }
+        .alert(Localized.string("pnpm.confirm_title"), isPresented: $showPnpmConfirm) {
+            Button(Localized.string("common.cancel"), role: .cancel) { pnpmTarget = nil }
+            Button(Localized.string("pnpm.run"), role: .destructive) {
+                guard let target = pnpmTarget else { return }
+                pnpmBusy = true
+                Task {
+                    _ = await service.prunePnpmStore(confirmed: target) { result in
+                        pnpmNotice = pnpmJournalText(result)
+                    }
+                    pnpmBusy = false
+                    pnpmTarget = nil
+                }
+            }
+        } message: {
+            Text(Localized.string("pnpm.confirm_message", pnpmTarget?.path ?? ""))
+        }
+    }
+
+    private func pnpmJournalText(_ result: OwnerCommandJournalResult) -> String {
+        switch result {
+        case .startNotSaved:
+            return Localized.string("pnpm.error_journal_start")
+        case .completed(let execution, _):
+            return pnpmExecutionText(execution)
+        case .completionNotSaved(let execution, _):
+            let warning: String
+            if case .success = execution {
+                warning = Localized.string("pnpm.error_journal_completion_success")
+            } else {
+                warning = Localized.string("pnpm.error_journal_completion_failure")
+            }
+            return pnpmExecutionText(execution) + " " + warning
+        }
     }
 
     private var rightPanel: some View {
@@ -199,6 +238,14 @@ struct MenuBarView: View {
 
                     legend
 
+                    if let failure = service.lastPnpmProbeFailure {
+                        Label(Localized.string("pnpm.probe_not_listed", pnpmFailureText(failure)),
+                              systemImage: "exclamationmark.triangle")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     Divider()
 
                     if let summary = state.lastCleanSummary {
@@ -217,6 +264,151 @@ struct MenuBarView: View {
                 .padding(14)
             }
         }
+    }
+
+    private func beginPnpmPrune(for item: ScanItem) {
+        guard service.currentPnpmStoreTarget?.path == item.path,
+              service.visibleItems(state.items).contains(where: { $0.id == item.id }) else {
+            pnpmNotice = Localized.string("pnpm.error_changed")
+            return
+        }
+        pnpmBusy = true
+        pnpmNotice = nil
+        Task {
+            let result = await service.probePnpmStore()
+            switch result {
+            case .success(let target) where target.path == item.path:
+                pnpmTarget = target
+                showPnpmConfirm = true
+            case .success:
+                pnpmNotice = Localized.string("pnpm.error_changed")
+                await service.scanNow(autoClean: false)
+            case .failure(let failure):
+                pnpmNotice = pnpmFailureText(failure)
+            }
+            pnpmBusy = false
+        }
+    }
+
+    private func pnpmExecutionText(_ result: Result<OwnerCommandOutcome, OwnerCommandFailure>) -> String {
+        switch result {
+        case .success(let outcome):
+            return outcome.capacityDeltaBytes.map {
+                Localized.string("pnpm.result", Format.signedBytes($0))
+            } ?? Localized.string("pnpm.result_unknown")
+        case .failure(let failure): return pnpmFailureText(failure)
+        }
+    }
+
+    private func pnpmFailureText(_ failure: OwnerCommandFailure) -> String {
+        switch failure {
+        case .unavailable: return Localized.string("pnpm.error_unavailable")
+        case .invalidTarget: return Localized.string("pnpm.error_invalid")
+        case .ambiguousTarget: return Localized.string("pnpm.error_ambiguous")
+        case .targetChanged: return Localized.string("pnpm.error_changed")
+        case .probeFailed(let code): return Localized.string("pnpm.error_probe", Int(code))
+        case .actionFailed(let code): return Localized.string("pnpm.error_action", Int(code))
+        case .timedOut: return Localized.string("pnpm.error_timeout")
+        case .launchFailed: return Localized.string("pnpm.error_launch")
+        }
+    }
+
+    private func pnpmDetailOverlay(_ item: ScanItem) -> some View {
+        let currentItem = state.items.first {
+            $0.id == item.id && service.currentPnpmStoreTarget?.path == $0.path
+        }
+        let isEligible = service.visibleItems(state.items).contains { $0.id == item.id }
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(Localized.recipeName(item.recipeID, fallback: item.name))
+                    .font(.headline)
+                Spacer()
+                Button {
+                    withAnimation(overlaySpring) { state.detailItem = nil }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+            }
+
+            Text(Localized.string("pnpm.description"))
+                .font(.caption)
+            Text(Localized.string("pnpm.size_uncertain"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            LabeledContent(
+                Localized.string("detail.current_size"),
+                value: currentItem.map { Format.bytes($0.allocatedBytes) }
+                    ?? Localized.string("pnpm.size_unavailable")
+            )
+                .font(.caption)
+            LabeledContent(Localized.string("pnpm.command"), value: "pnpm store prune")
+                .font(.caption)
+
+            Divider()
+            Text(Localized.string("detail.path"))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Button {
+                revealInFinder(item.path)
+            } label: {
+                Text(item.path)
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .cursorPointingHand()
+
+            if let pnpmNotice {
+                Text(pnpmNotice)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else if let record = state.lastOwnerCommandRecord,
+                      record.recipeID == OwnerCommandRecipe.pnpmStorePrune.id {
+                Text(record.outcome == "started"
+                     ? Localized.string("pnpm.record_incomplete")
+                     : Localized.string("pnpm.last_record", record.outcome))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack {
+                Button(Localized.string("pnpm.run")) {
+                    beginPnpmPrune(for: item)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .controlSize(.large)
+                .disabled(pnpmBusy || state.isCleaning || state.isScanning || !isEligible)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+                Spacer()
+                Button(Localized.string("common.close")) {
+                    withAnimation(overlaySpring) { state.detailItem = nil }
+                }
+                .buttonStyle(.bordered)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+            }
+        }
+        .padding(16)
+        .frame(width: 380)
+        .background(
+            Color(nsColor: .windowBackgroundColor).opacity(reduceTransparency ? 1.0 : 0.97),
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.15))
     }
 
     private var autoCleanPlanList: some View {
@@ -384,6 +576,13 @@ struct MenuBarView: View {
             excludedItemIDs: state.cleanedItemIDs
         )
         let displayedLayers = poolLayers.layers.filter { displayedIDs.contains($0.itemID) }
+        // pnpm is measured occupancy with an owner-provided cleanup command. Its
+        // full store size is not an estimate of what `pnpm store prune` will free.
+        let ownerCommandItems = displayedItems.filter {
+            $0.recipeID == OwnerCommandRecipe.pnpmStorePrune.id
+                && service.currentPnpmStoreTarget?.path == $0.path
+                && FileManager.default.fileExists(atPath: $0.path)
+        }
         // 手动清理项：应用无法删除，只能提示用户到对应应用/Finder 清理
         let manualItems = displayedItems
             .filter {
@@ -397,13 +596,16 @@ struct MenuBarView: View {
             }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         let observedItems = displayedItems
-            .filter {
-                !ScanDisplayPolicy.effectiveCleanability($0, recipes: recipes).allowsManualCleanup
-                    && $0.recipeID != "trash"
+            .filter { item in
+                !ScanDisplayPolicy.effectiveCleanability(item, recipes: recipes).allowsManualCleanup
+                    && item.recipeID != "trash"
+                    && item.recipeID != OwnerCommandRecipe.pnpmStorePrune.id
+                    && recipes.contains(where: { $0.id == item.recipeID })
+                    && FileManager.default.fileExists(atPath: item.path)
             }
             .sorted { $0.allocatedBytes > $1.allocatedBytes }
         return VStack(alignment: .leading, spacing: 5) {
-            Text(Localized.string("section.cleanable_count", displayedLayers.count))
+            Text(Localized.string("section.cleanable_count", displayedLayers.count + ownerCommandItems.count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach(displayedLayers.filter { layer in
@@ -458,6 +660,35 @@ struct MenuBarView: View {
                             : .default,
                         value: state.deletingItemID == layer.itemID && state.deletingProgress > 0
                     )
+                }
+                .buttonStyle(.plain)
+                .focusEffectDisabled()
+                .cursorPointingHand()
+            }
+
+            ForEach(ownerCommandItems) { item in
+                Button {
+                    withAnimation(overlaySpring) { state.detailItem = item }
+                } label: {
+                    HStack(spacing: 5) {
+                        Rectangle()
+                            .fill(PoolLayers.manualColor)
+                            .frame(width: 9, height: 9)
+                        Text(Localized.recipeName(item.recipeID, fallback: item.name))
+                            .lineLimit(1)
+                            .font(.caption)
+                        Spacer()
+                        Text(Format.bytes(item.allocatedBytes))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                        Text("?")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .help(Localized.string("pnpm.size_uncertain"))
+                            .frame(width: 10)
+                    }
+                    .frame(height: 22)
                 }
                 .buttonStyle(.plain)
                 .focusEffectDisabled()
@@ -548,6 +779,58 @@ struct MenuBarView: View {
                     }
                 }
 
+                if !observedItems.isEmpty {
+                    Button {
+                        withAnimation { observedExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Rectangle()
+                                .fill(PoolLayers.nonCleanableColor)
+                                .frame(width: 9, height: 9)
+                            Text(Localized.string("insights.tab_watched"))
+                                .font(.caption)
+                            Image(systemName: observedExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(Format.bytes(observedItems.reduce(Int64(0)) { $0 + $1.allocatedBytes }))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .focusEffectDisabled()
+                    .cursorPointingHand()
+                    if observedExpanded {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(Localized.string("watch.included_in_non_cleanable"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            ForEach(observedItems) { item in
+                                Button {
+                                    withAnimation(overlaySpring) { state.detailItem = item }
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Text(Localized.recipeName(item.recipeID, fallback: item.name))
+                                            .lineLimit(1)
+                                            .font(.caption)
+                                        Spacer()
+                                        Text(Format.bytes(item.allocatedBytes))
+                                            .font(.caption)
+                                            .monospacedDigit()
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .frame(height: 22)
+                                }
+                                .buttonStyle(.plain)
+                                .focusEffectDisabled()
+                                .cursorPointingHand()
+                            }
+                        }
+                        .padding(.leading, 14)
+                    }
+                }
+
                 if poolLayers.nonCleanableBytes > 0 {
                     Button {
                         withAnimation(overlaySpring) { showNonCleanableInfo = true }
@@ -568,51 +851,6 @@ struct MenuBarView: View {
                     .buttonStyle(.plain)
                     .focusEffectDisabled()
                     .cursorPointingHand()
-                    if !observedItems.isEmpty {
-                        Button {
-                            withAnimation { observedExpanded.toggle() }
-                        } label: {
-                            HStack(spacing: 5) {
-                                Text(Localized.string("insights.tab_watched"))
-                                    .font(.caption)
-                                Image(systemName: observedExpanded ? "chevron.up" : "chevron.down")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
-                                Text(Format.bytes(observedItems.reduce(Int64(0)) { $0 + $1.allocatedBytes }))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .focusEffectDisabled()
-                        .cursorPointingHand()
-                        if observedExpanded {
-                            VStack(alignment: .leading, spacing: 3) {
-                                ForEach(observedItems) { item in
-                                    Button {
-                                        withAnimation(overlaySpring) { state.detailItem = item }
-                                    } label: {
-                                        HStack(spacing: 5) {
-                                            Text(Localized.recipeName(item.recipeID, fallback: item.name))
-                                                .lineLimit(1)
-                                                .font(.caption)
-                                            Spacer()
-                                            Text(Format.bytes(item.allocatedBytes))
-                                                .font(.caption)
-                                                .monospacedDigit()
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        .frame(height: 22)
-                                    }
-                                    .buttonStyle(.plain)
-                                    .focusEffectDisabled()
-                                    .cursorPointingHand()
-                                }
-                            }
-                            .padding(.leading, 14)
-                        }
-                    }
                 }
             }
             .padding(.top, 2)
@@ -743,6 +981,17 @@ struct MenuBarView: View {
         state.showCleanConfirm = !outcome.entries.isEmpty
     }
 
+    private func observedReason(for item: ScanItem) -> String {
+        switch item.recipeID {
+        case "xcode-archives":
+            return Localized.string("watch.xcode_archives_reason")
+        case "core-simulator-devices":
+            return Localized.string("watch.simulator_devices_reason")
+        default:
+            return Localized.string("watch.generic_reason")
+        }
+    }
+
     /// 配方详情说明浮层；只观察项也通过它展示路径和当前占用。
     private func detailOverlay(_ item: ScanItem) -> some View {
         let isKept = state.keptItemIDs.contains(item.id)
@@ -771,7 +1020,9 @@ struct MenuBarView: View {
                      : Localized.string("insights.tab_watched"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Text(Localized.suggestionText(rationale.suggestion))
+                Text(cleanability.allowsManualCleanup
+                     ? Localized.suggestionText(rationale.suggestion)
+                     : observedReason(for: item))
                     .font(.caption)
                 if appCleanable {
                     Text(Localized.string("detail.why_cleanable"))
@@ -798,11 +1049,13 @@ struct MenuBarView: View {
                     Text(Localized.confirmationText(confirmation))
                         .font(.caption)
                 }
-                Text(Localized.string("detail.last_used"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(lastUsedText(rationale.lastUsed))
-                    .font(.caption)
+                if cleanability.allowsManualCleanup {
+                    Text(Localized.string("detail.last_used"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(lastUsedText(rationale.lastUsed))
+                        .font(.caption)
+                }
             }
 
             if estimatedRecipeIDs.contains(item.recipeID) {
@@ -897,22 +1150,24 @@ struct MenuBarView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                if isKept {
-                    Button(Localized.string("detail.unkeep")) {
-                        service.unkeepItem(item.id)
+                if cleanability.allowsManualCleanup {
+                    if isKept {
+                        Button(Localized.string("detail.unkeep")) {
+                            service.unkeepItem(item.id)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.orange)
+                        .focusEffectDisabled()
+                        .cursorPointingHand()
+                    } else {
+                        Button(Localized.string("detail.keep")) {
+                            service.keepItem(item)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                        .focusEffectDisabled()
+                        .cursorPointingHand()
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.orange)
-                    .focusEffectDisabled()
-                    .cursorPointingHand()
-                } else {
-                    Button(Localized.string("detail.keep")) {
-                        service.keepItem(item)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
-                    .focusEffectDisabled()
-                    .cursorPointingHand()
                 }
                 Spacer()
                 Button(Localized.string("common.close")) {

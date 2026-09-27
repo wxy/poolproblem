@@ -1,0 +1,35 @@
+PASS legacy scan volume differs from fixture home
+PASS unrelated aggregate cache actually cleaned
+PASS legacy pnpm tree survives Cleaner
+PASS Cleaner records only safe cache deletion
+PASS durable clean log excludes pnpm
+PASS persisted pnpm tree belongs to a different temporary home
+PASS safe cache still deleted after home changes
+PASS historical-home pnpm tree survives Cleaner
+PASS historical aggregate records only safe deletion
+PASS all approved default caches deleted beside stale parent
+PASS historical Library parent and pnpm survive Cleaner
+PASS parent aggregate records only approved caches
+PASS durable parent aggregate log excludes Library and pnpm
+PASS probe exact isolated store
+PASS prune retained store root
+PASS outcome exact confirmed target
+PASS separate owner command history
+PASS no fabricated clean log
+PASS nonzero action status
+PASS failed action left package
+PASS changed target blocked
+PASS invalid root rejected
+PASS changed and invalid target did not run prune
+PASS wrapper action reports timeout
+PASS child ran after draining 512 KiB of stdout and stderr
+EVIDENCE timeout elapsed=0.5439209938049316 heartbeatBytesAtReturn=18 heartbeatBytesAfter800ms=18
+PASS child stopped before timeout was reported
+PASS child cannot perform delayed deletion after timeout
+PASS timeout completes within bounded interval
+PASS 512 KiB drained with only 64 KiB retained
+PASS executable observes its own process group before action starts
+PASS early wrapper exit also stops its child
+PASS early wrapper exit cannot leave delayed deletion running
+PASS legacy pnpm subtree guarded
+PASS default automatic recipe excludes pnpm

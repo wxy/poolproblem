@@ -16,6 +16,12 @@ public enum ScanDisplayPolicy {
     public static func visibleItems(_ items: [ScanItem], recipes: [Recipe]) -> [ScanItem] {
         let minimumByID = Dictionary(uniqueKeysWithValues: recipes.map { ($0.id, $0.minimumSizeMB) })
         return items.filter { item in
+            if item.recipeID == OwnerCommandRecipe.pnpmStorePrune.id {
+                guard let current = recipes.first(where: { $0.id == item.recipeID }),
+                      current.cleanability == .watchOnly,
+                      current.disposition == .none,
+                      current.resolvePaths(StoragePaths()).contains(item.path) else { return false }
+            }
             if item.recipeID == "trash" || item.recipeID == "own-trash-batches" { return true }
             let minimumMB = minimumByID[item.recipeID] ?? 0
             return Double(item.allocatedBytes) >= max(0, minimumMB) * 1_000_000

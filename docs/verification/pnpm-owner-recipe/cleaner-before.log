@@ -1,0 +1,3 @@
+PASS legacy scan volume differs from fixture home
+PASS unrelated aggregate cache actually cleaned
+main/OwnerCommandE2E.swift:18: Fatal error: legacy pnpm tree survives Cleaner

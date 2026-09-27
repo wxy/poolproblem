@@ -1,0 +1,9 @@
+command=swift test --disable-sandbox
+environment=macOS arm64, Xcode Swift 6
+input=full Swift Package suite
+result=interrupted after 3 minutes of concurrent tests; no full-suite verdict
+
+command=CLANG_MODULE_CACHE_PATH=$TMPDIR/poolproblem-pnpm-final-cache SWIFT_MODULE_CACHE_PATH=$TMPDIR/poolproblem-pnpm-final-cache swift test --disable-sandbox --skip cliScan --scratch-path "$TMPDIR/poolproblem-pnpm-recipe-ci" -q > "$TMPDIR/poolproblem-pnpm-final-suite.log" 2>&1
+environment=macOS arm64, Xcode Swift 6, existing cached SwiftPM dependency checkout under TMPDIR; fresh scratch could not resolve github.com in the restricted network
+input=complete Swift Package suite after the A-to-B history fix; no real store prune
+result=testing helper stayed asleep at 0% CPU for more than 7 minutes and wrote no stdout/stderr to the log; interrupted with Ctrl-C (exit 130). This attempt gives no full-suite verdict. The focused pnpm E2E 10/10 and Xcode build-for-testing are recorded separately.

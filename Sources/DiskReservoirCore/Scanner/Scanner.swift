@@ -21,17 +21,20 @@ public struct Scanner: Sendable {
     /// 每个配方覆盖的年龄阈值（天），来自 Config.rules 的用户设置；
     /// 未配置时回落到 recipe.defaultAgeDays。
     private let ageDaysByRecipe: [String: Int]
+    private let protectedOwnerPaths: [String]
 
     public init(
         now: @escaping @Sendable () -> Date = { Date() },
         includeHidden: Bool = true,
         cloneRatios: [String: Double] = [:],
-        ageDaysByRecipe: [String: Int] = [:]
+        ageDaysByRecipe: [String: Int] = [:],
+        protectedOwnerPaths: [String] = []
     ) {
         self.now = now
         self.includeHidden = includeHidden
         self.cloneRatios = cloneRatios
         self.ageDaysByRecipe = ageDaysByRecipe
+        self.protectedOwnerPaths = protectedOwnerPaths
     }
 
     public func scan(recipes: [Recipe], homeDirectory: String) throws -> ScanResult {
@@ -39,6 +42,9 @@ public struct Scanner: Sendable {
         // 其他配方已解析的路径：测量本配方时跳过这些子树，避免同一目录被
         // 两个配方分别统计（如 ~/Library/Caches 与其内部 Homebrew/CocoaPods）。
         let allResolved = recipes.map { $0.resolvePaths(paths) }
+        let ownerPaths = recipes
+            .filter { $0.id == OwnerCommandRecipe.pnpmStorePrune.id }
+            .flatMap { $0.resolvePaths(paths) }
         var items: [ScanItem] = []
         var records: [FileRecord] = []
         for recipe in recipes {
@@ -49,15 +55,31 @@ public struct Scanner: Sendable {
                     || !path.hasPrefix("/Library/Developer/CoreSimulator/")
             }
             let ownPaths = Set(resolved)
-            let excludedPaths = Set(allResolved.flatMap { $0 }).subtracting(ownPaths)
+            var excludedPaths = Set(allResolved.flatMap { $0 }).subtracting(ownPaths)
+            // The owner-managed pnpm store wins even when another recipe
+            // resolves the exact same root and set subtraction would erase it.
+            if recipe.id != OwnerCommandRecipe.pnpmStorePrune.id {
+                excludedPaths.formUnion(ownerPaths)
+                excludedPaths.formUnion(protectedOwnerPaths)
+            }
             if recipe.aggregatesPaths {
-                if let item = aggregateItem(recipe: recipe, paths: resolved, homeDirectory: homeDirectory) {
+                if let item = aggregateItem(
+                    recipe: recipe, paths: resolved, homeDirectory: homeDirectory,
+                    excludedPaths: excludedPaths
+                ) {
                     items.append(item)
                 }
                 continue
             }
             for path in resolved {
                 guard FileManager.default.fileExists(atPath: path) else { continue }
+                if recipe.id != OwnerCommandRecipe.pnpmStorePrune.id {
+                    let canonical = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+                    if (ownerPaths + protectedOwnerPaths).contains(where: {
+                        let owner = URL(fileURLWithPath: $0).resolvingSymlinksInPath().standardizedFileURL.path
+                        return canonical == owner || canonical.hasPrefix(owner + "/")
+                    }) { continue }
+                }
                 if recipe.usageProbe == .simulatorRuntimeLastBooted {
                     items.append(contentsOf: runtimeItems(
                         recipe: recipe,
@@ -126,9 +148,23 @@ public struct Scanner: Sendable {
         excludedPaths: Set<String> = []
     ) -> [ScanItem] {
         guard FileManager.default.fileExists(atPath: path) else { return [] }
+        if recipe.id != OwnerCommandRecipe.pnpmStorePrune.id {
+            let canonical = URL(fileURLWithPath: path)
+                .resolvingSymlinksInPath().standardizedFileURL.path
+            if protectedOwnerPaths.contains(where: {
+                let protected = URL(fileURLWithPath: $0)
+                    .resolvingSymlinksInPath().standardizedFileURL.path
+                return canonical == protected || canonical.hasPrefix(protected + "/")
+            }) { return [] }
+        }
         if recipe.aggregatesPaths {
             let resolved = recipe.resolvePaths(Self.recipeStoragePaths(homeDirectory: homeDirectory))
-            return aggregateItem(recipe: recipe, paths: resolved, homeDirectory: homeDirectory).map { [$0] } ?? []
+            return aggregateItem(
+                recipe: recipe, paths: resolved, homeDirectory: homeDirectory,
+                excludedPaths: excludedPaths.union(
+                    recipe.id == OwnerCommandRecipe.pnpmStorePrune.id ? [] : Set(protectedOwnerPaths)
+                )
+            ).map { [$0] } ?? []
         }
         if recipe.usageProbe == .simulatorRuntimeLastBooted {
             return runtimeItems(recipe: recipe, parentPath: path, homeDirectory: homeDirectory)
@@ -139,7 +175,9 @@ public struct Scanner: Sendable {
             url,
             itemID: itemID,
             lightWeight: recipe.disposition == .none,
-            excludedPaths: excludedPaths
+            excludedPaths: excludedPaths.union(
+                recipe.id == OwnerCommandRecipe.pnpmStorePrune.id ? [] : Set(protectedOwnerPaths)
+            )
         ) else { return [] }
         var item = ScanItem(
             id: itemID,
@@ -168,21 +206,40 @@ public struct Scanner: Sendable {
 
     /// 聚合路径配方：把 resolvePaths 的多个路径合并为一个条目
     /// （项目目录聚类：一个"项目 node_modules"条目汇总所有项目）。
-    private func aggregateItem(recipe: Recipe, paths: [String], homeDirectory: String) -> ScanItem? {
+    private func aggregateItem(
+        recipe: Recipe, paths: [String], homeDirectory: String,
+        excludedPaths: Set<String>
+    ) -> ScanItem? {
         var size: Int64 = 0
         var allocated: Int64 = 0
+        var deletableAllocated: Int64 = 0
         var count = 0
         var newest: Date?
         var existing: [String] = []
         let ageLimitDays = ageDaysByRecipe[recipe.id] ?? recipe.defaultAgeDays
         for path in paths {
             guard FileManager.default.fileExists(atPath: path) else { continue }
+            let canonicalRoot = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+            let canonicalExcluded = excludedPaths.map {
+                URL(fileURLWithPath: $0).resolvingSymlinksInPath().standardizedFileURL.path
+            }
+            // A more specific recipe owns this entire root.
+            if canonicalExcluded.contains(where: { canonicalRoot == $0 || canonicalRoot.hasPrefix($0 + "/") }) {
+                continue
+            }
+            // `POSIXDirectoryWalker` walks through the spelling of `path`.
+            // Map excluded canonical descendants back through an aliased root.
+            let exclusionsForRoot = Set(canonicalExcluded.compactMap { excluded -> String? in
+                guard excluded.hasPrefix(canonicalRoot + "/") else { return nil }
+                return path + String(excluded.dropFirst(canonicalRoot.count))
+            })
             let url = URL(fileURLWithPath: path, isDirectory: true)
             let itemID = "\(recipe.id):\(path)"
             guard let (s, a, c, m, _) = try? measureDirectory(
                 url,
                 itemID: itemID,
-                lightWeight: true
+                lightWeight: true,
+                excludedPaths: exclusionsForRoot
             ) else { continue }
             // 只聚合“足够老”的子路径：未达到年龄阈值或最近 24h 有修改的
             // 项目不进入可清理清单（也不参与清理）。
@@ -198,15 +255,16 @@ public struct Scanner: Sendable {
             existing.append(path)
             size += s
             allocated += a
+            if exclusionsForRoot.isEmpty { deletableAllocated += a }
             count += c
             if let effective, effective > (newest ?? .distantPast) {
                 newest = effective
             }
         }
         guard !existing.isEmpty else { return nil }
-        var reclaimable = recipe.cleanability == .watchOnly ? 0 : allocated
+        var reclaimable = recipe.cleanability == .watchOnly ? 0 : deletableAllocated
         if recipe.cloneProne && recipe.cleanability != .watchOnly {
-            reclaimable = Int64(Double(allocated) * (cloneRatios[recipe.id] ?? 0.2))
+            reclaimable = Int64(Double(deletableAllocated) * (cloneRatios[recipe.id] ?? 0.2))
         }
         return ScanItem(
             id: "\(recipe.id):aggregate",

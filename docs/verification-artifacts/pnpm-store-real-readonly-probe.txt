@@ -1,0 +1,5 @@
+Command: sh docs/verification/pnpm-owner-recipe/run-readonly-real-probe.sh > docs/verification-artifacts/pnpm-store-real-readonly-probe.log 2>&1
+Environment: macOS arm64, Xcode Swift 6, user HOME, minimal GUI PATH=/usr/bin:/bin:/usr/sbin:/sbin; temporary compiler files are created under TMPDIR and removed on exit.
+Input: installed pnpm candidates and the live user store; the harness invokes only pnpm store path and the read-only Scanner.
+Result on 2026-09-27: probe succeeded with the NVM pnpm executable despite the broken earlier Corepack candidate. The measured store had 426921984 allocated bytes (about 407 MiB), above the 10 MB visibility threshold. prune_executed=false. The exact output is in pnpm-store-real-readonly-probe.log.
+Repeatability: rerun the command above on the same machine; occupancy may change as packages are installed or removed. Never substitute pnpm store prune into this harness.

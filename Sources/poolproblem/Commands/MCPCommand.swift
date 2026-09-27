@@ -218,7 +218,8 @@ private final class MCPServer {
                 evaluator: evaluator,
                 deleter: FileManagerFileDeleter(),
                 inspector: PGrepProcessInspector(),
-                logStore: CleanLogStore(paths: paths)
+                logStore: CleanLogStore(paths: paths),
+                homeDirectory: paths.homeDirectory
             ).run(
                 scan: result,
                 config: config,

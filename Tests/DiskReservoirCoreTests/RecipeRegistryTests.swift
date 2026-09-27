@@ -126,7 +126,7 @@ import Foundation
     #expect(recipe.category == .packageManager)
     let resolved = recipe.resolvePaths(StoragePaths(baseURL: nil, homeDirectory: "/Users/tester"))
     #expect(resolved.contains("/Users/tester/.npm"))
-    #expect(resolved.contains("/Users/tester/Library/pnpm"))
+    #expect(!resolved.contains("/Users/tester/Library/pnpm"))
     #expect(resolved.contains("/Users/tester/.cache/uv"))
     #expect(resolved.contains("/Users/tester/Library/Caches/CocoaPods"))
     #expect(resolved.contains("/Users/tester/Library/Caches/Homebrew"))

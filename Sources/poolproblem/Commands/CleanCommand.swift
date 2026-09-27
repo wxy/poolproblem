@@ -26,7 +26,8 @@ struct CleanCommand: ParsableCommand {
             evaluator: evaluator,
             deleter: FileManagerFileDeleter(),
             inspector: PGrepProcessInspector(),
-            logStore: logStore
+            logStore: logStore,
+            homeDirectory: paths.homeDirectory
         )
         let outcome: CleanOutcome
         if dryRun {

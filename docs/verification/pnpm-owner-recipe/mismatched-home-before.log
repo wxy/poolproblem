@@ -1,0 +1,8 @@
+PASS legacy scan volume differs from fixture home
+PASS unrelated aggregate cache actually cleaned
+PASS legacy pnpm tree survives Cleaner
+PASS Cleaner records only safe cache deletion
+PASS durable clean log excludes pnpm
+PASS persisted pnpm tree belongs to a different temporary home
+PASS safe cache still deleted after home changes
+main/OwnerCommandE2E.swift:18: Fatal error: historical-home pnpm tree survives Cleaner

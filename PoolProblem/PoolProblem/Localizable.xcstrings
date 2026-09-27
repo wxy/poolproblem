@@ -5387,6 +5387,414 @@
           }
         }
       }
+    },
+    "pnpm.title" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prune pnpm store…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清理 pnpm store…"
+          }
+        }
+      }
+    },
+    "pnpm.description" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Manual official command. Removes unreferenced packages; future installs may download them again. Store size is not guaranteed freed space."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手动执行官方命令，移除未被引用的包；后续安装可能重新下载。store 占用不等于保证释放空间。"
+          }
+        }
+      }
+    },
+    "pnpm.confirm_title" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permanently prune pnpm store?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久清理 pnpm store？"
+          }
+        }
+      }
+    },
+    "pnpm.confirm_message" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run pnpm store prune on:\n%@\n\nUnreferenced packages are permanently removed without going to Trash. Future installs may download them again. The store size is not guaranteed freed space."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将在以下目录执行 pnpm store prune：\n%@\n\n未被引用的包会永久移除，不经过废纸篓。后续安装可能重新下载；store 占用不等于保证释放空间。"
+          }
+        }
+      }
+    },
+    "pnpm.run" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permanently prune"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久清理"
+          }
+        }
+      }
+    },
+    "pnpm.result" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command succeeded. Measured available-space change: %@. Other disk activity may affect this reading."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令成功。实测可用空间变化：%@。同期磁盘活动可能影响读数。"
+          }
+        }
+      }
+    },
+    "pnpm.result_unknown" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Command succeeded. Available-space change could not be measured."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命令成功，但无法测得可用空间变化。"
+          }
+        }
+      }
+    },
+    "pnpm.last_record" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last pnpm command: %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "上次 pnpm 命令：%@"
+          }
+        }
+      }
+    },
+    "pnpm.record_incomplete" : {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Last pnpm attempt: outcome unknown; check the store before retrying" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "上次 pnpm 清理尝试：结果未知；重试前请检查 store" } }
+      }
+    },
+    "pnpm.error_journal_start" : {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Could not save the pnpm attempt. The prune command was not run." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法保存 pnpm 清理尝试记录；未运行清理命令。" } }
+      }
+    },
+    "pnpm.error_journal_completion_success" : {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The command succeeded, but its completion history could not be saved. Check the store before retrying." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "命令已成功，但无法保存完成记录。重试前请检查 store。" } }
+      }
+    },
+    "pnpm.error_journal_completion_failure" : {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Its completion history could not be saved. The command may have changed the store; check it before retrying." } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "无法保存命令完成记录。store 可能已变化；重试前请检查。" } }
+      }
+    },
+    "pnpm.error_unavailable" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm is unavailable; nothing was removed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到 pnpm；未执行清理。"
+          }
+        }
+      }
+    },
+    "pnpm.error_invalid" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm returned an invalid store path; nothing was removed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm 返回无效 store 路径；未执行清理。"
+          }
+        }
+      }
+    },
+    "pnpm.error_changed" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The store path changed after confirmation; nothing was removed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认后 store 路径发生变化；未执行清理。"
+          }
+        }
+      }
+    },
+    "pnpm.error_probe" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Store path probe exited with code %d; nothing was removed."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "store 路径探测退出码 %d；未执行清理。"
+          }
+        }
+      }
+    },
+    "pnpm.error_action" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm prune exited with code %d; check pnpm before retrying."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm prune 退出码 %d；请检查 pnpm 后重试。"
+          }
+        }
+      }
+    },
+    "pnpm.error_timeout" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm timed out. Check the store before retrying; the command may have partially run."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm 超时。命令可能已部分执行，请检查 store 后再重试。"
+          }
+        }
+      }
+    },
+    "pnpm.error_launch" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The pnpm process could not be verified. The store may have changed; check it before retrying."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法确认 pnpm 进程的执行结果。store 可能已变化；重试前请检查。"
+          }
+        }
+      }
+    },
+    "pnpm.command" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Official command"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "官方命令"
+          }
+        }
+      }
+    },
+    "pnpm.error_ambiguous" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Several pnpm installations use different stores. The command is blocked; align their store configuration before retrying."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "检测到多个 pnpm 对应不同的 store，暂不执行。请先统一它们的 store 配置再重试。"
+          }
+        }
+      }
+    },
+    "pnpm.probe_not_listed" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm store was not added to the recipes: %@. Scan again after fixing pnpm."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pnpm store 暂未加入配方：%@。修复 pnpm 后可重新扫描。"
+          }
+        }
+      }
+    },
+    "pnpm.size_unavailable" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No current measurement; scan again before using this recipe."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暂无当前测量结果；请重新扫描后再使用此配方。"
+          }
+        }
+      }
+    },
+    "pnpm.size_uncertain" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Current store occupancy is included in Non-cleanable. The amount pnpm can free is unknown until its official prune command finishes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这里显示的 store 占用已计入「不可清理」；官方命令实际能释放多少，执行前无法确定。"
+          }
+        }
+      }
+    },
+    "watch.generic_reason" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This directory contains user or tool-managed data. Pool Problem measures its occupancy but does not delete the directory. Review it in the owning app before making changes."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此目录包含用户数据或由其他工具管理的数据。应用只测量占用，不直接删除整个目录；请先在所属应用中检查。"
+          }
+        }
+      }
+    },
+    "watch.included_in_non_cleanable" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Observed occupancy is already included in Non-cleanable; these totals must not be added together."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这些占用已计入「不可清理」，请勿与其相加。"
+          }
+        }
+      }
+    },
+    "watch.simulator_devices_reason" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simulator devices contain installed apps and their data. Pool Problem only observes them; manage individual devices in Xcode."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "模拟器设备包含已安装的 App 和数据。这里仅观察占用；请在 Xcode 中逐个管理设备。"
+          }
+        }
+      }
+    },
+    "watch.xcode_archives_reason" : {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode archives contain apps you created. Pool Problem only observes them; review individual archives in Xcode Organizer."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Xcode 归档包含你制作的 App。这里仅观察占用；请在 Xcode 的 Organizer 中逐个检查和管理。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
