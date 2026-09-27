@@ -276,7 +276,7 @@ private func makeProject(_ base: URL, _ name: String) throws -> URL {
     #expect(candidates[0].samplePath == develop.path)
 }
 
-@Test func suggesterMapsCacheGrowthToPackageManagerFamily() throws {
+@Test func suggesterDoesNotTreatArbitraryCacheNameAsSafeRecipe() throws {
     let base = FileManager.default.temporaryDirectory
         .appendingPathComponent("pp-sug-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: base) }
@@ -289,12 +289,7 @@ private func makeProject(_ base: URL, _ name: String) throws -> URL {
     ]
     let candidates = RecipeSuggester(minTotalBytes: 100 << 20)
         .suggest(entries: entries, existingRecipes: [], homeDirectory: home.path)
-    #expect(candidates.count == 1)
-    #expect(candidates[0].recipeID == RecipeSuggester.packageManagerFamilyID)
-    #expect(candidates[0].suggestedCategory == .packageManager)
-    #expect(candidates[0].suggestedSafety == .safeWhileRunning)
-    #expect(candidates[0].suggestedDisposition == .deletePermanently)
-    #expect(candidates[0].samplePath == yarnCache.path)
+    #expect(candidates.isEmpty)
 }
 
 @Test func normalizeKeepsPackageManagerCandidatesAsSingles() throws {

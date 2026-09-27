@@ -1,54 +1,71 @@
 import SwiftUI
 import DiskReservoirCore
 
-/// 增长洞察弹层：增长记录 + 候选配方建议（采纳/忽略）。
+/// 增长洞察：历史观测、轻量路径核对与项目范围提议。
 struct GrowthInsightsView: View {
-    @ObservedObject var state: AppState
-    let service: AppService
-
-    private var pendingCandidates: [CandidateRecipe] {
-        state.candidateRecipes.filter { $0.status == .pending }
+    private enum Section: Hashable {
+        case changes
+        case watched
+        case projects
     }
 
-    private var acceptedCandidates: [CandidateRecipe] {
-        state.candidateRecipes.filter { $0.status == .accepted }
+    @ObservedObject var state: AppState
+    let service: AppService
+    @State private var selectedSection: Section = .changes
+    @State private var candidateToConfirm: CandidateRecipe?
+
+    private var pendingCandidates: [CandidateRecipe] {
+        state.candidateRecipes.filter {
+            $0.status == .pending && GrowthCandidateAdmission.canDisplay($0)
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
 
-            Divider()
+            Picker(Localized.string("insights.title"), selection: $selectedSection) {
+                Text(Localized.string("insights.tab_changes")).tag(Section.changes)
+                Text(Localized.string("insights.tab_watched")).tag(Section.watched)
+                Text(Localized.string("insights.tab_projects")).tag(Section.projects)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    growthLogSection
-                    watchSection
-                    Divider()
-                    candidateSection
-                }
-            }
-            .frame(maxHeight: 380)
-
-            HStack {
-                Spacer()
-                Button(Localized.string("common.close")) {
-                    withAnimation(.easeInOut(duration: 0.18)) { state.showGrowthInsights = false }
-                }
-                .buttonStyle(.bordered)
-                .cursorPointingHand()
+                sectionContent
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(14)
-        .frame(width: 440)
+        .padding(16)
+        .frame(width: 440, height: 470)
         .background(
             Color(nsColor: .windowBackgroundColor).opacity(0.97),
             in: RoundedRectangle(cornerRadius: 12)
         )
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator))
-        .padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.15))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.15))
+        .onAppear { service.recheckGrowthInsights() }
+        .alert(item: $candidateToConfirm) { candidate in
+            Alert(
+                title: Text(Localized.string("candidate.preview_title")),
+                message: Text(Localized.string("candidate.preview_body", candidate.samplePath)),
+                primaryButton: .default(Text(Localized.string("candidate.confirm_add"))) {
+                    service.acceptCandidate(id: candidate.id)
+                },
+                secondaryButton: .cancel(Text(Localized.string("common.cancel")))
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var sectionContent: some View {
+        switch selectedSection {
+        case .changes: growthLogSection
+        case .watched: watchSection
+        case .projects: candidateSection
+        }
     }
 
     private var header: some View {
@@ -63,17 +80,29 @@ struct GrowthInsightsView: View {
             }
             .buttonStyle(.plain)
             .cursorPointingHand()
+            .accessibilityLabel(Localized.string("common.close"))
         }
     }
 
     private var growthLogSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(Localized.string("insights.entries"))
-                    .font(.caption)
+                Text(Localized.string("insights.recent_events"))
+                    .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
                 Spacer()
+            }
+            Text(Localized.string("insights.historical_note"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button(Localized.string("insights.recheck_paths")) {
+                    service.recheckGrowthInsights()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .cursorPointingHand()
                 Button(state.isGrowthDiscovering
                     ? Localized.string("insights.drilling")
                     : Localized.string("insights.drill")
@@ -85,54 +114,93 @@ struct GrowthInsightsView: View {
                 .disabled(state.isGrowthDiscovering)
                 .cursorPointingHand()
                 .help(Localized.string("insights.discovery_scope"))
+                Spacer()
             }
             if let message = state.growthDiscoveryMessage {
                 Text(message)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            if state.growthInsights.isEmpty {
-                Text(Localized.string("insights.empty"))
+            if let report = state.growthReport {
+                Text(Localized.string("insights.checked_at", dateText(report.checkedAt)))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                if report.removedCount > 0 {
+                    Text(Localized.string("insights.removed_count", report.removedCount))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if state.growthReport?.visibleEntries.isEmpty != false {
+                Text(Localized.string("insights.no_current_paths"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(state.growthInsights.prefix(20)) { entry in
-                    growthRow(entry)
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(state.growthReport?.visibleEntries.prefix(20) ?? []) { record in
+                        growthRow(record)
+                    }
                 }
             }
         }
     }
 
-    private func growthRow(_ entry: GrowthEntry) -> some View {
-        Button {
+    private func growthRow(_ record: GrowthInsightVisibleEntry) -> some View {
+        let entry = record.entry
+        return Button {
             if !entry.path.isEmpty {
                 revealInFinder(entry.path)
             }
         } label: {
-            HStack(spacing: 6) {
-                Text(displayName(entry))
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                if entry.kind == .surface {
-                    Text(Localized.string("insights.surface_badge"))
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 8) {
+                    Text(entry.pattern)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if entry.kind == .surface {
+                        Text(Localized.string("insights.surface_badge"))
+                            .font(.caption2)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.right.square")
                         .font(.caption2)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
-                        .background(RoundedRectangle(cornerRadius: 3).fill(Color.orange))
+                        .foregroundStyle(.tertiary)
                 }
-                Spacer()
-                Text(Format.bytes(entry.deltaBytes))
-                    .font(.caption)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                Text(growthRateText(entry))
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(entry.kind == .new
+                         ? Localized.string("insights.first_size", Format.bytes(entry.deltaBytes))
+                         : Localized.string("insights.interval_growth", Format.bytes(entry.deltaBytes)))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
+                    Spacer()
+                    Label(
+                        record.pathStatus == .present
+                            ? Localized.string("insights.path_present_short")
+                            : Localized.string("insights.path_unknown_short"),
+                        systemImage: record.pathStatus == .present
+                            ? "checkmark.circle" : "questionmark.circle"
+                    )
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .help(record.pathStatus == .present
+                          ? Localized.string("insights.path_exists_unmeasured")
+                          : Localized.string("insights.path_unknown"))
+                }
+                Text(observationText(entry))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(height: 22)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .focusEffectDisabled()
@@ -144,13 +212,20 @@ struct GrowthInsightsView: View {
     /// allocated disk space, while reclaimable space remains zero.
     private var watchSection: some View {
         let watchItems = state.items
-            .filter { $0.cleanability == .watchOnly }
+            .filter {
+                $0.cleanability == .watchOnly
+                    && $0.paths.contains { GrowthPathStatus.probe($0) != .missing }
+            }
             .sorted { $0.allocatedBytes > $1.allocatedBytes }
-        return VStack(alignment: .leading, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 10) {
             Text(Localized.string("insights.watch_section"))
-                .font(.caption)
+                .font(.subheadline)
                 .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
+            if let lastScanAt = state.lastScanAt {
+                Text(Localized.string("insights.watch_measured_at", dateText(lastScanAt)))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
             if watchItems.isEmpty {
                 Text(Localized.string("insights.watch_empty"))
                     .font(.caption)
@@ -162,7 +237,11 @@ struct GrowthInsightsView: View {
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                         Button {
-                            revealInFinder(item.path)
+                            if let path = item.paths.first(where: {
+                                GrowthPathStatus.probe($0) == .present
+                            }) ?? item.paths.first {
+                                revealInFinder(path)
+                            }
                         } label: {
                             Text(Localized.recipeName(item.recipeID, fallback: item.name))
                                 .font(.caption)
@@ -179,67 +258,51 @@ struct GrowthInsightsView: View {
                             .foregroundStyle(.secondary)
                             .help(Localized.string("insights.watch_size_help"))
                     }
-                    .frame(height: 22)
+                    .padding(10)
+                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
                 }
             }
         }
     }
 
-    /// 速率展示：观测窗口足够长（≥1 天）才外推为"每天"，
-    /// 否则显示真实观测窗口（如"近 30 分钟"），避免把短时突发外推成夸张的日增量。
-    private func growthRateText(_ entry: GrowthEntry) -> String {
-        if entry.elapsedDays >= 0.9 {
-            return Localized.string("insights.rate", Format.bytes(Int64(entry.rateBytesPerDay)))
-        }
-        return Localized.string("insights.observed", windowText(entry.elapsedDays))
+    private func dateText(_ date: Date) -> String {
+        DateFormatter.localizedString(from: date, dateStyle: .short, timeStyle: .short)
     }
 
-    private func windowText(_ elapsedDays: Double) -> String {
-        let minutes = Int((elapsedDays * 24 * 60).rounded())
-        if minutes < 60 {
-            return Localized.string("time.minutes", minutes)
+    private func observationText(_ entry: GrowthEntry) -> String {
+        if entry.kind == .new {
+            return Localized.string("insights.recorded_at", dateText(entry.observedAt))
         }
-        if minutes < 24 * 60 {
-            return Localized.string("time.hours", minutes / 60)
-        }
-        return Localized.string("time.days", Int(elapsedDays.rounded()))
-    }
-
-    private func displayName(_ entry: GrowthEntry) -> String {
-        entry.pattern
+        let start = entry.observedAt.addingTimeInterval(-max(0, entry.elapsedDays) * 86_400)
+        return Localized.string("insights.interval", dateText(start), dateText(entry.observedAt))
     }
 
     private var candidateSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(Localized.string("insights.candidates"))
-                    .font(.caption)
+                Text(Localized.string("candidate.project_section"))
+                    .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
                 Spacer()
-                Button(Localized.string("devroot.rescan")) {
+                Button(Localized.string("candidate.recheck")) {
                     Task { await service.refreshSuggestions(forceDiscovery: true) }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .cursorPointingHand()
             }
-            Text(Localized.string("devroot.hint"))
+            Text(Localized.string("candidate.project_hint"))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
-            if pendingCandidates.isEmpty && acceptedCandidates.isEmpty {
-                Text(Localized.string("insights.empty"))
+            if pendingCandidates.isEmpty {
+                Text(Localized.string("candidate.project_empty"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(pendingCandidates) { candidate in
-                    candidateRow(candidate)
-                }
-                if !acceptedCandidates.isEmpty {
-                    Divider()
-                    ForEach(acceptedCandidates) { candidate in
-                        acceptedRow(candidate)
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(pendingCandidates) { candidate in
+                        candidateRow(candidate)
                     }
                 }
             }
@@ -247,13 +310,14 @@ struct GrowthInsightsView: View {
     }
 
     private func candidateRow(_ candidate: CandidateRecipe) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 6) {
                 Button {
                     revealInFinder(candidate.samplePath)
                 } label: {
                     Text(candidate.pattern)
-                        .font(.caption)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
@@ -262,9 +326,6 @@ struct GrowthInsightsView: View {
                 .cursorPointingHand()
                 .help(candidate.samplePath)
                 Spacer()
-                Text(candidateSourceText(candidate))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
             }
             if !candidate.childNames.isEmpty {
                 Text(Localized.string(
@@ -278,17 +339,14 @@ struct GrowthInsightsView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             }
+            Text(candidateSourceText(candidate)
+                 + " · " + Localized.string("candidate.last_seen", dateText(candidate.lastSeenAt)))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             HStack {
-                Text(Localized.string("candidate.evidence", candidate.evidenceCount)
-                     + " · " + Format.bytes(candidate.totalGrowthBytes))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(candidateRuleText(candidate))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
                 Spacer()
-                Button(Localized.string("candidate.accept")) {
-                    service.acceptCandidate(id: candidate.id)
+                Button(Localized.string("candidate.preview")) {
+                    candidateToConfirm = candidate
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -301,65 +359,21 @@ struct GrowthInsightsView: View {
                 .cursorPointingHand()
             }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
     }
 
     /// 建议来源说明：为什么该目录会被建议纳入配方。
     private func candidateSourceText(_ candidate: CandidateRecipe) -> String {
         switch candidate.source {
         case .growth:
-            return Localized.string("candidate.source_growth", Format.bytes(candidate.totalGrowthBytes))
+            return Localized.string("candidate.historical_growth", Format.bytes(candidate.totalGrowthBytes))
         case .discovery:
-            return Localized.string("devroot.cleanable", Format.bytes(candidate.totalGrowthBytes))
+            return Localized.string("candidate.project_artifacts", Format.bytes(candidate.totalGrowthBytes))
         case .activity:
-            return Localized.string("devroot.active")
+            return Localized.string("candidate.recent_activity")
         }
-    }
-
-    private func acceptedRow(_ candidate: CandidateRecipe) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Button {
-                    revealInFinder(candidate.samplePath)
-                } label: {
-                    Text(candidate.pattern)
-                        .font(.caption)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .buttonStyle(.plain)
-                .focusEffectDisabled()
-                .cursorPointingHand()
-                .help(candidate.samplePath)
-                Spacer()
-                Button(Localized.string("common.remove")) {
-                    service.dismissCandidate(id: candidate.id)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .cursorPointingHand()
-            }
-            Text(candidateRuleText(candidate))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    /// 采纳后纳入的现有配方与处理规则。
-    private func candidateRuleText(_ candidate: CandidateRecipe) -> String {
-        let name = Localized.recipeName(candidate.recipeID, fallback: candidate.recipeName)
-        let safety = candidate.suggestedSafety == .safeWhileRunning
-            ? Localized.string("candidate.safety_safe")
-            : Localized.string("candidate.safety_confirm")
-        let disposition: String
-        switch candidate.suggestedDisposition {
-        case .trash:
-            disposition = Localized.string("candidate.disposition_trash")
-        case .deletePermanently:
-            disposition = Localized.string("candidate.disposition_permanent")
-        case .none:
-            disposition = Localized.string("candidate.disposition_monitor")
-        }
-        return Localized.string("candidate.adds_to_recipe", name, safety, disposition)
     }
 
     private func revealInFinder(_ path: String) {

@@ -305,6 +305,214 @@
         }
       }
     },
+    "candidate.project_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Project directories to review"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待确认的项目目录"
+          }
+        }
+      }
+    },
+    "candidate.project_hint" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These proposals only extend scanning to project artifacts. They do not clean anything immediately. Review the effect first."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以下仅是扩大项目产物扫描范围的提议；不会立即清理。请先查看影响。"
+          }
+        }
+      }
+    },
+    "candidate.project_empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No project directory is ready to propose."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前没有可安全建议加入的项目目录。"
+          }
+        }
+      }
+    },
+    "candidate.last_seen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Evidence recorded %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "证据记录于 %@"
+          }
+        }
+      }
+    },
+    "candidate.project_effect" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This adds project dependencies and build output to the scan scope, then runs a full scan. Any later cleanup still requires confirmation and moves items to Trash."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入后将项目依赖与构建产物纳入扫描范围，并立即运行完整扫描；日后清理仍需确认并移入废纸篓。"
+          }
+        }
+      }
+    },
+    "candidate.preview" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review effect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看影响"
+          }
+        }
+      }
+    },
+    "candidate.recheck" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find projects again"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新查找项目"
+          }
+        }
+      }
+    },
+    "candidate.preview_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add this project directory to scanning?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将项目目录加入扫描范围？"
+          }
+        }
+      }
+    },
+    "candidate.preview_body" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Directory: %@. This adds its project dependencies and build output to the scan scope and runs a full scan. Adding it does not delete files or authorize automatic permanent deletion. Any later cleanup requires your confirmation and moves items to Trash."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目录：%@。加入后将其项目依赖与构建产物纳入扫描范围，并立即运行完整扫描；这一步不会删除文件，也不会授权自动永久删除。未来如需清理，仍须你确认并移入废纸篓。"
+          }
+        }
+      }
+    },
+    "candidate.confirm_add" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add directory"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认加入"
+          }
+        }
+      }
+    },
+    "candidate.historical_growth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historical growth evidence %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史增长证据 %@"
+          }
+        }
+      }
+    },
+    "candidate.project_artifacts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated project artifacts %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目产物估算 %@"
+          }
+        }
+      }
+    },
+    "candidate.recent_activity" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent write activity"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近期写入活动"
+          }
+        }
+      }
+    },
     "candidate.accept" : {
       "localizations" : {
         "en" : {
@@ -1743,6 +1951,246 @@
         }
       }
     },
+    "insights.recent_events" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Historical changes (latest per path)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史变化（每个目录最近一次）"
+          }
+        }
+      }
+    },
+    "insights.recheck_paths" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check paths"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "核对路径"
+          }
+        }
+      }
+    },
+    "insights.historical_note" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These are changes between past observations, not current disk use or reclaimable space. Checking paths only confirms whether they still exist."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下面是过去两次观测间的变化，不是当前占用或可清理空间。核对路径只检查是否仍存在。"
+          }
+        }
+      }
+    },
+    "insights.checked_at" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Path existence checked %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径存在性核对于 %@"
+          }
+        }
+      }
+    },
+    "insights.removed_count" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld historical paths no longer exist and are hidden from this list."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 条历史路径已不存在，已从当前列表隐藏。"
+          }
+        }
+      }
+    },
+    "insights.no_current_paths" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No recorded growth path can currently be located."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有仍可定位的增长目录。"
+          }
+        }
+      }
+    },
+    "insights.first_size" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First recorded size %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首次记录占用 %@"
+          }
+        }
+      }
+    },
+    "insights.interval_growth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Increased %@ in this interval"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "期间增加 %@"
+          }
+        }
+      }
+    },
+    "insights.path_exists_unmeasured" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Path still exists; current size not remeasured"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目录仍在，当前占用未复测"
+          }
+        }
+      }
+    },
+    "insights.path_unknown" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current path status unavailable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前路径状态无法核对"
+          }
+        }
+      }
+    },
+    "insights.path_present_short" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Path exists"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径仍在"
+          }
+        }
+      }
+    },
+    "insights.path_unknown_short" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unverified"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法核对"
+          }
+        }
+      }
+    },
+    "insights.watch_measured_at" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Size estimate from full scan on %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "占用估算来自 %@ 的完整扫描"
+          }
+        }
+      }
+    },
+    "insights.recorded_at" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First recorded %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "首次记录于 %@"
+          }
+        }
+      }
+    },
+    "insights.interval" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observed %@ → %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "观测区间 %@ → %@"
+          }
+        }
+      }
+    },
     "insights.candidates" : {
       "localizations" : {
         "en" : {
@@ -2115,6 +2563,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "增长洞察"
+          }
+        }
+      }
+    },
+    "insights.tab_changes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "变化记录"
+          }
+        }
+      }
+    },
+    "insights.tab_watched" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只观察"
+          }
+        }
+      }
+    },
+    "insights.tab_projects" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Projects"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "项目建议"
           }
         }
       }

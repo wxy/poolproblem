@@ -34,14 +34,14 @@ private func entry(
     #expect(merged[0].deltaBytes == 5_936_476_706)
 }
 
-@Test func mergerSumsDistinctDeltasForSamePath() {
+@Test func mergerKeepsOnlyLatestEventForSamePath() {
     let date = Date(timeIntervalSince1970: 1_000_000)
     let merged = GrowthInsightMerger.merge([
         entry("/tmp/project", delta: 100, observedAt: date),
         entry("/tmp/project", delta: 50, observedAt: date.addingTimeInterval(600)),
     ])
     #expect(merged.count == 1)
-    #expect(merged[0].deltaBytes == 150)
+    #expect(merged[0].deltaBytes == 50)
 }
 
 @Test func mergerKeepsDifferentPathsSeparate() {
@@ -67,8 +67,8 @@ private func entry(
     let date = Date(timeIntervalSince1970: 1_000_000)
     let merged = GrowthInsightMerger.merge([
         entry("", delta: 10, observedAt: date, itemID: "unknown", kind: .unknownSpace),
-        entry("", delta: 20, observedAt: date, itemID: "unknown", kind: .unknownSpace),
+        entry("", delta: 20, observedAt: date.addingTimeInterval(1), itemID: "unknown", kind: .unknownSpace),
     ])
     #expect(merged.count == 1)
-    #expect(merged[0].deltaBytes == 30)
+    #expect(merged[0].deltaBytes == 20)
 }

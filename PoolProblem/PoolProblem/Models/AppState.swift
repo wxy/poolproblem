@@ -69,8 +69,8 @@ final class AppState: ObservableObject {
     @Published var showCleanConfirm = false
     @Published var poolGaugeImage: Image?
     @Published var cleanCelebrationID = 0
-    /// 增长洞察：最近的增长台账条目（新→旧）。
-    @Published var growthInsights: [GrowthEntry] = []
+    /// 历史增长事件与当前路径存在性的轻量核对；不代表当前占用。
+    @Published var growthReport: GrowthInsightReport?
     @Published var isGrowthDiscovering = false
     @Published var growthDiscoveryMessage: String?
     /// 候选配方（含用户已采纳/忽略的状态）。
