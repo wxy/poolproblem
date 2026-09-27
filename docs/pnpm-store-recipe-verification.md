@@ -38,6 +38,8 @@ swift test --disable-sandbox --filter PnpmStoreRecipeEndToEndTests
 
 A→B 新失败复现的命令、输入和缺失 API 编译错误见 [历史路径失败复现](verification-artifacts/pnpm-store-history-failfirst.txt)。历史路径写入 `pnpm-known-store-paths.json`，按规范化路径去重，最多保存 1,024 条；超过上限后持久化溢出标记，所有原始路径清理失败关闭，直到历史状态可恢复。初次升级从现存快照迁移历史路径；已在升级前被 90 天快照保留策略删除的更早路径无法恢复。
 
+首次 GitHub CI 全量运行暴露了 A→B 测试环境假设：测试把水位固定在 90 MB，但 CI 机器的实际可用空间已经高于这个数，因此 Cleaner 正确地未进入清理。测试现以扫描时的实际可用空间加 10 MB 作为水位，确保测试的清理前置条件成立；改后 10 项针对性端到端测试通过。命令、环境、输入、结果与 CI 失败链接见 [CI 修复验证记录](verification-artifacts/pnpm-store-ci-fix.txt)和 [完整日志](verification-artifacts/pnpm-store-ci-fix.log)。
+
 探测总预算为 30 秒，每个候选最多 8 秒；任一候选超时则拒绝形成可操作 target。现有错误 API 只返回进程退出码，stderr 已与路径输出分离并丢弃；因此如 Corepack 退出 11，界面能展示退出码但无法展示原始原因。这项诊断展示仍待补充。
 
 AppService 的 macOS 端到端测试源码覆盖 `~/Library/Caches/pnpm` 子项列表与最终删除守卫。最新源码的 `xcodebuild build-for-testing` 成功，[编译记录](verification-artifacts/pnpm-store-child-build-for-testing.txt)含命令与结果；本环境的 test runner 在握手前以 0 退出，Xcode 判定 `Early unexpected exit`，因此断言未执行，[测试运行记录](verification-artifacts/pnpm-store-child-xcode-test.txt)保存此限制。先前一次 Swift Package 全量测试因并发探测耗时超过 3 分钟而中断；本轮最终全量测试的 helper 运行超过 7 分钟仍无输出且处于休眠，遂中断，均无全量结论；[记录](verification-artifacts/pnpm-store-recipe-full-swift-test.txt)保留了命令和结果。两次之间以 `$TMPDIR/poolproblem-pnpm-recipe-ci` 为 scratch 路径执行 `swift test --skip cliScan -q`，报告当时的 210 项 Core 与 1 项 CLI 测试通过；`cliScan` 未包含在该次验证中。新增功能以本页的 10 项针对性端到端结果为准。

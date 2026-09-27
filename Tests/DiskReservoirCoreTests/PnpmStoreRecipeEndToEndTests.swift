@@ -223,7 +223,8 @@ private final class PnpmDeletionRecorder: FileDeleting, @unchecked Sendable {
         logStore: CleanLogStore(paths: paths), homeDirectory: f.home.path,
         availableBytesReader: { _ in 0 }, now: { future },
         ownerStoreProbe: { .success(current) }, knownOwnerStorePaths: observed
-    ).run(scan: scan, config: .default, waterlineBytes: 90_000_000,
+    ).run(scan: scan, config: .default,
+          waterlineBytes: scan.volume.availableBytes + 10_000_000,
           ignoreAge: true, source: .auto)
     #expect(recorder.paths == [uv.path])
     #expect(FileManager.default.fileExists(atPath: a.appendingPathComponent("old-package").path))

@@ -1,0 +1,5 @@
+command=CLANG_MODULE_CACHE_PATH="$TMPDIR/poolproblem-pnpm-ci-fix/cache" SWIFT_MODULE_CACHE_PATH="$TMPDIR/poolproblem-pnpm-ci-fix/cache" swift test --disable-sandbox --filter PnpmStoreRecipeEndToEndTests > docs/verification-artifacts/pnpm-store-ci-fix.log 2>&1
+environment=macOS arm64, Xcode Swift 6, existing SwiftPM dependency checkout; temporary module cache under TMPDIR
+input=generated pnpm/store fixtures after correcting the A-to-B test's waterline to be above the actual scanned available capacity; no real store prune
+result=exit 0, all 10 pnpm end-to-end tests passed, including historicalStoreAStillProtectsScanAndAutoCleanAfterPnpmMovesToB; full output is pnpm-store-ci-fix.log
+CI failure that exposed this fixture issue=https://github.com/wxy/poolproblem/actions/runs/36318571039/job/108617857805 (one expectation failed because the original fixed 90 MB waterline was already below the CI runner's actual available disk space)
