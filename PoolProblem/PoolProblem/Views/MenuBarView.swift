@@ -381,6 +381,7 @@ struct MenuBarView: View {
         let manualItems = state.items
             .filter {
                 $0.reclaimableBytes > 0
+                    && $0.cleanability != .watchOnly
                     && $0.recipeID != "trash"
                     && CleanupRationale.make(for: $0).isManual
             }
@@ -702,7 +703,7 @@ struct MenuBarView: View {
 
             let rationale = CleanupRationale.make(for: item)
             let appCleanable = !rationale.isManual
-                && item.cleanability != .displayOnly
+                && item.cleanability.allowsManualCleanup
             VStack(alignment: .leading, spacing: 4) {
                 Text(Localized.string("detail.why_suggested"))
                     .font(.caption2)
@@ -787,7 +788,7 @@ struct MenuBarView: View {
             }
 
             HStack(spacing: 10) {
-                if item.cleanability != .displayOnly,
+                if item.cleanability.allowsManualCleanup,
                           !item.cleanByChildOnly,
                           !rationale.isManual,
                           item.safety == .safeWhileRunning

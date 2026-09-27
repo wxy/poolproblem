@@ -46,28 +46,34 @@ public struct GrowthLedgerBuilder: Sendable {
         return result
     }
 
-    /// 表面快照 diff：仅产出超过阈值的目录增量。
-    /// 表面扫描由调用方按 24h 间隔门控，这里按 1 天换算速率。
+    /// 表面快照 diff：仅产出超过阈值的目录增量，按真实观测间隔计算速率。
     public func surfaceEntries(
         previous: [SurfaceDirectory],
         latest: [SurfaceDirectory],
+        previousScannedAt: Date,
+        observedAt: Date,
         homeDirectory: String = NSHomeDirectory()
     ) -> [GrowthEntry] {
+        let elapsedDays = observedAt.timeIntervalSince(previousScannedAt) / 86_400
+        guard elapsedDays > 0 else { return [] }
         let prevByPath = Dictionary(uniqueKeysWithValues: previous.map { ($0.path, $0.sizeBytes) })
         var result: [GrowthEntry] = []
         for dir in latest {
-            guard let old = prevByPath[dir.path] else { continue }
+            // A directory that appeared after the baseline grew from zero.
+            // The baseline itself is handled by SurfaceGrowthDiscovery and
+            // never emitted as an all-new growth report.
+            let old = prevByPath[dir.path] ?? 0
             let delta = dir.sizeBytes - old
             guard delta >= surfaceMinimumDeltaBytes else { continue }
             result.append(GrowthEntry(
-                observedAt: Date(),
-                elapsedDays: 1,
+                observedAt: observedAt,
+                elapsedDays: elapsedDays,
                 name: URL(fileURLWithPath: dir.path).lastPathComponent,
                 path: dir.path,
                 pattern: PathPatternizer.patternize(dir.path, homeDirectory: homeDirectory),
                 kind: .surface,
                 deltaBytes: delta,
-                rateBytesPerDay: Double(delta)
+                rateBytesPerDay: Double(delta) / elapsedDays
             ))
         }
         return result.sorted { $0.deltaBytes > $1.deltaBytes }

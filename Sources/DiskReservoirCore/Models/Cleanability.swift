@@ -5,8 +5,17 @@ import Foundation
 /// - `regenerable`: 可再生 / 可再下载，程序可以按规则自动清理（trash 或永久删除均可）。
 /// - `trashOnly`: 不可再生，只能进回收站且需要用户确认；禁止永久删除。
 /// - `displayOnly`: 用户数据，程序永不清理，只展示大小。
+/// - `watchOnly`: 监视型资产；记录占用与增长，任何清理入口都不可使用。
 public enum Cleanability: String, Codable, CaseIterable, Sendable {
     case regenerable
     case trashOnly
     case displayOnly
+    case watchOnly
+
+    public var allowsManualCleanup: Bool {
+        switch self {
+        case .regenerable, .trashOnly: true
+        case .displayOnly, .watchOnly: false
+        }
+    }
 }

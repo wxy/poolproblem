@@ -159,6 +159,9 @@ struct SettingsView: View {
             let allRecipes = RecipeRegistry.builtIn()
                 + [packageManagerRecipe]
                 + projectRecipes
+            // The controls below configure cleanup age and eligibility.
+            // Watched assets have neither, so they live in Growth Insights.
+            let cleanupRecipes = allRecipes.filter { $0.cleanability != .watchOnly }
 
             // 概览：一眼看到启用状态，避免整页展开造成的信息过载
             Section {
@@ -166,7 +169,7 @@ struct SettingsView: View {
                     Image(systemName: "checklist")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text(overviewText(allRecipes))
+                    Text(overviewText(cleanupRecipes))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -174,7 +177,7 @@ struct SettingsView: View {
 
             // 每组一个可折叠分区：组头 = 图标 + 组名 + 配方数 + 组开关
             ForEach(RecipeGroup.allCases, id: \.self) { group in
-                let groupRecipes = allRecipes.filter { $0.group == group }
+                let groupRecipes = cleanupRecipes.filter { $0.group == group }
                 if !groupRecipes.isEmpty {
                     Section {
                         VStack(alignment: .leading, spacing: 0) {
@@ -464,6 +467,7 @@ struct SettingsView: View {
         case .nodejs: return "cube.fill"
         case .packageManager: return "shippingbox.fill"
         case .system: return "gearshape.fill"
+        case .assets: return "eye.fill"
         }
     }
 
@@ -475,6 +479,7 @@ struct SettingsView: View {
         case .project: return "cube.fill"
         case .common: return "folder.fill"
         case .custom: return "tag.fill"
+        case .asset: return "eye.fill"
         }
     }
 

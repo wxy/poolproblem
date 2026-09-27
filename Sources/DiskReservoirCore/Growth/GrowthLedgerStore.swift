@@ -4,10 +4,13 @@ import Foundation
 public struct SurfaceSnapshot: Codable, Sendable {
     public let scannedAt: Date
     public let directories: [SurfaceDirectory]
+    /// Latest explicit report; nil in snapshots written by older versions.
+    public let latestEntries: [GrowthEntry]?
 
-    public init(scannedAt: Date, directories: [SurfaceDirectory]) {
+    public init(scannedAt: Date, directories: [SurfaceDirectory], latestEntries: [GrowthEntry]? = nil) {
         self.scannedAt = scannedAt
         self.directories = directories
+        self.latestEntries = latestEntries
     }
 }
 
@@ -38,8 +41,19 @@ public struct GrowthLedgerStore: Sendable {
         try store.save(kept, to: paths.growthLedgerURL)
     }
 
-    public func saveSurface(_ dirs: [SurfaceDirectory], scannedAt: Date) throws {
-        try store.save(SurfaceSnapshot(scannedAt: scannedAt, directories: dirs), to: paths.surfaceSnapshotURL)
+    public func saveSurface(
+        _ dirs: [SurfaceDirectory],
+        scannedAt: Date,
+        latestEntries: [GrowthEntry]? = nil
+    ) throws {
+        try store.save(
+            SurfaceSnapshot(scannedAt: scannedAt, directories: dirs, latestEntries: latestEntries),
+            to: paths.surfaceSnapshotURL
+        )
+    }
+
+    public func surfaceSnapshot() throws -> SurfaceSnapshot? {
+        try store.load(SurfaceSnapshot.self, from: paths.surfaceSnapshotURL)
     }
 
     public func surfaceDirectories() throws -> [SurfaceDirectory] {

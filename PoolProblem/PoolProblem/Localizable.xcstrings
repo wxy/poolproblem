@@ -1759,19 +1759,98 @@
         }
       }
     },
-    "insights.drill" : {
-      "extractionState" : "stale",
+    "insights.discovery_baseline" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Locate which directories grew"
+            "value" : "Directory baseline saved. Scan again later to compare growth."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "定位是哪些目录在增长"
+            "value" : "已保存目录基线；稍后再次扫描即可比较增长。"
+          }
+        }
+      }
+    },
+    "insights.discovery_complete" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan complete. The list shows only growth outside existing recipes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描完成；下方仅显示未被现有配方覆盖的增长来源。"
+          }
+        }
+      }
+    },
+    "insights.discovery_failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not complete the scan. Check disk access and try again; the previous baseline was kept."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法完成扫描。请检查磁盘访问权限后重试；原有基线未被替换。"
+          }
+        }
+      }
+    },
+    "insights.discovery_no_growth" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No scanned directory grew by at least 200 MiB in this interval."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次观测间隔内，没有已扫描目录增长达到 200 MiB。"
+          }
+        }
+      }
+    },
+    "insights.discovery_scope" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On demand, scan first-level folders under Caches, Logs, Developer, Application Support, Containers, develop, Downloads and .cache in your home folder. Files directly under these roots are excluded. This may take minutes and will not suggest cleanup."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按需扫描主目录下 Caches、Logs、Developer、Application Support、Containers、develop、Downloads 和 .cache 的一级子目录；不包括这些根目录中的文件。可能耗时数分钟，不会生成清理建议。"
+          }
+        }
+      }
+    },
+    "insights.drill" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan growth sources"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描增长来源"
           }
         }
       }
@@ -1862,7 +1941,6 @@
       }
     },
     "insights.drilling" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2009,6 +2087,22 @@
         }
       }
     },
+    "insights.surface_badge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描"
+          }
+        }
+      }
+    },
     "insights.title" : {
       "localizations" : {
         "en" : {
@@ -2072,6 +2166,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看"
+          }
+        }
+      }
+    },
+    "insights.watch_empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Refresh in the main panel to scan watched assets."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在主面板点右上角刷新按钮后，这里会显示监视资产。"
+          }
+        }
+      }
+    },
+    "insights.watch_section" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched assets · observation only"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "监视资产 · 只观察不清理"
+          }
+        }
+      }
+    },
+    "insights.watch_size_help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estimated allocated disk space; shared APFS blocks may be counted more than once."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已分配磁盘空间的估算值；共享的 APFS 数据块可能重复计算。"
           }
         }
       }
@@ -2707,6 +2849,22 @@
         }
       }
     },
+    "recipe_group.assets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watched Assets"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "监视资产"
+          }
+        }
+      }
+    },
     "recipe_group.nodejs" : {
       "localizations" : {
         "en" : {
@@ -2767,6 +2925,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Xcode（含模拟器）"
+          }
+        }
+      }
+    },
+    "recipe.docker-desktop-data" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop 数据"
+          }
+        }
+      }
+    },
+    "recipe.ios-device-backups" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS Device Backups"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iOS 设备备份"
+          }
+        }
+      }
+    },
+    "recipe.local-ai-models" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local AI Models"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地大模型"
+          }
+        }
+      }
+    },
+    "recipe.vm-data" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Virtual Machine Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虚拟机数据"
           }
         }
       }
