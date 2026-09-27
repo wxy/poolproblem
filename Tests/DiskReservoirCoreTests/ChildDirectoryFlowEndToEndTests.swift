@@ -137,11 +137,65 @@ import Testing
     let derived = try #require(recipes["deriveddata"])
     #expect(derived.cleanByChildOnly)
     #expect(derived.disposition == .trash)
-    #expect(derived.protectedChildren.contains("ModuleCache.noindex"))
+    #expect(!derived.protectedChildren.contains("ModuleCache.noindex"))
 
     let simulatorDevices = try #require(recipes["core-simulator-devices"])
     #expect(simulatorDevices.cleanability == .displayOnly)
     #expect(simulatorDevices.disposition == .none)
+}
+
+@Test func derivedDataSharedAndProjectDirectoriesCanBeChosenAfterTheyBecomeIdle() throws {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pp-derived-manual-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let logicalParent = root.appendingPathComponent("DerivedData", isDirectory: true)
+    try Fixtures.makeTree(root: logicalParent, files: [
+        ("ModuleCache.noindex/cache.bin", 11_000_000),
+        ("RecentProject/Build/data.bin", 11_000_000),
+    ])
+    let parent = logicalParent.resolvingSymlinksInPath()
+    let recipes = Dictionary(uniqueKeysWithValues: RecipeRegistry.builtIn().map { ($0.id, $0) })
+    let derived = try #require(recipes["deriveddata"])
+    let cache = try #require(recipes["library-caches"])
+    var config = Config.default
+    config.protectedCacheChildren = ["ModuleCache.noindex"]
+    #expect(ProgressiveCleanupPolicy.mergedProtectedChildNames(recipe: cache, config: config)
+        .contains("ModuleCache.noindex"))
+    let protected = ProgressiveCleanupPolicy.mergedProtectedChildNames(recipe: derived, config: config)
+    #expect(!protected.contains("ModuleCache.noindex"))
+    let children = ChildDirectoryExplorer().list(
+        parentPath: parent.path, growthEntries: [], protectedChildNames: protected
+    )
+    #expect(Set(children.map(\.name)) == ["ModuleCache.noindex", "RecentProject"])
+    #expect(children.allSatisfy { !$0.isProtected })
+    #expect(DerivedDataChildPolicy.isSharedCache(name: "ModuleCache.noindex"))
+    #expect(!DerivedDataChildPolicy.isSharedCache(name: "RecentProject"))
+    let checkedParent = try #require(children.first.map {
+        URL(fileURLWithPath: $0.path).deletingLastPathComponent().path
+    })
+    let now = Date()
+    let idle = now.addingTimeInterval(-120)
+    for child in children {
+        let file = child.name == "RecentProject"
+            ? URL(fileURLWithPath: child.path).appendingPathComponent("Build/data.bin")
+            : URL(fileURLWithPath: child.path).appendingPathComponent("cache.bin")
+        try FileManager.default.setAttributes([.modificationDate: idle], ofItemAtPath: file.path)
+        try FileManager.default.setAttributes([.modificationDate: idle], ofItemAtPath: file.deletingLastPathComponent().path)
+        try FileManager.default.setAttributes([.modificationDate: idle], ofItemAtPath: child.path)
+        #expect(ChildDirectoryAccess.canClean(
+            childPath: child.path, parentPath: checkedParent,
+            authorizedParents: [checkedParent], protectedNames: protected,
+            expectedIdentity: child.identity, minimumIdleSeconds: 60, now: now
+        ))
+    }
+    let recent = try #require(children.first(where: { $0.name == "RecentProject" }))
+    let file = URL(fileURLWithPath: recent.path).appendingPathComponent("Build/data.bin")
+    try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: file.path)
+    #expect(!ChildDirectoryAccess.canClean(
+        childPath: recent.path, parentPath: checkedParent,
+        authorizedParents: [checkedParent], protectedNames: protected,
+        expectedIdentity: recent.identity, minimumIdleSeconds: 60, now: now
+    ))
 }
 
 @Test func shortRealScanIntervalDoesNotBecomeAWeeklyGrowthClaim() throws {

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import DiskReservoirCore
 
 /// “应用缓存”和 DerivedData 的一级子目录详情；只允许主动选择单个目录移入废纸篓。
@@ -11,6 +12,9 @@ struct CacheChildrenView: View {
     @State private var notice: String?
     @State private var isLoading = true
     @State private var xcodeRunning = false
+    @State private var currentDate = Date()
+    @State private var pendingChild: ChildDirectoryInfo?
+    @State private var cleaningChildID: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -33,7 +37,7 @@ struct CacheChildrenView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if item.recipeID == "deriveddata" && xcodeRunning {
-                Text(Localized.string("cache.quit_xcode_help"))
+                Text(Localized.string("cache.xcode_running_warning"))
                     .font(.caption2)
                     .foregroundStyle(.orange)
             }
@@ -90,14 +94,39 @@ struct CacheChildrenView: View {
                 isLoading = false
             }
         }
+        .onReceive(Timer.publish(every: 10, on: .main, in: .common).autoconnect()) { date in
+            currentDate = date
+        }
+        .alert(item: $pendingChild) { child in
+            Alert(
+                title: Text(Localized.string("cache.confirm_title")),
+                message: Text(confirmMessage(for: child)),
+                primaryButton: .destructive(Text(Localized.string("cache.confirm_move"))) {
+                    cleaningChildID = child.id
+                    Task {
+                        let cleaned = await service.cleanCacheChild(child, in: item)
+                        notice = cleaned
+                            ? Localized.string("cache.cleaned", child.name)
+                            : Localized.string("cache.clean_failed")
+                        children = await service.cacheChildren(for: item)
+                        cleaningChildID = nil
+                    }
+                },
+                secondaryButton: .cancel(Text(Localized.string("common.cancel")))
+            )
+        }
     }
 
     private func childRow(_ child: ChildDirectoryInfo) -> some View {
         let derived = item.recipeID == "deriveddata"
-        let recent = derived && (child.lastModified.map {
-            $0 > Date().addingTimeInterval(-86_400)
+        let writing = derived && (child.lastModified.map {
+            $0 > currentDate.addingTimeInterval(-DerivedDataChildPolicy.minimumIdleSeconds)
         } ?? true)
-        let blocked = child.isProtected || recent || (derived && xcodeRunning)
+        let recentlyUsed = derived && (child.lastModified.map {
+            $0 > currentDate.addingTimeInterval(-86_400)
+        } ?? false)
+        let shared = derived && DerivedDataChildPolicy.isSharedCache(name: child.name)
+        let blocked = child.isProtected || writing || cleaningChildID != nil
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Image(systemName: "folder")
@@ -120,6 +149,14 @@ struct CacheChildrenView: View {
                     Text(Localized.string("cache.protected"))
                         .font(.caption2)
                         .foregroundStyle(.orange)
+                } else if shared {
+                    Text(Localized.string("cache.shared"))
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                } else if recentlyUsed {
+                    Text(Localized.string("cache.recent"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
                 Text(Format.bytes(child.bytes))
@@ -127,13 +164,7 @@ struct CacheChildrenView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                 Button {
-                    Task {
-                        let cleaned = await service.cleanCacheChild(child, in: item)
-                        notice = cleaned
-                            ? Localized.string("cache.cleaned", child.name)
-                            : Localized.string("cache.clean_failed")
-                        children = await service.cacheChildren(for: item)
-                    }
+                    pendingChild = child
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -143,11 +174,9 @@ struct CacheChildrenView: View {
                 .disabled(blocked)
                 .help(child.isProtected
                       ? Localized.string("cache.protected_help")
-                      : (derived && xcodeRunning
-                         ? Localized.string("cache.quit_xcode_help")
-                         : (recent
-                            ? Localized.string("cache.recent_help")
-                            : Localized.string("cache.clean_child"))))
+                      : (writing
+                         ? Localized.string("cache.recent_help")
+                         : Localized.string("cache.clean_child")))
                 .focusEffectDisabled()
                 .cursorPointingHand(enabled: !blocked)
             }
@@ -164,6 +193,20 @@ struct CacheChildrenView: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func confirmMessage(for child: ChildDirectoryInfo) -> String {
+        let message: String
+        if item.recipeID == "deriveddata" {
+            message = DerivedDataChildPolicy.isSharedCache(name: child.name)
+                ? Localized.string("cache.confirm_shared", child.name, Format.bytes(child.bytes))
+                : Localized.string("cache.confirm_project", child.name, Format.bytes(child.bytes))
+        } else {
+            message = Localized.string("cache.confirm_cache", child.name, Format.bytes(child.bytes))
+        }
+        return xcodeRunning && item.recipeID == "deriveddata"
+            ? message + "\n\n" + Localized.string("cache.xcode_running_warning")
+            : message
     }
 
     private func observationDuration(_ days: Double) -> String {

@@ -30,11 +30,6 @@ enum BuiltInRecipes {
             defaultAgeDays: 7,
             minimumSizeMB: 100,
             processName: nil,
-            protectedChildren: [
-                "CompilationCache.noindex", "ModuleCache.noindex",
-                "SDKExplicitPrecompiledModules", "SDKStatCaches.noindex",
-                "SymbolCache.noindex", "SourcePackages",
-            ],
             cleanByChildOnly: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Developer/Xcode/DerivedData"]

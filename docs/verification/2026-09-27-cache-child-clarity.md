@@ -9,18 +9,20 @@
 - App 无签名编译和链接：`xcodebuild -project PoolProblem/PoolProblem.xcodeproj -scheme PoolProblem -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath "$TMPDIR/poolproblem-child-clarity-derived-data" CODE_SIGNING_ALLOWED=NO build`。
 - 现有 App 测试尝试：在上一条命令中把 `build` 改为 `-only-testing:PoolProblemTests CODE_SIGNING_ALLOWED=NO test`（只执行现有测试，不新增隔离测试）。
 - 资料格式与补丁：`python3 -m json.tool PoolProblem/PoolProblem/Localizable.xcstrings > /dev/null`、`git diff --check`。
+- DerivedData 后续修复：`/usr/bin/arch -arm64 /usr/bin/env PATH="$PATH" swift test --scratch-path "$TMPDIR/poolproblem-derived-manual-build"`；App 构建使用上面的 `xcodebuild` 命令，但将 `-derivedDataPath` 改为 `"$TMPDIR/poolproblem-derived-manual-dd"`。
 
 ## 端到端输入与结果
 
 | 场景 | 输入与操作 | 结果 |
 | --- | --- | --- |
 | 子目录展示与增长 | 临时缓存树内构造约 11 MB、1 MB 的目录及一个指向树外的符号链接；给大目录先后写入 9 MB、3 MB 的增长观测，另模拟 800 MB 历史增量 | 仅展示达到 10 MB 且真实存在的目录；取最近一次 3 MB 观测及其实际时长；增量超过当前占用时不显示增长 |
-| 清理资格与移动 | 临时 DerivedData 树中构造普通项目、共享缓存、深层目录、树外路径和符号链接；修改目录时间、替换同名目录；把允许的项目移入夹具内的模拟废纸篓 | 根目录、深层目录、共享目录、符号链接、近期活跃目录、未授权父目录及被替换的同名目录均拒绝；只移动选择的旧项目，父目录与共享缓存留存 |
+| 清理资格与移动（原版） | 临时 DerivedData 树中构造普通项目、显式保护的共享缓存、深层目录、树外路径和符号链接；修改目录时间、替换同名目录；把允许的项目移入夹具内的模拟废纸篓 | 根目录、深层目录、显式保护项、符号链接、近期活跃目录、未授权父目录及被替换的同名目录均拒绝；只移动选择的旧项目，父目录与共享缓存留存 |
 | 主列表门槛 | 扫描临时 1 KB 配方目录及 1 KB 废纸篓目录，二者配方门槛均设为 100 MB | 原始扫描仍含两项；界面筛选隐藏小配方项，废纸篓入口保留 |
 | 短间隔趋势 | 对临时目录做两次真实扫描，第二次增加文件，分别用 1 小时和 2 天的快照跨度输入趋势计算 | 1 小时跨度不产生“每日/每周增长”速率；2 天跨度保留增长趋势 |
-| 开发工具大目录 | 读取当前内置配方 | DerivedData 只允许逐项、共享缓存受保护；CoreSimulator 设备数据列入可展开的“只观察”项目，不提供整目录删除 |
+| 开发工具大目录 | 读取当前内置配方 | DerivedData 只允许逐项；CoreSimulator 设备数据列入可展开的“只观察”项目，不提供整目录删除 |
+| DerivedData 可选性修复 | 临时 DerivedData 内建立 11 MB 共享缓存与 11 MB 项目目录；给应用缓存保护配置添加同名项；模拟上次写入在 120 秒前与刚刚写入 | 共享缓存和项目目录都可列出且不受应用缓存保护配置误伤；120 秒无写入时允许逐项清理，刚写入时拒绝。路径和目录身份仍在执行前复核 |
 
-上述新断言先于相应实现添加并观察到失败；修正后全套 `swift test` **202 项通过**（199 项核心、3 项 CLI）。macOS Debug 无签名构建 **BUILD SUCCEEDED**；JSON 解析及 `git diff --check` 通过。额外尝试的 Xcode App 测试宿主在建立测试连接前退出，报 `Early unexpected exit, operation never finished bootstrapping`，没有执行到测试断言；此项未验证通过，也不能作为代码失败的证据。本文档是可复核工件，临时构建目录和日志可由上面的命令重新生成。
+原实现的新断言先于实现添加并观察到失败；当时全套 `swift test` **202 项通过**（199 项核心、3 项 CLI）。DerivedData 修复的端到端断言也先于实现添加并观察到失败；修正后全套 `swift test` **203 项通过**（200 项核心、3 项 CLI）。修复后的 macOS Debug 无签名构建 **BUILD SUCCEEDED**，确认弹窗、标签与定时刷新均编译通过。原版现有 Xcode App 测试宿主在建立测试连接前退出，报 `Early unexpected exit, operation never finished bootstrapping`，没有执行到测试断言；此项未验证通过，也不能作为代码失败的证据。本文档是可复核工件，临时构建目录和日志可由上面的命令重新生成。
 
 ## 验收边界
 

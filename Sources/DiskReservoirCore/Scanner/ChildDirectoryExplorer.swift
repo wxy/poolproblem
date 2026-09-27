@@ -24,6 +24,20 @@ public struct ChildDirectoryInfo: Equatable, Identifiable, Sendable {
     public var id: String { path }
 }
 
+/// DerivedData 的共享目录影响多个项目；它们仍需用户逐项确认后才能清理。
+public enum DerivedDataChildPolicy {
+    public static let minimumIdleSeconds: TimeInterval = 60
+    private static let sharedCacheNames: Set<String> = [
+        "CompilationCache.noindex", "ModuleCache.noindex",
+        "SDKExplicitPrecompiledModules", "SDKStatCaches.noindex",
+        "SymbolCache.noindex", "SourcePackages",
+    ]
+
+    public static func isSharedCache(name: String) -> Bool {
+        sharedCacheNames.contains(name)
+    }
+}
+
 /// 当前文件树与历史增长记录的交集。历史增量只作为一次观测展示，不推算每天速率。
 public struct ChildDirectoryExplorer: Sendable {
     public init() {}

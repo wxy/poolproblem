@@ -257,6 +257,86 @@
         }
       }
     },
+    "cache.confirm_cache" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move %@ (%@) to Trash? Only this directory is moved. You can restore it until you empty Trash."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 %@（%@）移入废纸篓？只移动这个目录，清空废纸篓前可恢复。"
+          }
+        }
+      }
+    },
+    "cache.confirm_move" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Trash"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移入废纸篓"
+          }
+        }
+      }
+    },
+    "cache.confirm_project" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move %@ (%@) to Trash? Xcode may re-index or rebuild this project and download dependencies again. The directory remains in Trash until you empty it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 %@（%@）移入废纸篓？Xcode 可能重新索引或编译该项目，并重新下载依赖。清空废纸篓前仍可恢复。"
+          }
+        }
+      }
+    },
+    "cache.confirm_shared" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move %@ (%@) to Trash? This shared Xcode directory may cause multiple projects to rebuild. SourcePackages may need to download dependencies again. The directory remains in Trash until you empty it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 %@（%@）移入废纸篓？这是 Xcode 的共享目录，可能使多个项目重新编译；SourcePackages 还可能需要重新下载依赖。清空废纸篓前仍可恢复。"
+          }
+        }
+      }
+    },
+    "cache.confirm_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm directory cleanup"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认清理目录"
+          }
+        }
+      }
+    },
     "cache.observed_growth" : {
       "localizations" : {
         "en" : {
@@ -321,18 +401,34 @@
         }
       }
     },
-    "cache.recent_help" : {
+    "cache.recent" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Modified within 24 hours; cleanup is unavailable."
+            "value" : "Recently used"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "过去 24 小时内有修改，暂不能清理。"
+            "value" : "近期使用"
+          }
+        }
+      }
+    },
+    "cache.recent_help" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This directory was written in the last minute. Try again after writes stop."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此目录最近一分钟仍有写入；停止写入后再试。"
           }
         }
       }
@@ -358,13 +454,45 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Protected shared directory; cleanup is unavailable."
+            "value" : "Protected application cache; cleanup is unavailable."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "受保护的共享目录，不能在此清理。"
+            "value" : "受保护的应用缓存，不能在此清理。"
+          }
+        }
+      }
+    },
+    "cache.shared" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shared cache"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共享缓存"
+          }
+        }
+      }
+    },
+    "cache.xcode_running_warning" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode is running. Check that this directory is not in use before confirming."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xcode 正在运行。请确认当前没有使用此目录，再决定是否清理。"
           }
         }
       }

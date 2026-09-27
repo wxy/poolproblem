@@ -862,16 +862,14 @@ final class AppService {
             let protected = ProgressiveCleanupPolicy.mergedProtectedChildNames(
                 recipe: recipe, config: self.loadConfig()
             )
-            if recipe.id == "deriveddata" && PGrepProcessInspector().isRunning("Xcode") {
-                return false
-            }
             guard ChildDirectoryAccess.canClean(
                 childPath: child.path,
                 parentPath: item.path,
                 authorizedParents: Set(recipe.resolvePaths(self.paths)),
                 protectedNames: protected,
                 expectedIdentity: child.identity,
-                minimumIdleSeconds: recipe.id == "deriveddata" ? 86_400 : 0
+                minimumIdleSeconds: recipe.id == "deriveddata"
+                    ? DerivedDataChildPolicy.minimumIdleSeconds : 0
             ) else { return false }
             let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
             guard let deletion = try? deleter.deleteReturningResult(
