@@ -196,7 +196,7 @@ private struct RecorderDeleter: FileDeleting {
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
 
-    let sizes: [Int64] = [600_000_000, 120_000_000, 50_000_000]
+    let sizes: [Int64] = [600_000, 120_000, 50_000]
     for (index, bytes) in sizes.enumerated() {
         let child = root.appendingPathComponent("child-\(index)", isDirectory: true)
         try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
@@ -219,7 +219,7 @@ private struct RecorderDeleter: FileDeleting {
         minimumAgeSeconds: 86_400,
         disposition: .deletePermanently,
         minimumCleanBytes: 0,
-        minimumCandidateBytes: 500_000_000
+        minimumCandidateBytes: 500_000
     ))
 
     #expect(outcome.trimmedCount == 1)

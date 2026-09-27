@@ -8,7 +8,7 @@
 
 ## 修正与可重复验证
 
-- 把夹具大小缩为 600,000 与 800,000 字节，增长输入和候选门槛等比例降低，仍覆盖“增长较快的小候选优先于更大的静态候选”。
+- 把增长优先场景的夹具大小缩为 600,000 与 800,000 字节，增长输入和候选门槛等比例降低，仍覆盖“增长较快的小候选优先于更大的静态候选”。同文件的最小候选规模场景也从约 770 MB 的夹具缩至约 770 KB，保持原有候选排序和门槛关系。
 - 清理器使用 `TrashBatchDeleter(trashRoot: <该测试的临时根目录>/.Trash)`；断言选中项的 `data.bin` 进入该临时废纸篓，原路径消失。测试结束时临时根目录及其中的废纸篓一起移除。
 - 环境：macOS arm64；在仓库根目录执行。输入由测试在 `$TMPDIR` 下用 UUID 目录自动生成；不依赖用户文件。
 - 单项：`/usr/bin/arch -arm64 /usr/bin/env PATH="$PATH" swift test --scratch-path "$TMPDIR/poolproblem-trash-test-fix/build" --filter progressiveCleanerPrefersFastGrowingCandidates`，1 项通过。
