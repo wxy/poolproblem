@@ -30,6 +30,7 @@ enum BuiltInRecipes {
             defaultAgeDays: 7,
             minimumSizeMB: 100,
             processName: nil,
+            cleanByChildOnly: true,
             resolvePaths: { paths in
                 [paths.homeDirectory + "/Library/Developer/Xcode/DerivedData"]
             }
@@ -71,8 +72,8 @@ enum BuiltInRecipes {
             category: .simulator,
             group: .xcode,
             safety: .requiresQuit,
-            disposition: .trash,
-            cleanability: .trashOnly,
+            disposition: .none,
+            cleanability: .displayOnly,
             defaultAgeDays: 30,
             minimumSizeMB: 100,
             processName: "Simulator",

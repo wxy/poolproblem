@@ -49,13 +49,13 @@ public struct ProgressiveCleanupPolicy: Equatable, Sendable {
 }
 
 extension ProgressiveCleanupPolicy {
-    /// 合并配方自带保护名单与全局配置保护名单：
-    /// 这两处的子目录在渐进清理中永远不会被自动删除。
+    /// 应用缓存的用户保护名单只适用于应用缓存；其他配方只采用各自的名单。
     public static func mergedProtectedChildNames(
         recipe: Recipe,
         config: Config
     ) -> Set<String> {
-        Set(recipe.protectedChildren + config.protectedCacheChildren)
+        Set(recipe.protectedChildren + (recipe.id == "library-caches"
+            ? config.protectedCacheChildren : []))
     }
 }
 

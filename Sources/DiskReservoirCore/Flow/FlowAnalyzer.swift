@@ -152,6 +152,11 @@ public struct FlowAnalyzer: Sendable {
         }
         var result: [String: Double] = [:]
         for (id, points) in series where points.count >= 2 {
+            // A few minutes of scans cannot support a daily or weekly claim.
+            // Also do not show an upward trend after the latest size fell back.
+            guard let first = points.first, let last = points.last,
+                  last.x - first.x >= 1,
+                  last.y > first.y else { continue }
             let x = points.map(\.x)
             let y = points.map(\.y)
             let n = Double(x.count)

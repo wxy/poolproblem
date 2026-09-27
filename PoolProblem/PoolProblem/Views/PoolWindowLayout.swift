@@ -135,12 +135,14 @@ extension PoolWindowLayout {
         availableBytes: Int64,
         waterlineBytes: Int64,
         items: [ScanItem],
+        recipes: [Recipe],
         estimatedRecipeIDs: Set<String>,
         excludedItemIDs: Set<String> = [],
         height: CGFloat = 560
     ) -> (layout: PoolWindowLayout, model: PoolLayerModel) {
         let model = PoolLayers.make(
             items: items,
+            recipes: recipes,
             totalBytes: totalBytes,
             availableBytes: availableBytes,
             estimatedRecipeIDs: estimatedRecipeIDs,

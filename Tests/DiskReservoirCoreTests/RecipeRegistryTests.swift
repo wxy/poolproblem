@@ -71,7 +71,7 @@ import Foundation
 @Test func recipesCarryCleanabilityAndProtection() {
     let recipes = Dictionary(uniqueKeysWithValues: RecipeRegistry.builtIn().map { ($0.id, $0) })
     #expect(recipes["trash"]?.cleanability == .displayOnly)
-    #expect(recipes["core-simulator-devices"]?.cleanability == .trashOnly)
+    #expect(recipes["core-simulator-devices"]?.cleanability == .displayOnly)
     #expect(recipes["deriveddata"]?.disposition == .trash)
     #expect(recipes["xcode-archives"]?.cleanability == .displayOnly)
     #expect(recipes["xcode-archives"]?.allowsAutomaticPermanentDeletion == false)

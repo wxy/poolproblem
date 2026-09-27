@@ -196,7 +196,7 @@ private struct RecorderDeleter: FileDeleting {
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
 
-    let sizes: [Int64] = [600_000_000, 120_000_000, 50_000_000]
+    let sizes: [Int64] = [600_000, 120_000, 50_000]
     for (index, bytes) in sizes.enumerated() {
         let child = root.appendingPathComponent("child-\(index)", isDirectory: true)
         try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
@@ -219,7 +219,7 @@ private struct RecorderDeleter: FileDeleting {
         minimumAgeSeconds: 86_400,
         disposition: .deletePermanently,
         minimumCleanBytes: 0,
-        minimumCandidateBytes: 500_000_000
+        minimumCandidateBytes: 500_000
     ))
 
     #expect(outcome.trimmedCount == 1)
@@ -232,9 +232,8 @@ private struct RecorderDeleter: FileDeleting {
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
 
-    // child-a：600MB 但日增长 1GB（7 天加权后远超静态大项）
-    // child-b：800MB、无增长
-    let children = [("child-a", 600_000_000), ("child-b", 800_000_000)]
+    // 只需维持候选项的大小和增长排序，不创建真实的大文件。
+    let children = [("child-a", 600_000), ("child-b", 800_000)]
     for (name, bytes) in children {
         let child = root.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: child, withIntermediateDirectories: true)
@@ -254,19 +253,24 @@ private struct RecorderDeleter: FileDeleting {
         minimumAgeSeconds: 86_400,
         disposition: .trash,
         minimumCleanBytes: 0,
-        minimumCandidateBytes: 500_000_000,
+        minimumCandidateBytes: 500_000,
         childGrowthRates: [
-            root.appendingPathComponent("child-a").path: 1_000_000_000,
+            root.appendingPathComponent("child-a").path: 1_000_000,
             root.appendingPathComponent("child-b").path: 0,
         ]
     )
+    let fixtureTrash = root.appendingPathComponent(".Trash", isDirectory: true)
     let outcome = try ProgressiveCleaner(
-        deleter: FileManagerFileDeleter(),
+        deleter: TrashBatchDeleter(trashRoot: fixtureTrash, batchName: "PoolProblem Cleanup fixture"),
         logStore: CleanLogStore(paths: paths)
     ).run(policy: policy)
 
     #expect(outcome.trimmedCount == 1)
     #expect(outcome.entries.first?.itemNames == ["child-a"])
+    #expect(FileManager.default.fileExists(
+        atPath: fixtureTrash.appendingPathComponent("PoolProblem Cleanup fixture/child-a/data.bin").path
+    ))
+    #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("child-a").path))
 }
 
 @Test func mergedProtectedChildNamesCombinesRecipeAndConfig() {

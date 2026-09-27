@@ -336,12 +336,14 @@ final class AppService {
 
     /// 数据变化后预生成 E 字型标尺位图（避免弹窗打开时执行重活）
     private func refreshGaugeImage() {
+        let recipes = activeRecipes()
         let made = PoolWindowLayout.make(
             totalBytes: state.totalBytes,
             availableBytes: state.availableBytes,
             waterlineBytes: state.waterlineBytes,
             items: state.items,
-            estimatedRecipeIDs: Set(activeRecipes().filter(\.cloneProne).map(\.id)),
+            recipes: recipes,
+            estimatedRecipeIDs: Set(recipes.filter(\.cloneProne).map(\.id)),
             excludedItemIDs: state.cleanedItemIDs
         )
         state.poolGaugeImage = GaugeImageRenderer.render(layout: made.layout)
@@ -633,12 +635,15 @@ final class AppService {
         // 详情页点击“立即清理”即用户确认：
         // safeWhileRunning 与 userConfirm 放行，displayOnly（用户数据）除外；
         // requiresQuit 须先退出相关进程（如 Simulator）才能清理。
-        guard item.cleanability.allowsManualCleanup,
+        guard let currentRecipe = activeRecipes().first(where: { $0.id == item.recipeID }),
+              item.cleanability.allowsManualCleanup,
+              currentRecipe.cleanability.allowsManualCleanup,
               // 废纸篓是特殊过渡区：只通过废纸篓详情页管理，不走通用清理
               item.recipeID != "own-trash-batches",
               item.recipeID != "trash",
               // 仅按子目录清理的项（如应用缓存）不整项删除
-              !item.cleanByChildOnly else {
+              !item.cleanByChildOnly,
+              !currentRecipe.cleanByChildOnly else {
             return .failed(.unavailable)
         }
         if item.recipeID == TemporaryBuildArtifacts.recipeID {
@@ -832,62 +837,55 @@ final class AppService {
         return await work.value
     }
 
-    /// 应用缓存等“仅按子目录清理”项的详情：一级子目录（大小/增速/是否受保护）。
-    func cacheChildren(for item: ScanItem) async -> [CacheChildEntry] {
-        let parent = URL(fileURLWithPath: item.path, isDirectory: true)
-        guard let children = try? FileManager.default.contentsOfDirectory(
-            at: parent,
-            includingPropertiesForKeys: [.isDirectoryKey]
-        ) else { return [] }
-        let recipe = activeRecipes().first { $0.id == item.recipeID }
-        let protected = recipe.map {
-            ProgressiveCleanupPolicy.mergedProtectedChildNames(recipe: $0, config: loadConfig())
-        } ?? []
-        let rates = childGrowthRates(parentPath: item.path, homeDirectory: NSHomeDirectory())
-        let work = Task.detached(priority: .utility) { () -> [CacheChildEntry] in
-            var entries: [CacheChildEntry] = []
-            for child in children {
-                guard ((try? child.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory) == true else {
-                    continue
-                }
-                let bytes = POSIXDirectoryWalker.walk(
-                    url: child,
-                    itemID: "cache-child",
-                    includeRecords: false
-                )?.allocatedBytes ?? 0
-                entries.append(CacheChildEntry(
-                    name: child.lastPathComponent,
-                    path: child.path,
-                    bytes: bytes,
-                    ratePerDay: rates[child.path] ?? 0,
-                    isProtected: protected.contains(child.lastPathComponent)
-                ))
-            }
-            return entries.sorted { lhs, rhs in
-                if lhs.isProtected != rhs.isProtected { return !lhs.isProtected }
-                let ls = Double(lhs.bytes) + lhs.ratePerDay * ProgressiveCleanupPolicy.growthWindowDays
-                let rs = Double(rhs.bytes) + rhs.ratePerDay * ProgressiveCleanupPolicy.growthWindowDays
-                return ls > rs
-            }
-        }
-        return await work.value
+    /// 一级子目录的当前占用与一次实际增长观测；小于 10 MB 的目录不在详情中列出。
+    func cacheChildren(for item: ScanItem) async -> [ChildDirectoryInfo] {
+        guard let recipe = activeRecipes().first(where: { $0.id == item.recipeID }),
+              recipe.cleanByChildOnly,
+              recipe.resolvePaths(paths).contains(item.path) else { return [] }
+        let protected = ProgressiveCleanupPolicy.mergedProtectedChildNames(
+            recipe: recipe, config: loadConfig()
+        )
+        let growth = (try? growthLedgerStore.entries()) ?? []
+        return await Task.detached(priority: .utility) {
+            ChildDirectoryExplorer().list(
+                parentPath: item.path,
+                growthEntries: growth,
+                protectedChildNames: protected
+            )
+        }.value
     }
 
-    /// 逐子目录清理（应用缓存等）：把该子目录移入回收站并记录日志。
-    func cleanCacheChild(path: String, recipeID: String, name: String) async {
+    /// 逐子目录清理：执行前用当前配方与文件树重新校验，不信任详情页中的旧路径。
+    func cleanCacheChild(_ child: ChildDirectoryInfo, in item: ScanItem) async -> Bool {
         await cleanupCoordinator.run { [weak self] in
-            guard let self else { return }
+            guard let self,
+                  let recipe = self.activeRecipes().first(where: { $0.id == item.recipeID }),
+                  recipe.cleanByChildOnly,
+                  recipe.cleanability.allowsManualCleanup,
+                  item.cleanability.allowsManualCleanup else { return false }
+            let protected = ProgressiveCleanupPolicy.mergedProtectedChildNames(
+                recipe: recipe, config: self.loadConfig()
+            )
+            guard ChildDirectoryAccess.canClean(
+                childPath: child.path,
+                parentPath: item.path,
+                authorizedParents: Set(recipe.resolvePaths(self.paths)),
+                protectedNames: protected,
+                expectedIdentity: child.identity,
+                minimumIdleSeconds: recipe.id == "deriveddata"
+                    ? DerivedDataChildPolicy.minimumIdleSeconds : 0
+            ) else { return false }
             let deleter = TrashBatchDeleter(batchName: Self.cleanupBatchName())
             guard let deletion = try? deleter.deleteReturningResult(
-                url: URL(fileURLWithPath: path),
+                url: URL(fileURLWithPath: child.path),
                 disposition: .trash
-            ) else { return }
+            ) else { return false }
             let entry = CleanLogEntry(
                 id: UUID(),
                 timestamp: Date(),
-                itemIDs: ["\(recipeID):\(path)"],
-                itemNames: [name],
-                originalPaths: [path],
+                itemIDs: ["\(item.recipeID):\(child.path)"],
+                itemNames: [child.name],
+                originalPaths: [child.path],
                 trashPaths: [deletion.resultingURL?.path ?? ""],
                 batchID: UUID(),
                 freedBytes: deletion.freedBytes,
@@ -899,13 +897,14 @@ final class AppService {
             } catch {
                 if let moved = deletion.resultingURL,
                    FileManager.default.fileExists(atPath: moved.path),
-                   !FileManager.default.fileExists(atPath: path) {
-                    try? FileManager.default.moveItem(at: moved, to: URL(fileURLWithPath: path))
+                   !FileManager.default.fileExists(atPath: child.path) {
+                    try? FileManager.default.moveItem(at: moved, to: URL(fileURLWithPath: child.path))
                 }
-                return
+                return false
             }
             self.notifyTrashChanged()
             await self.scanNow(autoClean: false)
+            return true
         }
     }
 
@@ -1214,18 +1213,6 @@ final class AppService {
         return outcome
     }
 
-    /// 近 7 天增长台账中，父目录下一级子项的日增长率（bytes/day）。
-    private func childGrowthRates(parentPath: String, homeDirectory: String) -> [String: Double] {
-        let cutoff = Date().addingTimeInterval(-7 * 86_400)
-        let entries = (try? growthLedgerStore.entries()) ?? []
-        let prefix = parentPath.hasSuffix("/") ? parentPath : parentPath + "/"
-        var rates: [String: Double] = [:]
-        for entry in entries where entry.observedAt >= cutoff && entry.path.hasPrefix(prefix) {
-            rates[entry.path, default: 0] = max(rates[entry.path, default: 0], entry.rateBytesPerDay)
-        }
-        return rates
-    }
-
     private func firstAutoPlannedItem(
         scan: ScanResult,
         config: Config,
@@ -1476,8 +1463,29 @@ final class AppService {
         }
     }
 
+    /// 只筛选界面列表；完整扫描结果继续用于容量归因与清理决策。
+    func visibleItems(_ items: [ScanItem]) -> [ScanItem] {
+        ScanDisplayPolicy.visibleItems(items, recipes: activeRecipes())
+    }
+
+    /// 旧快照可能还没有逐子目录标志；始终以当前配方为删除权限来源。
+    func isChildOnly(_ item: ScanItem) -> Bool {
+        item.cleanByChildOnly
+            || activeRecipes().first(where: { $0.id == item.recipeID })?.cleanByChildOnly == true
+    }
+
+    func canCleanWholeItem(_ item: ScanItem) -> Bool {
+        guard let recipe = activeRecipes().first(where: { $0.id == item.recipeID }) else {
+            return false
+        }
+        return item.cleanability.allowsManualCleanup
+            && recipe.cleanability.allowsManualCleanup
+            && !item.cleanByChildOnly
+            && !recipe.cleanByChildOnly
+    }
+
     /// 当前生效的配方：系统内置 + 用户确认的项目目录配方。
-    private func activeRecipes() -> [Recipe] {
+    func activeRecipes() -> [Recipe] {
         let config = loadConfig()
         return RecipeRegistry.builtIn()
             + [PackageManagerRecipes.make(

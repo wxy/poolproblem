@@ -42,6 +42,7 @@ enum PoolLayers {
 
     static func make(
         items: [ScanItem],
+        recipes: [Recipe],
         totalBytes: Int64,
         availableBytes: Int64,
         estimatedRecipeIDs: Set<String>,
@@ -51,12 +52,15 @@ enum PoolLayers {
         let cleanable = items
             .filter {
                 $0.reclaimableBytes > 0
-                    && $0.cleanability != .watchOnly
+                    && ScanDisplayPolicy.effectiveCleanability($0, recipes: recipes).allowsManualCleanup
                     && !excludedItemIDs.contains($0.id)
                     && $0.recipeID != "trash"
                     && $0.recipeID != "own-trash-batches"
                     // 应用无法删除的项（需手动在 Xcode/Finder 清理）不进入可清理图层
-                    && !CleanupRationale.make(for: $0).isManual
+                    && !CleanupRationale.make(
+                        for: $0,
+                        cleanability: ScanDisplayPolicy.effectiveCleanability($0, recipes: recipes)
+                    ).isManual
             }
             .sorted { $0.reclaimableBytes > $1.reclaimableBytes }
         var layers: [CleanableLayer] = []
@@ -80,10 +84,13 @@ enum PoolLayers {
         let manualBytes = items
             .filter {
                 $0.reclaimableBytes > 0
-                    && $0.cleanability != .watchOnly
+                    && ScanDisplayPolicy.effectiveCleanability($0, recipes: recipes).allowsManualCleanup
                     && $0.recipeID != "trash"
                     && !excludedItemIDs.contains($0.id)
-                    && CleanupRationale.make(for: $0).isManual
+                    && CleanupRationale.make(
+                        for: $0,
+                        cleanability: ScanDisplayPolicy.effectiveCleanability($0, recipes: recipes)
+                    ).isManual
             }
             .reduce(Int64(0)) { $0 + $1.reclaimableBytes }
         return PoolLayerModel(
@@ -111,6 +118,7 @@ struct PoolTankView: View {
     let availableBytes: Int64
     let waterlineBytes: Int64
     let cleanableItems: [ScanItem]
+    let activeRecipes: [Recipe]
     let estimatedRecipeIDs: Set<String>
     let inflowLabels: [(name: String, bytes: Int64)]
     let excludedItemIDs: Set<String>
@@ -147,6 +155,7 @@ struct PoolTankView: View {
             availableBytes: availableBytes,
             waterlineBytes: waterlineBytes,
             items: cleanableItems,
+            recipes: activeRecipes,
             estimatedRecipeIDs: estimatedRecipeIDs,
             excludedItemIDs: excludedItemIDs,
             height: height
@@ -209,7 +218,11 @@ struct PoolTankView: View {
             $0.recipeID != "trash"
                 && $0.recipeID != "own-trash-batches"
                 && $0.reclaimableBytes > 0
-                && !CleanupRationale.make(for: $0).isManual
+                && ScanDisplayPolicy.effectiveCleanability($0, recipes: activeRecipes).allowsManualCleanup
+                && !CleanupRationale.make(
+                    for: $0,
+                    cleanability: ScanDisplayPolicy.effectiveCleanability($0, recipes: activeRecipes)
+                ).isManual
         }.count
         let pipeCount = min(2, max(1, (cleanableCount + 3) / 4))
         let pipes: [(xStart: CGFloat, yTop: CGFloat, xElbow: CGFloat, verticalLen: CGFloat)]
